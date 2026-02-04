@@ -1,4 +1,4 @@
-# [Project] 자율운항보트 경로 계획 및 제어 알고리즘 최적화
+# 자율운항보트 경로 계획 강화학습 환경 구현
 **Autonomous Surface Vehicle Navigation: From Reactive Avoidance to Map-Based Path Planning**
 
 본 프로젝트는 단순한 제어 파라미터 최적화의 한계를 데이터 과학적 관점에서 분석하고, 이를 극복하기 위해 **인지(Perception) - 판단(Planning) - 제어(Control)** 프로세스를 완전히 재설계한 자율운항보트 소프트웨어 스택 개발 과정을 담고 있습니다.
