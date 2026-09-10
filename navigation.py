@@ -174,16 +174,6 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
     h_cos = math.cos(boat_heading)
     h_sin = math.sin(boat_heading)
     h_vec = np.array([h_cos, h_sin], dtype=np.float32)
-    h_perp = np.array([-h_sin, h_cos], dtype=np.float32)
-    
-    # 선박 히트박스 꼭짓점 계산 (선체 길이 84px: 후미 -40px, 선수 +42px, 전폭 50px: 좌우 ±25px)
-    half_w = 25.0
-    stern_center = np.array([bx, by], dtype=np.float32) - 40.0 * h_vec
-    bow_center = np.array([bx, by], dtype=np.float32) + 42.0 * h_vec
-    s_left = stern_center - half_w * h_perp
-    s_right = stern_center + half_w * h_perp
-    b_left = bow_center - half_w * h_perp
-    b_right = bow_center + half_w * h_perp
     
     max_ang = 1.4835298641951802 if is_next_wp else 1.1344640137963142  # deg2rad(85) / deg2rad(65)
     max_dist_cut = (dist_to_target + 15) if is_next_wp else (dist_to_target - 20)
@@ -220,45 +210,39 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
     
     for i in range(len(items)):
         c1 = items[i][2]
-        c1_x, c1_y = c1[0], c1[1]
         d2_c1 = d2_items[i]
         for j in range(i + 1, len(items)):
             c2 = items[j][2]
-            c2_x, c2_y = c2[0], c2[1]
-            dx = c2_x - c1_x
-            dy = c2_y - c1_y
-            gap_w2 = dx * dx + dy * dy
+            v_gap = c2 - c1
+            gap_w = math.hypot(v_gap[0], v_gap[1])
             
-            # 최소 통과 폭 (45px: 2025.0) ~ 전방 게이트 유효 최대 폭 (280px: 78400.0)
-            if not (2025.0 <= gap_w2 <= 78400.0):
+            # 최소 통과 폭 (45px) ~ 전방 게이트 유효 최대 폭 (280px)
+            if not (45.0 <= gap_w <= 280.0):
                 continue
-            gap_w = math.sqrt(gap_w2)
                 
             # 바운딩 박스 빠른 필터링: c1과 c2 영역 바깥에 있는 장애물은 검사 대상에서 즉시 배제
-            min_x = (c1_x if c1_x < c2_x else c2_x) - 25.0
-            max_x = (c1_x if c1_x > c2_x else c2_x) + 25.0
-            min_y = (c1_y if c1_y < c2_y else c2_y) - 25.0
-            max_y = (c1_y if c1_y > c2_y else c2_y) + 25.0
+            min_x = (c1[0] if c1[0] < c2[0] else c2[0]) - 25.0
+            max_x = (c1[0] if c1[0] > c2[0] else c2[0]) + 25.0
+            min_y = (c1[1] if c1[1] < c2[1] else c2[1]) - 25.0
+            max_y = (c1[1] if c1[1] > c2[1] else c2[1]) + 25.0
             
-            bb = (ox >= min_x) & (ox <= max_x) & (oy >= min_y) & (oy <= max_y)
-            if np.any(bb):
-                mask_obs = bb & (d2_c1 > 784.0) & (d2_items[j] > 784.0)
-                if np.any(mask_obs):
-                    near_obs = obstacles[mask_obs]
-                    px = near_obs[:, 0] - c1_x
-                    py = near_obs[:, 1] - c1_y
-                    t = (px * dx + py * dy) / (gap_w2 + 1e-6)
-                    in_span = (t > 0.05) & (t < 0.95)
-                    if np.any(in_span):
-                        cand_obs = near_obs[in_span]
-                        cand_t = t[in_span]
-                        cx = c1_x + cand_t * dx
-                        cy = c1_y + cand_t * dy
-                        dist_to_gate = np.sqrt((cand_obs[:, 0] - cx)**2 + (cand_obs[:, 1] - cy)**2) - cand_obs[:, 2]
-                        if np.any(dist_to_gate < 15.0):
-                            # 게이트 사이가 제3의 장애물로 가로막혀 있으므로 단일 갭으로 취급하지 않음
-                            continue
-                            
+            mask_obs = (d2_c1 > 784.0) & (d2_items[j] > 784.0) & (ox >= min_x) & (ox <= max_x) & (oy >= min_y) & (oy <= max_y)
+            if np.any(mask_obs):
+                near_obs = obstacles[mask_obs]
+                px = near_obs[:, 0] - c1[0]
+                py = near_obs[:, 1] - c1[1]
+                t = (px * v_gap[0] + py * v_gap[1]) / (gap_w * gap_w + 1e-6)
+                in_span = (t > 0.05) & (t < 0.95)
+                if np.any(in_span):
+                    cand_obs = near_obs[in_span]
+                    cand_t = t[in_span]
+                    cx = c1[0] + cand_t * v_gap[0]
+                    cy = c1[1] + cand_t * v_gap[1]
+                    dist_to_gate = np.sqrt((cand_obs[:, 0] - cx)**2 + (cand_obs[:, 1] - cy)**2) - cand_obs[:, 2]
+                    if np.any(dist_to_gate < 15.0):
+                        # 게이트 사이가 제3의 장애물로 가로막혀 있으므로 단일 갭으로 취급하지 않음
+                        continue
+                        
             gaps_set.add((i, j))
                 
     gaps = sorted(list(gaps_set))
@@ -266,11 +250,6 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         return None
         
     valid_gaps = []
-    # 선박 기준 장애물 거리 제곱 사전 계산 (루프 내 중복 연산 제거)
-    d2_obs = (ox - bx)**2 + (oy - by)**2
-    GRID = 10
-    GRID_W = grid.shape[1]
-    GRID_H = grid.shape[0]
     
     for gi, gj in gaps:
         ang1, d1, c1, id1 = items[gi]
@@ -297,37 +276,13 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         if forward_progress < min_progress or distm > max_allowed_distm:
             continue
             
-        # 2. [조기 필터] 갭 선분 및 게이트 상대너비 검사 (비싼 다각형/거리 연산 전 즉시 배제)
-        v_gap = c2 - c1
-        gap_w = math.hypot(v_gap[0], v_gap[1])
-        u_gap = v_gap / (gap_w + 1e-6)
-        n_gate = np.array([-u_gap[1], u_gap[0]])
-        u_approach = rel / distm
-        rel_width_h = abs(float(np.dot(n_gate, h_vec)))
-        rel_width_app = abs(float(np.dot(n_gate, u_approach)))
-        rel_width = min(rel_width_h, rel_width_app)
-        effective_width = gap_w * rel_width
-        if effective_width < 42.0 or rel_width < 0.22:
-            continue
-
-        # 3. [조기 필터] 갭 기둥(c1, c2) 자체 경로 간섭 검사
-        vx = mx - bx
-        vy = my - by
-        seg2 = distm * distm
-        col_pillar = False
-        for pt in [c1, c2]:
-            t_p = ((pt[0] - bx) * vx + (pt[1] - by) * vy) / seg2
-            if 0.08 < t_p < 0.92:
-                proj_x = bx + t_p * vx
-                proj_y = by + t_p * vy
-                d_p = math.hypot(pt[0] - proj_x, pt[1] - proj_y)
-                if d_p < 30.0:
-                    col_pillar = True
-                    break
-        if col_pillar:
-            continue
-
-        # 4. [조기 필터] 그리드 맵 장애물 점유 검사
+            
+        ang_mid = math.atan2(rel[1], rel[0])
+        ang_err = wrap(ang_mid - gps_heading)
+        ang_boat_err = wrap(ang_mid - boat_heading)
+        head_score = math.exp(-(ang_boat_err / 0.8)**2)
+        head_factor = max(head_score, 0.05) ** heading_exp
+        
         gx = int(mx // GRID)
         gy = int(my // GRID)
         blocked = False
@@ -341,30 +296,37 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
                         break
             if blocked: break
         if blocked: continue
-
-        ang_mid = math.atan2(rel[1], rel[0])
-        ang_err = wrap(ang_mid - gps_heading)
-        ang_boat_err = wrap(ang_mid - boat_heading)
-        head_score = math.exp(-(ang_boat_err / 0.8)**2)
-        head_factor = max(head_score, 0.05) ** heading_exp
+        
         heading_align = math.exp(-(ang_err / 0.9)**2)
-        forward_proj = max(forward_progress, 0)**1.5
-        lateral = min(max(abs(ang2 - ang1) / (math.pi/2), 0), 1)**2
-        sym = min(max(1 - abs(abs(ang1) - abs(ang2)) / (math.pi/2), 0), 1)
+        
+        forward_proj = np.dot(rel / distm, gps_vec)
+        forward_proj = max(forward_proj, 0)**1.5
+        
+        lateral = abs(ang2 - ang1) / (np.pi/2)
+        lateral = min(max(lateral, 0), 1)**2
+        
+        sym = 1 - abs(abs(ang1) - abs(ang2)) / (np.pi/2)
+        sym = min(max(sym, 0), 1)
+        
         lateral_full = 0.6 * lateral + 0.4 * sym
         
-        # 5. [CLEAR 점수] 조기 필터를 통과한 유망 갭에 대해서만 장애물 히트박스 다각형 판정 수행
+        vx = mx - bx
+        vy = my - by
+        seg2 = distm * distm
+        d2_obs = (ox - bx)**2 + (oy - by)**2
+        
         mask = d2_obs <= (distm + 200)**2
         obs_f = obstacles[mask]
         
         if len(obs_f) > 0:
-            # 사전 계산된 d2_items 재사용 (중복 거리 연산 제거)
-            d_to_c1 = d2_items[gi][mask]
-            d_to_c2 = d2_items[gj][mask]
-            other_mask = (d_to_c1 > 784.0) & (d_to_c2 > 784.0)
+            # c1, c2(게이트 기둥) 자체는 통과 대상이므로 삼각형 내 장애물 밀도 검사에서 제외
+            d_to_c1 = (obs_f[:, 0] - c1[0])**2 + (obs_f[:, 1] - c1[1])**2
+            d_to_c2 = (obs_f[:, 0] - c2[0])**2 + (obs_f[:, 1] - c2[1])**2
+            other_mask = (d_to_c1 > 28.0**2) & (d_to_c2 > 28.0**2)
             obs_path = obs_f[other_mask]
 
             if len(obs_path) > 0:
+                # 직선 경로(boat→mid) 기준 최소 클리어런스 (기존 min_clear 유지)
                 px = obs_path[:, 0] - bx
                 py = obs_path[:, 1] - by
                 t = np.clip((px * vx + py * vy) / seg2, 0.0, 1.0)
@@ -373,71 +335,115 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
                 dists_to_seg = np.sqrt((obs_path[:, 0] - cx_seg)**2 + (obs_path[:, 1] - cy_seg)**2) - obs_path[:, 2]
                 min_clear = float(np.min(dists_to_seg))
                 
-                # 최소 안전거리(15px) 미만 진입 불가능 갭은 비싼 다각형 연산 없이 즉시 배제
-                if min_clear < 15.0:
-                    continue
+                # [CLEAR 점수] 보트-c1-c2 삼각형 영역 기반 장애물 밀도 계산
+                # 삼각형 꼭짓점: A=boat_pos, B=c1, C=c2
+                ax_, ay_ = float(bx), float(by)
+                bx_, by_ = float(c1[0]), float(c1[1])
+                cx_, cy_ = float(c2[0]), float(c2[1])
                 
-                p1_lat = (c1[0] - bx) * h_perp[0] + (c1[1] - by) * h_perp[1]
-                p2_lat = (c2[0] - bx) * h_perp[0] + (c2[1] - by) * h_perp[1]
-                c_left, c_right = (c1, c2) if p1_lat < p2_lat else (c2, c1)
+                # 삼각형 면적 (부호면적, 2배)
+                tri_area2 = abs((bx_ - ax_) * (cy_ - ay_) - (cx_ - ax_) * (by_ - ay_))
                 
-                # 선박 히트박스(stern~bow) 및 갭 진입 다각형 (s_left -> b_left -> c_left -> c_right -> b_right -> s_right)
-                poly = [s_left, b_left, c_left, c_right, b_right, s_right]
-                n_verts = 6
-                
-                opx = obs_path[:, 0]
-                opy = obs_path[:, 1]
-                r_obs = obs_path[:, 2]
-                stern_fwd = (opx - stern_center[0]) * h_vec[0] + (opy - stern_center[1]) * h_vec[1]
-                fwd_mask = stern_fwd >= -15.0
-                
-                if np.any(fwd_mask):
-                    cand_ox = opx[fwd_mask]
-                    cand_oy = opy[fwd_mask]
-                    cand_r = r_obs[fwd_mask]
-                    n_pts = len(cand_ox)
+                if tri_area2 > 1.0:  # 퇴화 삼각형(면적=0) 방지
+                    # 각 장애물의 바리센트릭 좌표 계산 (삼각형 내부: 0<=u,v, u+v<=1)
+                    opx = obs_path[:, 0]
+                    opy = obs_path[:, 1]
+                    v0x = bx_ - ax_;  v0y = by_ - ay_
+                    v1x = cx_ - ax_;  v1y = cy_ - ay_
+                    v2x = opx - ax_;  v2y = opy - ay_
                     
-                    # 1. 히트박스 및 진입 다각형 내부 판정 (Ray-casting point-in-polygon)
-                    inside = np.zeros(n_pts, dtype=bool)
-                    for k in range(n_verts):
-                        j_k = (k - 1) % n_verts
-                        xi, yi = poly[k]; xj, yj = poly[j_k]
-                        inside ^= ((yi > cand_oy) != (yj > cand_oy)) & (cand_ox < (xj - xi) * (cand_oy - yi) / (yj - yi + 1e-12) + xi)
+                    dot00 = v0x * v0x + v0y * v0y
+                    dot01 = v0x * v1x + v0y * v1y
+                    dot11 = v1x * v1x + v1y * v1y
+                    dot20 = v2x * v0x + v2y * v0y
+                    dot21 = v2x * v1x + v2y * v1y
                     
-                    # 2. 다각형 각 모서리(선분)와의 최단 거리 계산
-                    edge_dists = []
-                    for k in range(n_verts):
-                        j_k = (k + 1) % n_verts
-                        p_a = poly[k]; p_b = poly[j_k]
-                        edx = p_b[0] - p_a[0]; edy = p_b[1] - p_a[1]
-                        el2 = edx * edx + edy * edy + 1e-12
-                        t_edge = np.clip(((cand_ox - p_a[0]) * edx + (cand_oy - p_a[1]) * edy) / el2, 0.0, 1.0)
-                        edge_dists.append(np.sqrt((cand_ox - (p_a[0] + t_edge * edx))**2 + (cand_oy - (p_a[1] + t_edge * edy))**2))
+                    inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01 + 1e-12)
+                    u = (dot11 * dot20 - dot01 * dot21) * inv_denom
+                    v = (dot00 * dot21 - dot01 * dot20) * inv_denom
                     
-                    min_edge_dist = np.min(edge_dists, axis=0)
-                    clear_dist = min_edge_dist - cand_r
+                    # 삼각형 내부: u>=0, v>=0, u+v<=1
+                    # 삼각형 가장자리로부터의 거리 비율 (0=경계, 양수=내부, 음수=외부)
+                    margin = np.minimum(np.minimum(u, v), 1.0 - u - v)
                     
-                    # 3. 면적 내부 장애물 및 경계 근접 외부 장애물 가중치 판정:
-                    # - 영역 내부이거나 물리적 외경 침범: 1.0
-                    # - 근접 외부 장애물: 가우시안 감쇠 적용
-                    weights = np.where(inside | (clear_dist <= 0.0), 1.0, np.exp(-((np.maximum(0.0, clear_dist) / 20.0)**2)))
-                    weights = np.where(clear_dist > 45.0, 0.0, weights)
-                    weights *= np.clip(cand_r / 17.0, 0.5, 2.0)
-                    obs_density = float(np.sum(weights))
+                    # 삼각형 내부(margin>=0) 및 근접 외부(margin>=-0.15) 장애물에 가우시안 가중치
+                    # margin이 클수록(삼각형 깊숙이) 높은 침범 가중치
+                    near_mask = margin > -0.15
+                    if np.any(near_mask):
+                        m_vals = margin[near_mask]
+                        r_obs = obs_path[near_mask, 2]
+                        # 내부 장애물: 가중치 1.0, 경계 근처~외부: 가우시안 감쇠
+                        inside = m_vals >= 0
+                        weights = np.where(inside, 1.0, np.exp(-((m_vals / 0.08)**2)))
+                        # 장애물 반경이 클수록 더 위험
+                        weights *= np.clip(r_obs / 17.0, 0.5, 2.0)
+                        obs_density = float(np.sum(weights))
+                    else:
+                        obs_density = 0.0
                 else:
                     obs_density = 0.0
                 
                 clear_score = float(math.exp(-obs_density / 1.5))
             else:
+                min_clear = 9999.0
                 clear_score = 1.0
-        else:
-            clear_score = 1.0
             
-        near_clear_penalty = 1.0
-        depth_pen = 1.0
+            near_clear_penalty = 1.0
+            depth_pen = 1.0
+        else:
+            min_clear = 9999.0
+            near_clear_penalty = 1.0
+            depth_pen = 1.0
+            clear_score = 1.0
+                
+        min_clear = max(min_clear, 0)
+        if min_clear < 15.0:
+            continue
+
+        # 갭 기둥(c1, c2) 자체 경로 간섭 검사:
+        # 두 장애물이 배 진행방향과 평행(앞뒤)하게 서 있어서 앞 기둥이 배->중점(mid) 진입로를 가로막는 경우 즉시 배제
+        col_pillar = False
+        for pt in [c1, c2]:
+            t_p = ((pt[0] - bx) * vx + (pt[1] - by) * vy) / seg2
+            if 0.08 < t_p < 0.92:
+                proj_x = bx + t_p * vx
+                proj_y = by + t_p * vy
+                d_p = math.hypot(pt[0] - proj_x, pt[1] - proj_y)
+                if d_p < 30.0:
+                    col_pillar = True
+                    break
+        if col_pillar:
+            continue
+            
+        # 갭 선분(c1->c2)의 단위 벡터 및 게이트 법선 벡터
+        v_gap = c2 - c1
+        gap_w = math.hypot(v_gap[0], v_gap[1])
+        u_gap = v_gap / (gap_w + 1e-6)
+        n_gate = np.array([-u_gap[1], u_gap[0]])
+        u_approach = rel / distm
+        
+        # 현재 배가 바라보는 헤딩(h_vec) 및 배에서 갭으로 들어가는 진입선(u_approach) 기준 상대너비
+        # 배의 진행/진입 방향에 수직(직교)인 게이트일수록 상대너비 = 1.0 (100% 개방)
+        # 배의 진행/진입 방향과 평행할수록 상대너비 = 0.0 (완전 닫힘)
+        rel_width_h = abs(float(np.dot(n_gate, h_vec)))
+        rel_width_app = abs(float(np.dot(n_gate, u_approach)))
+        rel_width = min(rel_width_h, rel_width_app)
+        
+        # 체감 유효 통과 폭 (Effective Aperture Width)
+        effective_width = gap_w * rel_width
+        
+        # 배의 반경이 25px(전폭 50px)이므로, 유효 통과폭이 42px 미만이거나
+        # 선박 진행방향과 거의 평행(상대너비 0.22 미만, 약 13도 이내)한 통과 불가능 갭은 원천 배제
+        if effective_width < 42.0 or rel_width < 0.22:
+            continue
+            
+        # [WIDTH 파라미터 (기존 Clear에서 이름 변경)] 게이트 유효 개방 상대너비 점수
         width_score = rel_width
         width_factor = width_score ** width_exp
+        
+        # [CLEAR 파라미터 (신규 추가)] 직선 경로 상 장애물 밀도 및 클리어런스 점수
         clear_factor = clear_score ** clear_exp
+        
         width_w = min(gap_w / 90.0, 1.0)
         
         sc = (heading_align**align_exp) * head_factor * (forward_proj**fwd_exp) * (lateral_full**0.5) * width_factor * (width_w**0.2) * clear_factor * depth_pen * near_clear_penalty
