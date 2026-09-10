@@ -168,6 +168,7 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
     width_exp = params.get('width_exp', 8.0) if params else 8.0
     clear_exp = params.get('clear_exp', 3.0) if params else 3.0
     heading_exp = params.get('heading_exp', params.get('boat_align_exp', params.get('head_exp', 4.0))) if params else 4.0
+    perp_exp = params.get('perp_exp', 2.0) if params else 2.0
 
     gps_vec = np.array([math.cos(gps_heading), math.sin(gps_heading)])
     
@@ -444,9 +445,14 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         # [CLEAR 파라미터 (신규 추가)] 직선 경로 상 장애물 밀도 및 클리어런스 점수
         clear_factor = clear_score ** clear_exp
         
+        # [PERPENDICULAR 파라미터] 절대각도 기준 장애물 쌍이 위아래로 얼마나 수직(Y축 방향)인지 평가
+        # 두 장애물이 위아래로 완전히 수직이면 |u_gap[1]| = 1.0, 좌우 수평이면 0.0
+        perp_score = abs(float(u_gap[1]))
+        perp_factor = max(perp_score, 0.05) ** perp_exp
+        
         width_w = min(gap_w / 90.0, 1.0)
         
-        sc = (heading_align**align_exp) * head_factor * (forward_proj**fwd_exp) * (lateral_full**0.5) * width_factor * (width_w**0.2) * clear_factor * depth_pen * near_clear_penalty
+        sc = (heading_align**align_exp) * head_factor * (forward_proj**fwd_exp) * (lateral_full**0.5) * width_factor * (width_w**0.2) * clear_factor * perp_factor * depth_pen * near_clear_penalty
         
         if sc > 0:
             valid_gaps.append({
@@ -460,7 +466,8 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
                     "Heading": {"raw": float(head_score), "w": float(heading_exp)},
                     "Forward": {"raw": float(forward_proj), "w": float(fwd_exp)},
                     "Width": {"raw": float(width_score), "w": float(width_exp)},
-                    "Clear": {"raw": float(clear_score), "w": float(clear_exp)}
+                    "Clear": {"raw": float(clear_score), "w": float(clear_exp)},
+                    "Perpend": {"raw": float(perp_score), "w": float(perp_exp)}
                 }
             })
             
