@@ -174,6 +174,12 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
     h_cos = math.cos(boat_heading)
     h_sin = math.sin(boat_heading)
     h_vec = np.array([h_cos, h_sin], dtype=np.float32)
+    h_perp = np.array([-h_sin, h_cos], dtype=np.float32)
+    
+    # 선박 후미부 양끝점 계산 (선체 길이 84px의 절반 후방 -40px, 양현 폭 ~42px의 절반 ±21px)
+    stern_center = np.array([bx, by], dtype=np.float32) - 40.0 * h_vec
+    s_left = stern_center - 21.0 * h_perp
+    s_right = stern_center + 21.0 * h_perp
     
     max_ang = 1.4835298641951802 if is_next_wp else 1.1344640137963142  # deg2rad(85) / deg2rad(65)
     max_dist_cut = (dist_to_target + 15) if is_next_wp else (dist_to_target - 20)
@@ -335,51 +341,67 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
                 dists_to_seg = np.sqrt((obs_path[:, 0] - cx_seg)**2 + (obs_path[:, 1] - cy_seg)**2) - obs_path[:, 2]
                 min_clear = float(np.min(dists_to_seg))
                 
-                # [CLEAR 점수] 보트-c1-c2 삼각형 영역 기반 장애물 밀도 계산
-                # 삼각형 꼭짓점: A=boat_pos, B=c1, C=c2
-                ax_, ay_ = float(bx), float(by)
-                bx_, by_ = float(c1[0]), float(c1[1])
-                cx_, cy_ = float(c2[0]), float(c2[1])
+                # [CLEAR 점수] 선박 후미부 양끝점(s_left, s_right)과 갭 기둥(c1, c2)을 잇는 사다리꼴 영역 기반 판정
+                # c1, c2의 좌우 정렬 (배 진행 횡방향 h_perp 기준)
+                p1_lat = (c1[0] - bx) * h_perp[0] + (c1[1] - by) * h_perp[1]
+                p2_lat = (c2[0] - bx) * h_perp[0] + (c2[1] - by) * h_perp[1]
+                if p1_lat < p2_lat:
+                    c_left, c_right = c1, c2
+                else:
+                    c_left, c_right = c2, c1
                 
-                # 삼각형 면적 (부호면적, 2배)
-                tri_area2 = abs((bx_ - ax_) * (cy_ - ay_) - (cx_ - ax_) * (by_ - ay_))
+                # 사다리꼴 꼭짓점 순환 (s_left -> c_left -> c_right -> s_right)
+                poly = [s_left, c_left, c_right, s_right]
                 
-                if tri_area2 > 1.0:  # 퇴화 삼각형(면적=0) 방지
-                    # 각 장애물의 바리센트릭 좌표 계산 (삼각형 내부: 0<=u,v, u+v<=1)
-                    opx = obs_path[:, 0]
-                    opy = obs_path[:, 1]
-                    v0x = bx_ - ax_;  v0y = by_ - ay_
-                    v1x = cx_ - ax_;  v1y = cy_ - ay_
-                    v2x = opx - ax_;  v2y = opy - ay_
+                # 후미 후방(진행 반대 방향 15px 이상 뒤) 이미 통과한 장애물은 제외
+                opx = obs_path[:, 0]
+                opy = obs_path[:, 1]
+                r_obs = obs_path[:, 2]
+                stern_fwd = (opx - stern_center[0]) * h_vec[0] + (opy - stern_center[1]) * h_vec[1]
+                fwd_mask = stern_fwd >= -15.0
+                
+                if np.any(fwd_mask):
+                    cand_ox = opx[fwd_mask]
+                    cand_oy = opy[fwd_mask]
+                    cand_r = r_obs[fwd_mask]
+                    n_pts = len(cand_ox)
                     
-                    dot00 = v0x * v0x + v0y * v0y
-                    dot01 = v0x * v1x + v0y * v1y
-                    dot11 = v1x * v1x + v1y * v1y
-                    dot20 = v2x * v0x + v2y * v0y
-                    dot21 = v2x * v1x + v2y * v1y
+                    # 1. 사다리꼴 내부 판정 (Ray-casting point-in-polygon)
+                    inside = np.zeros(n_pts, dtype=bool)
+                    for k in range(4):
+                        j = (k - 1) % 4
+                        xi, yi = poly[k]
+                        xj, yj = poly[j]
+                        cond = ((yi > cand_oy) != (yj > cand_oy)) & (cand_ox < (xj - xi) * (cand_oy - yi) / (yj - yi + 1e-12) + xi)
+                        inside ^= cond
                     
-                    inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01 + 1e-12)
-                    u = (dot11 * dot20 - dot01 * dot21) * inv_denom
-                    v = (dot00 * dot21 - dot01 * dot20) * inv_denom
+                    # 2. 사다리꼴 각 모서리(선분)와의 최단 거리 계산
+                    edge_dists = []
+                    for k in range(4):
+                        j = (k + 1) % 4
+                        p_a = poly[k]
+                        p_b = poly[j]
+                        edx = p_b[0] - p_a[0]
+                        edy = p_b[1] - p_a[1]
+                        el2 = edx * edx + edy * edy + 1e-12
+                        t_edge = np.clip(((cand_ox - p_a[0]) * edx + (cand_oy - p_a[1]) * edy) / el2, 0.0, 1.0)
+                        proj_x = p_a[0] + t_edge * edx
+                        proj_y = p_a[1] + t_edge * edy
+                        d_edge = np.sqrt((cand_ox - proj_x)**2 + (cand_oy - proj_y)**2)
+                        edge_dists.append(d_edge)
                     
-                    # 삼각형 내부: u>=0, v>=0, u+v<=1
-                    # 삼각형 가장자리로부터의 거리 비율 (0=경계, 양수=내부, 음수=외부)
-                    margin = np.minimum(np.minimum(u, v), 1.0 - u - v)
+                    min_edge_dist = np.min(edge_dists, axis=0)
+                    clear_dist = min_edge_dist - cand_r  # 장애물 외경 기준 사다리꼴 경계까지의 여유 거리
                     
-                    # 삼각형 내부(margin>=0) 및 근접 외부(margin>=-0.15) 장애물에 가우시안 가중치
-                    # margin이 클수록(삼각형 깊숙이) 높은 침범 가중치
-                    near_mask = margin > -0.15
-                    if np.any(near_mask):
-                        m_vals = margin[near_mask]
-                        r_obs = obs_path[near_mask, 2]
-                        # 내부 장애물: 가중치 1.0, 경계 근처~외부: 가우시안 감쇠
-                        inside = m_vals >= 0
-                        weights = np.where(inside, 1.0, np.exp(-((m_vals / 0.08)**2)))
-                        # 장애물 반경이 클수록 더 위험
-                        weights *= np.clip(r_obs / 17.0, 0.5, 2.0)
-                        obs_density = float(np.sum(weights))
-                    else:
-                        obs_density = 0.0
+                    # 3. 면적 내부 장애물 및 경계 근접 외부 장애물 가중치 판정:
+                    # - 사다리꼴 내부이거나, 장애물 물리 외경이 사다리꼴 경계를 침범(clear_dist <= 0): 가중치 1.0
+                    # - 사다리꼴 바깥이지만 경계에 가까운 장애물: 거리(clear_dist)에 따른 가우시안 감쇠 적용
+                    weights = np.where(inside | (clear_dist <= 0.0), 1.0, np.exp(-((np.maximum(0.0, clear_dist) / 20.0)**2)))
+                    # 45px 이상 충분히 떨어진 장애물은 위험도 0 처리
+                    weights = np.where(clear_dist > 45.0, 0.0, weights)
+                    # 장애물 반경이 클수록 비례하여 위험 가중치 부여
+                    weights *= np.clip(cand_r / 17.0, 0.5, 2.0)
+                    obs_density = float(np.sum(weights))
                 else:
                     obs_density = 0.0
                 

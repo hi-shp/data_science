@@ -9,10 +9,10 @@
   "em_enter": 125.0,
   "em_exit": 160.0,
   "em_hold_frames": 18,
-  "align_exp": 3,
-  "heading_exp": 6.0,
-  "fwd_exp": 3,
-  "width_exp": 3,
-  "clear_exp": 8,
+  "align_exp": 5,
+  "heading_exp": 8.0,
+  "fwd_exp": 4,
+  "width_exp": 6,
+  "clear_exp": 9,
   "wp_switch_thresh": 1.1
 }
