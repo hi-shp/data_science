@@ -1,5 +1,5 @@
 {
-  "steer_gain": 1.1,
+  "steer_gain": 1,
   "steer_alpha": 0.3515,
   "mom_coeff": 0.00665,
   "pwm_rng": 270.36,
@@ -12,7 +12,7 @@
   "align_exp": 5,
   "heading_exp": 8.0,
   "fwd_exp": 4,
-  "width_exp": 6,
+  "width_exp": 3,
   "clear_exp": 9,
   "wp_switch_thresh": 1.1
 }

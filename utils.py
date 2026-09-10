@@ -117,7 +117,7 @@ def make_bezier_path(boat_pos, boat_heading, goal, obstacles=None, boat_radius=2
                     side = (obs_pos[0] - p0[0]) * n_dir[0] + (obs_pos[1] - p0[1]) * n_dir[1]
                     push_dir = -n_dir if side >= 0 else n_dir
                     
-                push_mag = min(160.0, encroach * 1.4)
+                push_mag = min(160.0, encroach * 1.6)
                 w1 = max(0.2, 1.0 - t_idx * 0.7)
                 w2 = max(0.2, t_idx * 0.7 + 0.3)
                 

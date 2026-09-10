@@ -1319,4 +1319,18 @@ class EnvRenderer:
         d2t_txt = self.small_font.render(f"Target: {d2t_m:.1f} m", True, (50, 230, 120))
         hud_surf.blit(d2t_txt, (10, 92))
         
+        # 실시간 FPS 및 현재 프레임 표시 (작게 표출)
+        fps_val = env.clock.get_fps() if hasattr(env, 'clock') else 60.0
+        if fps_val <= 0.1:
+            fps_val = 60.0
+        fps_col = (0, 230, 180) if fps_val >= 50.0 else ((255, 190, 40) if fps_val >= 30.0 else (255, 70, 60))
+        fps_txt = self.micro_font.render(f"{fps_val:.0f} FPS", True, fps_col)
+        hud_surf.blit(fps_txt, (hud_w - 55, 9))
+        
         env.screen.blit(hud_surf, (hud_x, hud_y))
+        
+        # 화면 최상단 구석 실시간 프레임 인디케이터 (Screen Corner Frame/FPS)
+        frame_num = getattr(env, 'frame', 0)
+        corner_str = f"{fps_val:.1f} FPS (F:{frame_num})"
+        corner_surf = self.micro_font.render(corner_str, True, (160, 215, 255))
+        env.screen.blit(corner_surf, (env.w - corner_surf.get_width() - 15, 1))
