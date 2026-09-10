@@ -260,7 +260,7 @@ def run():
                         env.bezier_path = make_bezier_path(env.boat_pos, env.boat_heading, goal, obstacles=env.dynamic_obstacles, boat_radius=env.boat_radius, boat_speed=boat_spd)
                         
                     if env.bezier_path is not None:
-                        env.pursuit_target = pure_pursuit(env.bezier_path, env.boat_pos, lookahead=70)
+                        env.pursuit_target = pure_pursuit(env.bezier_path, env.boat_pos, lookahead=60)
                         
                     if env.current_wp is not None and env.next_wp is not None:
                         if env.bezier_path is not None and len(env.bezier_path) >= 2:
