@@ -176,10 +176,14 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
     h_vec = np.array([h_cos, h_sin], dtype=np.float32)
     h_perp = np.array([-h_sin, h_cos], dtype=np.float32)
     
-    # 선박 후미부 양끝점 계산 (선체 길이 84px의 절반 후방 -40px, 양현 폭 ~42px의 절반 ±21px)
+    # 선박 히트박스 꼭짓점 계산 (선체 길이 84px: 후미 -40px, 선수 +42px, 전폭 50px: 좌우 ±25px)
+    half_w = 25.0
     stern_center = np.array([bx, by], dtype=np.float32) - 40.0 * h_vec
-    s_left = stern_center - 21.0 * h_perp
-    s_right = stern_center + 21.0 * h_perp
+    bow_center = np.array([bx, by], dtype=np.float32) + 42.0 * h_vec
+    s_left = stern_center - half_w * h_perp
+    s_right = stern_center + half_w * h_perp
+    b_left = bow_center - half_w * h_perp
+    b_right = bow_center + half_w * h_perp
     
     max_ang = 1.4835298641951802 if is_next_wp else 1.1344640137963142  # deg2rad(85) / deg2rad(65)
     max_dist_cut = (dist_to_target + 15) if is_next_wp else (dist_to_target - 20)
@@ -341,7 +345,7 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
                 dists_to_seg = np.sqrt((obs_path[:, 0] - cx_seg)**2 + (obs_path[:, 1] - cy_seg)**2) - obs_path[:, 2]
                 min_clear = float(np.min(dists_to_seg))
                 
-                # [CLEAR 점수] 선박 후미부 양끝점(s_left, s_right)과 갭 기둥(c1, c2)을 잇는 사다리꼴 영역 기반 판정
+                # [CLEAR 점수] 선박 히트박스(stern~bow) 기준 장애물 양끝(c_left, c_right)까지의 직진 진입 다각형 기반 판정
                 # c1, c2의 좌우 정렬 (배 진행 횡방향 h_perp 기준)
                 p1_lat = (c1[0] - bx) * h_perp[0] + (c1[1] - by) * h_perp[1]
                 p2_lat = (c2[0] - bx) * h_perp[0] + (c2[1] - by) * h_perp[1]
@@ -350,8 +354,9 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
                 else:
                     c_left, c_right = c2, c1
                 
-                # 사다리꼴 꼭짓점 순환 (s_left -> c_left -> c_right -> s_right)
-                poly = [s_left, c_left, c_right, s_right]
+                # 선박 히트박스 및 갭 진입 영역 다각형 (s_left -> b_left -> c_left -> c_right -> b_right -> s_right)
+                poly = [s_left, b_left, c_left, c_right, b_right, s_right]
+                n_verts = len(poly)
                 
                 # 후미 후방(진행 반대 방향 15px 이상 뒤) 이미 통과한 장애물은 제외
                 opx = obs_path[:, 0]
@@ -366,19 +371,19 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
                     cand_r = r_obs[fwd_mask]
                     n_pts = len(cand_ox)
                     
-                    # 1. 사다리꼴 내부 판정 (Ray-casting point-in-polygon)
+                    # 1. 히트박스 및 진입 다각형 내부 판정 (Ray-casting point-in-polygon)
                     inside = np.zeros(n_pts, dtype=bool)
-                    for k in range(4):
-                        j = (k - 1) % 4
+                    for k in range(n_verts):
+                        j = (k - 1) % n_verts
                         xi, yi = poly[k]
                         xj, yj = poly[j]
                         cond = ((yi > cand_oy) != (yj > cand_oy)) & (cand_ox < (xj - xi) * (cand_oy - yi) / (yj - yi + 1e-12) + xi)
                         inside ^= cond
                     
-                    # 2. 사다리꼴 각 모서리(선분)와의 최단 거리 계산
+                    # 2. 다각형 각 모서리(선분)와의 최단 거리 계산
                     edge_dists = []
-                    for k in range(4):
-                        j = (k + 1) % 4
+                    for k in range(n_verts):
+                        j = (k + 1) % n_verts
                         p_a = poly[k]
                         p_b = poly[j]
                         edx = p_b[0] - p_a[0]
@@ -391,11 +396,11 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
                         edge_dists.append(d_edge)
                     
                     min_edge_dist = np.min(edge_dists, axis=0)
-                    clear_dist = min_edge_dist - cand_r  # 장애물 외경 기준 사다리꼴 경계까지의 여유 거리
+                    clear_dist = min_edge_dist - cand_r  # 장애물 외경 기준 다각형 경계까지의 여유 거리
                     
                     # 3. 면적 내부 장애물 및 경계 근접 외부 장애물 가중치 판정:
-                    # - 사다리꼴 내부이거나, 장애물 물리 외경이 사다리꼴 경계를 침범(clear_dist <= 0): 가중치 1.0
-                    # - 사다리꼴 바깥이지만 경계에 가까운 장애물: 거리(clear_dist)에 따른 가우시안 감쇠 적용
+                    # - 영역 내부이거나, 장애물 물리 외경이 다각형 경계를 침범(clear_dist <= 0): 가중치 1.0
+                    # - 영역 바깥이지만 경계에 가까운 장애물: 거리(clear_dist)에 따른 가우시안 감쇠 적용
                     weights = np.where(inside | (clear_dist <= 0.0), 1.0, np.exp(-((np.maximum(0.0, clear_dist) / 20.0)**2)))
                     # 45px 이상 충분히 떨어진 장애물은 위험도 0 처리
                     weights = np.where(clear_dist > 45.0, 0.0, weights)
