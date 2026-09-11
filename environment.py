@@ -34,10 +34,10 @@ class BoatEnv:
             'em_exit': 160.0,
             'em_hold_frames': 18,
             'align_exp': 6.0,
-            'heading_exp': 2.0,
-            'fwd_exp': 4.0,
-            'width_exp': 8.0,
-            'clear_exp': 3.0,
+            'heading_exp': 4.0,
+            'fwd_exp': 6.0,
+            'width_exp': 4.0,
+            'clear_exp': 4.0,
             'wp_switch_thresh': 1.1,
             'perp_exp': 2.0
         }
