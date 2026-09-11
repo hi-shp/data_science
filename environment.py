@@ -47,8 +47,8 @@ class BoatEnv:
         self.lidar_range = 320
         self.rel_angles = np.linspace(-np.pi, np.pi, self.lidar_beams, endpoint=False)
         
-        self.mass = 14
-        self.inertia = 4.8
+        self.mass = 10
+        self.inertia = 5
         self.drag = 0.2
         self.rot_drag = 0.8
         self.boat_radius = 25
@@ -553,8 +553,8 @@ class BoatEnv:
         heading_error = wrap(heading_target - self.boat_heading)
 
         # 거리에 따라 연속적으로 조향 및 회피력 스케일링
-        clear_ratio = np.clip((min_front_dist - 50.0) / 350.0, 0.0, 0.5)
-        steer_gain = self.params['steer_gain'] + (1.0 - clear_ratio) * 0.12
+        clear_ratio = np.clip((min_front_dist - 150.0) / 50.0, 0.0, 1)
+        steer_gain = self.params['steer_gain'] + (1.0 - clear_ratio) * 0.4
         avoid_multiplier = self.params['avoid_normal'] + (1.0 - clear_ratio) * (self.params['avoid_em'] * 0.40)
             
         # 각속도 댐핑을 강화하여 관성 오버슈트 및 휙휙 도는 회전 억제
@@ -611,9 +611,9 @@ class BoatEnv:
                     avoid_dir = -float(np.sign(closest_ang)) if abs(closest_ang) > 0.04 else (-1.0 if d_left >= d_right else 1.0)
                     avoid_steer = avoid_dir * (0.75 + 0.25 * urgency)
                     if min_dist < CRIT_DIST - 5.0:  # 50px 이하 극근접 충돌 위험 시 100% 완전 회피
-                        steer_cmd = avoid_dir * 1.0
+                        steer_cmd = avoid_dir * 0.3
                     else:
-                        avoid_weight = min(0.90, urgency * front_f)
+                        avoid_weight = min(0.50, urgency * front_f)
                         steer_cmd = (1.0 - avoid_weight) * steer_f + avoid_weight * avoid_steer
                 else:
                     # [중거리(55px ~ 95px) 접근 구간] 양측 밸런싱을 적용하여 크게 돌지 않고 틈새 중앙으로 안정적 진입
