@@ -311,7 +311,7 @@ def fig3_gap_navigation_bezier_pipeline():
     summary_box = patches.FancyBboxPatch((0.08, 0.02), 0.84, 0.07,
                                         boxstyle="round,pad=0.01", ec='#48CAE4', fc='#1C2541', lw=1.5)
     ax.add_patch(summary_box)
-    ax.text(0.5, 0.055, "핵심 성과: 게이트 폐쇄(Gate Closure) 원천 해결 및 조타 채터링 54% 저감으로 10,000회 시뮬레이션 성공률 99.2% 달성",
+    ax.text(0.5, 0.055, "개념 제안 목표: 좁은 부표 사이 게이트 폐쇄 현상을 완화하고 조타 채터링을 줄여보고자 하는 아이디어 시각화",
             ha='center', va='center', color='#FFD166', fontsize=11.5, fontweight='bold')
 
     plt.tight_layout()
@@ -329,7 +329,7 @@ def fig4_10000_benchmark_and_comparative_dynamics():
     # [Top Subplot] Full 100m Trajectory Comparison
     ax_top = fig.add_subplot(gs[0, :])
     ax_top.set_facecolor('#152238')
-    ax_top.set_title("[A] 10,000회 벤치마크 환경 대표 주행 궤적 및 선체 헤딩(Boat Poses) 비교",
+    ax_top.set_title("[A] 단순 가상 환경 10,000회 시뮬레이션 대표 궤적 (알고리즘 논리 점검용, 실제 수조와 차이 존재)",
                      color='#FFFFFF', fontsize=13.5, fontweight='bold', pad=12)
     ax_top.set_xlim(-2, 102)
     ax_top.set_ylim(-2, 22)
@@ -391,7 +391,7 @@ def fig4_10000_benchmark_and_comparative_dynamics():
     # [Bottom-Left] 10,000 Runs Success Rate Comparison Bar Chart
     ax_b = fig.add_subplot(gs[1, 0])
     ax_b.set_facecolor('#1C2541')
-    ax_b.set_title("[B] 10,000회 주행 검증 성공률 비교", color='#FFFFFF', fontsize=12.5, fontweight='bold')
+    ax_b.set_title("[B] 가상 환경 10,000회 시뮬레이션 결과 (참고용)", color='#FFFFFF', fontsize=12.5, fontweight='bold')
     categories = ['완주 성공률', '충돌 사고율', '타임아웃율']
     legacy_vals = [46.8, 44.1, 9.1]
     gap_vals = [99.2, 0.6, 0.2]
@@ -601,7 +601,7 @@ def fig6_digital_twin_and_ros2_deployment():
     for bx, by in [(20, 8), (20, 12), (40, 7), (40, 11), (58, 10)]:
         ax2.add_patch(Circle((bx, by), 0.6, ec='#FF4D4D', fc='#E63946', lw=1.5))
 
-    ax2.text(35, 2.5, "상관도 검증 결과: 궤적 결정계수 R^2 = 0.94, 평균 횡오차 0.12m 달성\n(시뮬레이터에서 튜닝된 파라미터가 실선에 무보정 100% 동작)",
+    ax2.text(35, 2.5, "단순 수조 테스트 비교: GPS 궤적과 시뮬레이션 경향성 비교 (R^2 = 0.94)\n(실제 수조에서는 물결과 외란이 훨씬 복잡하므로 지속적인 보완 필요)",
              ha='center', color='#FFFFFF', fontsize=10.5,
              bbox=dict(boxstyle='round,pad=0.3', fc='#0B132B', ec='#52B788', lw=1.5))
 
@@ -624,31 +624,31 @@ def fig7_academic_poster_summary_board():
     header_box = patches.FancyBboxPatch((0.02, 0.88), 0.96, 0.10,
                                        boxstyle="round,pad=0.015", ec='#00F0FF', fc='#152238', lw=2.5)
     ax.add_patch(header_box)
-    ax.text(0.5, 0.945, "KABOAT 자율운항보트 디지털 트윈 시뮬레이터 및 갭네비게이션 알고리즘 개발",
+    ax.text(0.5, 0.945, "KABOAT 자율운항보트 파이썬 시뮬레이터 및 갭네비게이션 개념 제안",
             ha='center', va='center', color='#FFFFFF', fontsize=18, fontweight='bold')
-    ax.text(0.5, 0.905, "물리 엔진 기반 3-DOF 선박 동역학 모델링과 3차 베지에 궤적 제어를 통한 게이트 폐쇄 해결 및 10,000회 완주 검증",
+    ax.text(0.5, 0.905, "게이트 폐쇄 문제를 해결하기 위한 갭네비게이션 개념 제안과 파이썬 시뮬레이션 시각화 연구",
             ha='center', va='center', color='#48CAE4', fontsize=12.5)
 
     # 5 Vertical Columns for Poster Sections
     sections = [
-        ("I. 연구 배경 및 문제 정의",
-         "• 실선 수조 테스트 한계:\n  - 고비용, 침수/파손 위험\n  - 외란 재현성 부족\n\n• 기존 광선차폐 결함:\n  - 안전반경 중첩으로 인한\n    게이트 폐쇄(Gate Closure)\n  - 조타기 극심한 채터링 발생\n  - 외곽 벽면 충돌 빈발",
+        ("I. 연구 배경 및 계기",
+         "• 실선 수조 테스트의 어려움:\n  - 고비용, 침수/파손 위험\n  - 매번 달라지는 물결 환경\n\n• 기존 방식에서 마주친 문제:\n  - 부표 사이가 벽으로 막히는\n    게이트 폐쇄(Gate Closure)\n  - 조타기가 마구 떨리는 채터링\n  - 외곽 벽면 충돌 발생",
          '#E63946', 0.11),
 
-        ("II. 3-DOF 시뮬레이터",
-         "• 선박 운동역학 구현:\n  - Surge, Sway, Yaw 반영\n  - 방향타 서보 지연(60°/s)\n  - 유체 감쇠 및 횡슬립 표류\n\n• 라이다 센서 모델링:\n  - YDLIDAR TG15 Raycast\n  - 실시간 HUD 텔레메트리\n  - 7200px 축소 미니맵 탑재",
+        ("II. 자체 시뮬레이터 개발",
+         "• 눈으로 보기 위해 직접 제작:\n  - Surge, Sway, Yaw 반영\n  - 방향타 서보 지연(60°/s)\n  - 간단한 유체 감쇠/표류 반영\n\n• 라이다 센서 가상 모델링:\n  - YDLIDAR TG15 Raycast\n  - 실시간 HUD 계기판 표시\n  - 7200px 축소 미니맵 탑재",
          '#00B4D8', 0.305),
 
-        ("III. 갭네비게이션 알고리즘",
-         "• 핵심 파이프라인:\n  1. DBSCAN 장애물 군집화\n  2. 폭 1.4m 안전 Gap 추출\n  3. 다목적 비용함수 평가\n  4. 3차 베지에 곡선 합성\n  5. Pure Pursuit 전방 추종\n\n• 지터 억제 Slew Limiter:\n  - 조타 채터링 54% 저감",
+        ("III. 갭네비게이션 아이디어",
+         "• 단순하고 직관적인 접근:\n  1. DBSCAN 부표 묶기\n  2. 부표 사이 빈틈(Gap) 찾기\n  3. 목표 방향 갭 점수 계산\n  4. 3차 베지에로 부드럽게 연결\n  5. Pure Pursuit 전방 추종\n\n• 지터 억제 Slew Limiter:\n  - 조타 채터링 54% 저감 확인",
          '#48CAE4', 0.50),
 
-        ("IV. 10,000회 벤치마크",
-         "• 대규모 정량 검증:\n  - 성공률: 46.8% -> 99.2%\n  - 충돌률: 44.1% -> 0.6%\n  - 타각 표준편차: 13.1°\n\n• 파라미터 스윕 최적화:\n  - L_d = 1.2m, R_obs = 1.0m\n  - 파레토 프론티어 도출\n  - 완주시간 58.4초 확보",
+        ("IV. 가상 환경 반복 테스트",
+         "• 단순 가상 환경 10,000회:\n  - 기존 대비 게이트 통과 개선\n  - 조타각 표준편차: 13.1°\n  - (실제 수조와는 차이 존재)\n\n• 파라미터 튜닝 참고:\n  - L_d = 1.2m, R_obs = 1.0m\n  - 파레토 경향성 관찰\n  - 완주시간과 안전의 절충점",
          '#52B788', 0.695),
 
-        ("V. 실선 ROS 2 배포 & 결론",
-         "• 디지털 트윈 1:1 매핑:\n  - Jetson Orin Nano 탑재\n  - TG15, IMU, GPS 융합\n  - 실선 수조 검증 R^2 = 0.94\n\n• 기대 효과:\n  - 알고리즘 사전 100% 검증\n  - 전국대회 우승 경쟁력 확보\n  - 학술 및 산업 확장성 입증",
+        ("V. 실선 ROS 2 배포 & 고찰",
+         "• 가상 환경과 실선 연계:\n  - Jetson Orin Nano 탑재\n  - TG15, IMU, GPS 융합\n  - 단순 수조 예비 주행 테스트\n\n• 한계 및 향후 과제:\n  - 수면 난반사 및 조류 극복\n  - C++ 포팅 및 실시간성 개선\n  - 학부 수준 개념 제안 단계",
          '#FFB703', 0.89)
     ]
 
