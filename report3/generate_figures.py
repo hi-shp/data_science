@@ -19,7 +19,12 @@ import matplotlib.gridspec as gridspec
 plt.rcParams['font.family'] = 'Noto Sans CJK JP'
 plt.rcParams['font.monospace'] = ['Noto Sans Mono CJK JP', 'DejaVu Sans Mono']
 plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 11
+plt.rcParams['font.size'] = 12
+plt.rcParams['axes.titlesize'] = 14
+plt.rcParams['axes.labelsize'] = 12
+plt.rcParams['xtick.labelsize'] = 11
+plt.rcParams['ytick.labelsize'] = 11
+plt.rcParams['legend.fontsize'] = 10.5
 
 OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -59,8 +64,8 @@ def fig1_system_architecture():
         box = patches.FancyBboxPatch((0.06, y_pos - 0.065), 0.38, 0.075,
                                     boxstyle="round,pad=0.01", ec=color, fc='#111827', lw=1.8)
         ax.add_patch(box)
-        ax.text(0.08, y_pos - 0.02, title, color='#FFFFFF', fontsize=10.5, fontweight='bold', va='center')
-        ax.text(0.08, y_pos - 0.05, desc, color=color if color == '#E63946' else '#A0AEC0', fontsize=9, va='center')
+        ax.text(0.08, y_pos - 0.02, title, color='#FFFFFF', fontsize=11.5, fontweight='bold', va='center')
+        ax.text(0.08, y_pos - 0.05, desc, color=color if color == '#E63946' else '#A0AEC0', fontsize=10.2, va='center')
         if i < len(legacy_steps) - 1:
             ax.annotate('', xy=(0.25, y_pos - 0.07), xytext=(0.25, y_pos - 0.065),
                         arrowprops=dict(arrowstyle="->", color='#E63946', lw=2))
@@ -71,7 +76,7 @@ def fig1_system_architecture():
                                        boxstyle="round,pad=0.02", ec='#00B4D8', fc='#1C2541', lw=2.5)
     ax.add_patch(rect_right)
     ax.text(0.75, 0.85, "신규 방식: 갭네비게이션 알고리즘 (Proposed Gap Nav)",
-            ha='center', va='center', color='#00B4D8', fontsize=14, fontweight='bold')
+            ha='center', va='center', color='#00B4D8', fontsize=15, fontweight='bold')
 
     gap_steps = [
         ("1. /scan 데이터 수신 & 물리 좌표 변환\nangle = angle_min + i * increment", "하드웨어 스펙 완전 독립적 삼각함수 복원", "#00B4D8"),
@@ -88,8 +93,8 @@ def fig1_system_architecture():
         box = patches.FancyBboxPatch((0.56, y_pos - 0.065), 0.38, 0.075,
                                     boxstyle="round,pad=0.01", ec=color, fc='#111827', lw=1.8)
         ax.add_patch(box)
-        ax.text(0.58, y_pos - 0.02, title, color='#FFFFFF', fontsize=10.5, fontweight='bold', va='center')
-        ax.text(0.58, y_pos - 0.05, desc, color='#64DFDF' if color == '#52B788' else '#A0AEC0', fontsize=9, va='center')
+        ax.text(0.58, y_pos - 0.02, title, color='#FFFFFF', fontsize=11.5, fontweight='bold', va='center')
+        ax.text(0.58, y_pos - 0.05, desc, color='#64DFDF' if color == '#52B788' else '#A0AEC0', fontsize=10.2, va='center')
         if i < len(gap_steps) - 1:
             ax.annotate('', xy=(0.75, y_pos - 0.07), xytext=(0.75, y_pos - 0.065),
                         arrowprops=dict(arrowstyle="->", color='#00B4D8', lw=2))
@@ -97,7 +102,7 @@ def fig1_system_architecture():
 
     # Bottom summary tag
     ax.text(0.5, 0.02, "핵심 차이: 단순 광선 차폐각 밀어내기 -> 객체 인식 기반 최적 개구부(Gap) 중심선 추종 및 베지에 궤적 생성",
-            ha='center', va='center', color='#FFD166', fontsize=11.5, fontweight='bold')
+            ha='center', va='center', color='#FFD166', fontsize=12.5, fontweight='bold')
 
     plt.tight_layout()
     out_path = os.path.join(OUTPUT_DIR, "fig1_system_architecture_comparison.png")
@@ -475,21 +480,21 @@ def fig5_ros2_computation_graph():
         box = patches.FancyBboxPatch((0.04, y - 0.06), 0.22, 0.12,
                                     boxstyle="round,pad=0.015", ec=col, fc='#1C2541', lw=2)
         ax.add_patch(box)
-        ax.text(0.15, y + 0.02, node_name, ha='center', color='#FFFFFF', fontsize=10.5, fontweight='bold')
-        ax.text(0.15, y - 0.02, desc, ha='center', color='#A0AEC0', fontsize=9)
+        ax.text(0.15, y + 0.02, node_name, ha='center', color='#FFFFFF', fontsize=11.5, fontweight='bold')
+        ax.text(0.15, y - 0.02, desc, ha='center', color='#CBD5E0', fontsize=10.2)
 
         # Topic box on arrow
         ax.annotate('', xy=(0.38, y), xytext=(0.26, y),
                     arrowprops=dict(arrowstyle="->", color='#48CAE4', lw=2))
-        ax.text(0.32, y + 0.025, topic, ha='center', color='#48CAE4', fontsize=8.5, fontweight='bold',
+        ax.text(0.32, y + 0.025, topic, ha='center', color='#48CAE4', fontsize=9.8, fontweight='bold',
                 bbox=dict(boxstyle='round,pad=0.2', fc='#0B132B', ec='#48CAE4', lw=1))
 
     # Center: Gap Navigation Node (Big Box)
     center_box = patches.FancyBboxPatch((0.39, 0.15), 0.27, 0.70,
                                        boxstyle="round,pad=0.02", ec='#00B4D8', fc='#152238', lw=2.5)
     ax.add_patch(center_box)
-    ax.text(0.525, 0.81, "gap_navigation_node", ha='center', color='#00F0FF', fontsize=13, fontweight='bold')
-    ax.text(0.525, 0.77, "자율운항 갭네비게이션 메인 제어 노드", ha='center', color='#A0AEC0', fontsize=9.5)
+    ax.text(0.525, 0.81, "gap_navigation_node", ha='center', color='#00F0FF', fontsize=14.5, fontweight='bold')
+    ax.text(0.525, 0.77, "자율운항 갭네비게이션 메인 제어 노드", ha='center', color='#A0AEC0', fontsize=11)
 
     internal_modules = [
         ("① LidarPreprocessor", "NaN/선체 반사파 필터링 & 극좌표->직교좌표"),
@@ -505,8 +510,8 @@ def fig5_ros2_computation_graph():
         m_box = patches.FancyBboxPatch((0.41, y_m - 0.035), 0.23, 0.055,
                                       boxstyle="round,pad=0.01", ec='#2A4365', fc='#0B132B', lw=1.2)
         ax.add_patch(m_box)
-        ax.text(0.42, y_m - 0.008, m_name, color='#64DFDF', fontsize=9, fontweight='bold')
-        ax.text(0.42, y_m - 0.024, m_desc, color='#CBD5E0', fontsize=7.5)
+        ax.text(0.42, y_m - 0.008, m_name, color='#64DFDF', fontsize=10.5, fontweight='bold')
+        ax.text(0.42, y_m - 0.024, m_desc, color='#CBD5E0', fontsize=9.2)
         y_m -= 0.075
 
     # Column 3: Output Actuators & Visualization
@@ -521,14 +526,14 @@ def fig5_ros2_computation_graph():
         # Arrow from center to right
         ax.annotate('', xy=(0.77, y), xytext=(0.66, y),
                     arrowprops=dict(arrowstyle="->", color=col, lw=2))
-        ax.text(0.715, y + 0.025, topic, ha='center', color=col, fontsize=8.5, fontweight='bold',
+        ax.text(0.715, y + 0.025, topic, ha='center', color=col, fontsize=9.8, fontweight='bold',
                 bbox=dict(boxstyle='round,pad=0.2', fc='#0B132B', ec=col, lw=1))
 
         box = patches.FancyBboxPatch((0.78, y - 0.045), 0.18, 0.09,
                                     boxstyle="round,pad=0.015", ec=col, fc='#1C2541', lw=1.8)
         ax.add_patch(box)
-        ax.text(0.87, y + 0.015, target_node.split('\n')[0], ha='center', color='#FFFFFF', fontsize=9.5, fontweight='bold')
-        ax.text(0.87, y - 0.02, target_node.split('\n')[1], ha='center', color='#A0AEC0', fontsize=8)
+        ax.text(0.87, y + 0.015, target_node.split('\n')[0], ha='center', color='#FFFFFF', fontsize=10.5, fontweight='bold')
+        ax.text(0.87, y - 0.02, target_node.split('\n')[1], ha='center', color='#CBD5E0', fontsize=9.2)
 
     plt.tight_layout()
     out_path = os.path.join(OUTPUT_DIR, "fig5_ros2_node_topic_computation_graph.png")
@@ -675,23 +680,23 @@ def fig7_tuning_flowchart():
         h_box = patches.FancyBboxPatch((x - 0.105, 0.81), 0.21, 0.065,
                                       boxstyle="round,pad=0.01", ec=col, fc=col, lw=1)
         ax.add_patch(h_box)
-        ax.text(x, 0.842, title, ha='center', va='center', color='#0B132B', fontsize=9.5, fontweight='bold')
+        ax.text(x, 0.842, title, ha='center', va='center', color='#0B132B', fontsize=11.2, fontweight='bold')
 
         # Section 1: Desc
-        ax.text(x, 0.74, desc, ha='center', color='#FFFFFF', fontsize=8.5)
+        ax.text(x, 0.74, desc, ha='center', color='#FFFFFF', fontsize=9.8)
 
         # Separator line
         ax.plot([x - 0.09, x + 0.09], [0.66, 0.66], color='#2A3B60', lw=1)
 
         # Section 2: Cause
-        ax.text(x, 0.58, cause, ha='center', color='#FFD166', fontsize=8.5)
+        ax.text(x, 0.58, cause, ha='center', color='#FFD166', fontsize=9.8)
 
         # Separator line
         ax.plot([x - 0.09, x + 0.09], [0.50, 0.50], color='#2A3B60', lw=1)
 
         # Section 3: Solution
-        ax.text(x - 0.095, 0.45, "현장 엔지니어링 튜닝법:", color=col, fontsize=9, fontweight='bold')
-        ax.text(x - 0.095, 0.24, sol, color='#FFFFFF', fontsize=8.2, va='center')
+        ax.text(x - 0.095, 0.45, "현장 엔지니어링 튜닝법:", color=col, fontsize=10.5, fontweight='bold')
+        ax.text(x - 0.095, 0.24, sol, color='#FFFFFF', fontsize=9.5, va='center')
 
     plt.tight_layout()
     out_path = os.path.join(OUTPUT_DIR, "fig7_field_test_tuning_guide.png")
@@ -788,16 +793,16 @@ def fig8_boat_trajectory_and_motion_dynamics():
     # Warning callout on wall proximity
     ax_top.annotate('외곽 벽면 1.2m 근접\n(충돌 패널티 위험 구역)', xy=(24, 1.4), xytext=(28, 4.2),
                     arrowprops=dict(arrowstyle="->", color='#FF6B6B', lw=1.8),
-                    color='#FF6B6B', fontsize=9, fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.2', fc='#1C2541', ec='#FF6B6B', lw=1))
+                    color='#FF6B6B', fontsize=10.5, fontweight='bold',
+                    bbox=dict(boxstyle='round,pad=0.2', fc='#1C2541', ec='#FF6B6B', lw=1.2))
 
     # Safe pass callout
     ax_top.annotate('게이트 중심선 안정적 관통\n(양현 여유 마진 1.8m 확보)', xy=(40, 7.8), xytext=(44, 11.5),
                     arrowprops=dict(arrowstyle="->", color='#00F0FF', lw=1.8),
-                    color='#00F0FF', fontsize=9, fontweight='bold',
-                    bbox=dict(boxstyle='round,pad=0.2', fc='#1C2541', ec='#00F0FF', lw=1))
+                    color='#00F0FF', fontsize=10.5, fontweight='bold',
+                    bbox=dict(boxstyle='round,pad=0.2', fc='#1C2541', ec='#00F0FF', lw=1.2))
 
-    ax_top.legend(loc='lower left', facecolor='#0B132B', edgecolor='#48CAE4', labelcolor='#FFFFFF', fontsize=9)
+    ax_top.legend(loc='lower left', facecolor='#0B132B', edgecolor='#48CAE4', labelcolor='#FFFFFF', fontsize=10.5)
 
     # Time series data for bottom 3 subplots (0 to 60 seconds)
     t = np.linspace(0, 60, 300)
@@ -819,45 +824,45 @@ def fig8_boat_trajectory_and_motion_dynamics():
     # Subplot B: Yaw Angle Evolution
     ax_b = fig.add_subplot(gs[1, 0])
     ax_b.set_facecolor('#1C2541')
-    ax_b.set_title("[B] 선체 헤딩 요(Yaw) 각도 시계열 비교", color='#FFFFFF', fontsize=11.5, fontweight='bold')
-    ax_b.plot(t, yaw_leg, color='#FF6B6B', lw=1.6, linestyle='--', label='Legacy Ray-Masking')
-    ax_b.plot(t, yaw_gap, color='#00F0FF', lw=2.2, label='Proposed Gap Nav')
-    ax_b.set_xlabel("주행 시간 (s)", color='#CBD5E0', fontsize=9.5)
-    ax_b.set_ylabel("선체 요각 ψ (°)", color='#CBD5E0', fontsize=9.5)
+    ax_b.set_title("[B] 선체 헤딩 요(Yaw) 각도 시계열 비교", color='#FFFFFF', fontsize=13, fontweight='bold')
+    ax_b.plot(t, yaw_leg, color='#FF6B6B', lw=1.8, linestyle='--', label='Legacy Ray-Masking')
+    ax_b.plot(t, yaw_gap, color='#00F0FF', lw=2.4, label='Proposed Gap Nav')
+    ax_b.set_xlabel("주행 시간 (s)", color='#CBD5E0', fontsize=11)
+    ax_b.set_ylabel("선체 요각 ψ (°)", color='#CBD5E0', fontsize=11)
     ax_b.grid(True, color='#2A3B60', linestyle='--', alpha=0.5)
     ax_b.tick_params(colors='#A0AEC0')
-    ax_b.legend(loc='upper right', facecolor='#0B132B', edgecolor='#48CAE4', labelcolor='#FFFFFF', fontsize=8)
+    ax_b.legend(loc='upper right', facecolor='#0B132B', edgecolor='#48CAE4', labelcolor='#FFFFFF', fontsize=10)
 
     # Subplot C: Rudder / Servo Steering
     ax_c = fig.add_subplot(gs[1, 1])
     ax_c.set_facecolor('#1C2541')
-    ax_c.set_title("[C] 서보모터 조타각(Rudder Angle) 및 지터 비교", color='#FFFFFF', fontsize=11.5, fontweight='bold')
-    ax_c.plot(t, rudder_leg, color='#FF6B6B', lw=1.6, linestyle='--', label='Legacy (채터링 발생)')
-    ax_c.plot(t, rudder_gap, color='#00F0FF', lw=2.2, label='Proposed (지터 54% 감소)')
-    ax_c.axhline(90.0, color='#FFFFFF', linestyle=':', lw=1, alpha=0.7, label='중립 (90°)')
+    ax_c.set_title("[C] 서보모터 조타각(Rudder Angle) 및 지터 비교", color='#FFFFFF', fontsize=13, fontweight='bold')
+    ax_c.plot(t, rudder_leg, color='#FF6B6B', lw=1.8, linestyle='--', label='Legacy (채터링 발생)')
+    ax_c.plot(t, rudder_gap, color='#00F0FF', lw=2.4, label='Proposed (지터 54% 감소)')
+    ax_c.axhline(90.0, color='#FFFFFF', linestyle=':', lw=1.2, alpha=0.7, label='중립 (90°)')
     ax_c.axhline(30.0, color='#E63946', linestyle='--', lw=1, alpha=0.6)
     ax_c.axhline(150.0, color='#E63946', linestyle='--', lw=1, alpha=0.6)
-    ax_c.set_xlabel("주행 시간 (s)", color='#CBD5E0', fontsize=9.5)
-    ax_c.set_ylabel("서보 타각 δ (°)", color='#CBD5E0', fontsize=9.5)
+    ax_c.set_xlabel("주행 시간 (s)", color='#CBD5E0', fontsize=11)
+    ax_c.set_ylabel("서보 타각 δ (°)", color='#CBD5E0', fontsize=11)
     ax_c.set_ylim(20, 160)
     ax_c.grid(True, color='#2A3B60', linestyle='--', alpha=0.5)
     ax_c.tick_params(colors='#A0AEC0')
-    ax_c.legend(loc='lower right', facecolor='#0B132B', edgecolor='#48CAE4', labelcolor='#FFFFFF', fontsize=7.5)
+    ax_c.legend(loc='lower right', facecolor='#0B132B', edgecolor='#48CAE4', labelcolor='#FFFFFF', fontsize=9.5)
 
     # Subplot D: Surge Speed & Drift
     ax_d = fig.add_subplot(gs[1, 2])
     ax_d.set_facecolor('#1C2541')
-    ax_d.set_title("[D] 선속(Surge) 및 횡슬립(Sway Drift) 비교", color='#FFFFFF', fontsize=11.5, fontweight='bold')
-    ax_d.plot(t, u_leg, color='#FF6B6B', lw=1.6, linestyle='--', label='Legacy 선속 (m/s)')
-    ax_d.plot(t, u_gap, color='#00F0FF', lw=2.2, label='Gap Nav 선속 (m/s)')
-    ax_d.plot(t, slip_leg, color='#FFAA33', lw=1.4, linestyle=':', label='Legacy 횡슬립 드리프트')
-    ax_d.plot(t, slip_gap, color='#52B788', lw=1.6, label='Gap Nav 횡슬립 억제')
-    ax_d.set_xlabel("주행 시간 (s)", color='#CBD5E0', fontsize=9.5)
-    ax_d.set_ylabel("속도 (m/s)", color='#CBD5E0', fontsize=9.5)
+    ax_d.set_title("[D] 선속(Surge) 및 횡슬립(Sway Drift) 비교", color='#FFFFFF', fontsize=13, fontweight='bold')
+    ax_d.plot(t, u_leg, color='#FF6B6B', lw=1.8, linestyle='--', label='Legacy 선속 (m/s)')
+    ax_d.plot(t, u_gap, color='#00F0FF', lw=2.4, label='Gap Nav 선속 (m/s)')
+    ax_d.plot(t, slip_leg, color='#FFAA33', lw=1.5, linestyle=':', label='Legacy 횡슬립')
+    ax_d.plot(t, slip_gap, color='#52B788', lw=1.8, label='Gap Nav 슬립 억제')
+    ax_d.set_xlabel("주행 시간 (s)", color='#CBD5E0', fontsize=11)
+    ax_d.set_ylabel("속도 (m/s)", color='#CBD5E0', fontsize=11)
     ax_d.set_ylim(0.0, 1.8)
     ax_d.grid(True, color='#2A3B60', linestyle='--', alpha=0.5)
     ax_d.tick_params(colors='#A0AEC0')
-    ax_d.legend(loc='center right', facecolor='#0B132B', edgecolor='#48CAE4', labelcolor='#FFFFFF', fontsize=7.5)
+    ax_d.legend(loc='center right', facecolor='#0B132B', edgecolor='#48CAE4', labelcolor='#FFFFFF', fontsize=9.5)
 
     plt.subplots_adjust(top=0.93, bottom=0.07, left=0.06, right=0.96, hspace=0.34, wspace=0.24)
     out_path = os.path.join(OUTPUT_DIR, "fig8_boat_trajectory_and_motion_dynamics.png")
