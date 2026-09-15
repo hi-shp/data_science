@@ -27,7 +27,7 @@ def run():
                         break
 
         if getattr(env, 'paused', False):
-            map_bounds = (0, 0, env.w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
+            map_bounds = (0, 0, env.map_w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
             dists, hits = lidar_hits_np(
                 env.boat_pos, env.boat_heading,
                 env.rel_angles, env.dynamic_obstacles,
@@ -48,7 +48,7 @@ def run():
             env.frame += 1
             env.update_dynamic_obstacles()
 
-            map_bounds = (0, 0, env.w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
+            map_bounds = (0, 0, env.map_w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
             dists, hits = lidar_hits_np(
                 env.boat_pos, env.boat_heading,
                 env.rel_angles, env.dynamic_obstacles,
@@ -292,6 +292,7 @@ def run():
 
             L, R = env.get_pwm(steer)
             env.step(L, R)
+            env.update_camera()
 
             if not getattr(env, 'linetrace_mode', False):
                 env.validate_wp_grid()

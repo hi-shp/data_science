@@ -33,34 +33,42 @@ class EnvRenderer:
 
     def render(self, hits):
         env = self.env
+        cam_x = env.cam_x  # 카메라 X 오프셋
+        
+        # 헬퍼: 월드좌표 → 스크린좌표 변환
+        def sx(world_x):
+            return world_x - cam_x
+        
         # 1. 밝고 맑은 마린 오션 수면 배경 (Brighter Clean Ocean)
         env.screen.fill((40, 118, 178))
         
         # 아주 은은하고 자연스러운 해양 잔물결 파도 (Gentle Natural Ocean Swell Waves)
         wave_t = env.frame * 0.016
+        wave_start_j = int(cam_x // 80) * 80
         for i in range(25, env.sim_h, 60):
-            for j in range(25, env.w, 80):
-                wx = j + math.cos(wave_t + i * 0.025 + j * 0.01) * 9
+            for j in range(wave_start_j, int(cam_x + env.w + 80), 80):
+                wj = j - cam_x
+                wx = wj + math.cos(wave_t + i * 0.025 + j * 0.01) * 9
                 wy = i + math.sin(wave_t * 0.7 + j * 0.025) * 5
                 w_len = 16 + math.sin(wave_t + j * 0.02) * 6
-                # 물결 본선 (부드러운 오션 하이라이트)
                 pygame.draw.line(env.screen, (55, 134, 196), (int(wx), int(wy)), (int(wx + w_len), int(wy)), 1)
-                # 아주 은은한 미세 물결 크레스트 포인트 (Soft Crest Tip)
                 if (i + j) % 160 == 0:
                     pygame.draw.circle(env.screen, (210, 235, 255), (int(wx + w_len * 0.5), int(wy - 1)), 1)
 
         bx, by = env.boat_pos
         h = env.boat_heading
         ch, sh = math.cos(h), math.sin(h)
+        sbx = sx(bx)
+        sby = by
         
-        # 2. 360도 라이다 범위 (저채도 소프트 에메랄드 / 세이지 그린)
+        # 2. 360도 라이다 범위
         if env.show_lidar_range:
-            pygame.draw.circle(env.screen, (80, 175, 140), (int(bx), int(by)), int(env.lidar_range), 1)
+            pygame.draw.circle(env.screen, (80, 175, 140), (int(sbx), int(sby)), int(env.lidar_range), 1)
             for ang in env.rel_angles:
                 ray_ang = h + ang
-                rx = bx + math.cos(ray_ang) * env.lidar_range
-                ry = by + math.sin(ray_ang) * env.lidar_range
-                pygame.draw.line(env.screen, (55, 115, 90), (int(bx), int(by)), (int(rx), int(ry)), 1)
+                rx = sbx + math.cos(ray_ang) * env.lidar_range
+                ry = sby + math.sin(ray_ang) * env.lidar_range
+                pygame.draw.line(env.screen, (55, 115, 90), (int(sbx), int(sby)), (int(rx), int(ry)), 1)
 
         # 3. 실제 선박 유체역학 항적 웨이크 + 장애물 반사/산란 미세 거품 (Realistic Wakes & Scattering Bubbles)
         env.wake_surf.fill((0, 0, 0, 0))
@@ -75,11 +83,14 @@ class EnvRenderer:
             w[2] += 1.15  # 웅장하고 풍성한 선미 거품 확장
             w[3] -= 2.4   # 긴 항적 지속성
             if w[3] > 0:
-                # 외곽 확장 파도 크레스트 (Wave Crest)
-                pygame.draw.circle(env.wake_surf, (220, 240, 255, int(w[3] * 0.42)), (int(w[0]), int(w[1])), int(w[2]))
-                # 내부 백색 기포 난류 (Aerated Foam Core)
-                if w[2] > 1.8:
-                    pygame.draw.circle(env.wake_surf, (255, 255, 255, int(w[3] * 0.72)), (int(w[0]), int(w[1])), int(w[2] * 0.52))
+                wsx = int(sx(w[0]))
+                wsy = int(w[1])
+                if -50 < wsx < env.w + 50:
+                    # 외곽 확장 파도 크레스트 (Wave Crest)
+                    pygame.draw.circle(env.wake_surf, (220, 240, 255, int(w[3] * 0.42)), (wsx, wsy), int(w[2]))
+                    # 내부 백색 기포 난류 (Aerated Foam Core)
+                    if w[2] > 1.8:
+                        pygame.draw.circle(env.wake_surf, (255, 255, 255, int(w[3] * 0.72)), (wsx, wsy), int(w[2] * 0.52))
         env.wakes = [w for w in env.wakes if w[3] > 0]
         
         # 장애물 충돌 반사 및 부표 들썩임 시 퍼지는 원형 백색 구름 파도
@@ -89,77 +100,86 @@ class EnvRenderer:
                     rw[2] += 0.38
                     rw[3] -= 2.2
                     if rw[3] > 0:
-                        pygame.draw.circle(env.wake_surf, (225, 242, 255, int(rw[3] * 0.48)), (int(rw[0]), int(rw[1])), int(rw[2]), 2)
+                        rwsx = int(sx(rw[0]))
+                        if -50 < rwsx < env.w + 50:
+                            pygame.draw.circle(env.wake_surf, (225, 242, 255, int(rw[3] * 0.48)), (rwsx, int(rw[1])), int(rw[2]), 2)
                 elif len(rw) >= 6:
                     rw[0] += rw[4]; rw[1] += rw[5]
                     rw[4] *= 0.88; rw[5] *= 0.88
                     rw[3] -= 6.0
                     if rw[3] > 0:
-                        pygame.draw.circle(env.wake_surf, (255, 255, 255, int(rw[3] * 0.8)), (int(rw[0]), int(rw[1])), 1)
+                        rwsx = int(sx(rw[0]))
+                        if -50 < rwsx < env.w + 50:
+                            pygame.draw.circle(env.wake_surf, (255, 255, 255, int(rw[3] * 0.8)), (rwsx, int(rw[1])), 1)
             env.reflected_wakes = [rw for rw in env.reflected_wakes if rw[3] > 0]
             
         # 장애물 부표 위치의 파도/구름을 완전히 지워 가림 처리 (Obstacle Clean Masking)
         for ox, oy, r in env.dynamic_obstacles:
-            pygame.draw.circle(env.wake_surf, (0, 0, 0, 0), (int(ox), int(oy)), int(r + 0.5))
+            osx = int(sx(ox))
+            if -50 < osx < env.w + 50:
+                pygame.draw.circle(env.wake_surf, (0, 0, 0, 0), (osx, int(oy)), int(r + 0.5))
         
         env.screen.blit(env.wake_surf, (0, 0))
-        env.screen.blit(env.trail, (0, 0))
+        env.screen.blit(env.trail, (0, 0), area=pygame.Rect(int(cam_x), 0, env.w, env.sim_h))
         
-        # 4. 해상 장애물 (자연스러운 수중 그림자 + 선명한 2D 부표)
+        # 4. 해상 장애물 - 뷰포트 내부만
         for ox, oy, r in env.dynamic_obstacles:
-            # 부표 수중 앰비언트 그림자 (Realistic Underwater Shadow)
-            pygame.draw.circle(env.screen, (10, 42, 75, 140), (int(ox + 4), int(oy + 4)), int(r + 1))
+            osx = int(sx(ox))
+            if osx < -30 or osx > env.w + 30:
+                continue
+            pygame.draw.circle(env.screen, (10, 42, 75, 140), (osx + 4, int(oy + 4)), int(r + 1))
+            pygame.draw.circle(env.screen, (210, 45, 30), (osx, int(oy)), int(r))
+            pygame.draw.circle(env.screen, (245, 75, 50), (osx - 1, int(oy - 1)), int(r * 0.76))
+            pygame.draw.circle(env.screen, (255, 255, 255), (osx - 1, int(oy - 1)), int(r * 0.40))
+            pygame.draw.circle(env.screen, (255, 255, 255), (osx, int(oy)), int(r * 0.20))
             
-            # 선명한 2D 부표 바디 (중심부 쨍한 순백색 하이라이트)
-            pygame.draw.circle(env.screen, (210, 45, 30), (int(ox), int(oy)), int(r))
-            pygame.draw.circle(env.screen, (245, 75, 50), (int(ox - 1), int(oy - 1)), int(r * 0.76))
-            pygame.draw.circle(env.screen, (255, 255, 255), (int(ox - 1), int(oy - 1)), int(r * 0.40))
-            pygame.draw.circle(env.screen, (255, 255, 255), (int(ox), int(oy)), int(r * 0.20))
-            
+        from config import GRID
         occ_y, occ_x = np.where(env.grid >= 3)
         if len(occ_x) > 0:
             env.occ_surf.fill((0, 0, 0, 0))
-            for gx, gy in zip(occ_x, occ_y):
-                pygame.draw.rect(env.occ_surf, (220, 50, 50, 60), (gx * 4, gy * 4, 4, 4))
+            for gx_i, gy_i in zip(occ_x, occ_y):
+                osx = int(gx_i * GRID - cam_x)
+                if -10 < osx < env.w + 10:
+                    pygame.draw.rect(env.occ_surf, (220, 50, 50, 60), (osx, gy_i * GRID, GRID, GRID))
             env.screen.blit(env.occ_surf, (0, 0))
             
         if env.show_lidar:
             for p in hits:
                 if p is not None:
-                    pygame.draw.circle(env.screen, (225, 220, 130), (int(p[0]), int(p[1])), 2)
+                    psx = int(sx(p[0]))
+                    if -10 < psx < env.w + 10:
+                        pygame.draw.circle(env.screen, (225, 220, 130), (psx, int(p[1])), 2)
 
-        # 라인트레이싱 모드: 가장 가까운 회피 대상 장애물 히트지점 및 연결선 표출 (Show Closest Obstacle)
+        # 라인트레이싱 모드: 회피 장애물 히트지점
         if getattr(env, 'linetrace_mode', False) and getattr(env, 'show_closest_obstacle', True):
             c_hit = getattr(env, 'closest_avoid_hit', None)
             if c_hit is not None:
-                cx, cy = int(c_hit[0]), int(c_hit[1])
-                bx_i, by_i = int(bx), int(by)
-                # 1. 보트 중심에서 회피 대상 장애물 히트점까지 이어지는 선명한 가이드 라인
-                pygame.draw.line(env.screen, (255, 20, 190), (bx_i, by_i), (cx, cy), 2)
-                
-                # 2. 눈에 띄는 네온 마젠타(Vibrant Neon Magenta) 회피 포인트 및 펄스 링
-                pygame.draw.circle(env.screen, (255, 20, 190, 80), (cx, cy), 10)
-                pygame.draw.circle(env.screen, (255, 20, 190), (cx, cy), 6)
-                pygame.draw.circle(env.screen, (255, 255, 255), (cx, cy), 2)
+                csx, csy = int(sx(c_hit[0])), int(c_hit[1])
+                bx_i, by_i = int(sbx), int(sby)
+                pygame.draw.line(env.screen, (255, 20, 190), (bx_i, by_i), (csx, csy), 2)
+                pygame.draw.circle(env.screen, (255, 20, 190, 80), (csx, csy), 10)
+                pygame.draw.circle(env.screen, (255, 20, 190), (csx, csy), 6)
+                pygame.draw.circle(env.screen, (255, 255, 255), (csx, csy), 2)
 
-        # Safety Envelope (8acbd56 버전의 소프트 반투명 안전 원, 120x120 로컬 버퍼)
+        # Safety Envelope
         self.safety_surf.fill((0, 0, 0, 0))
         safety_r = int(env.boat_radius + 18)
         em = getattr(env, 'emergency_mode', False)
         safety_color = (255, 60, 60, 40) if em else (0, 200, 120, 25)
         pygame.draw.circle(self.safety_surf, safety_color, (60, 60), safety_r)
-        env.screen.blit(self.safety_surf, (int(bx - 60), int(by - 60)))
+        env.screen.blit(self.safety_surf, (int(sbx - 60), int(sby - 60)))
                 
-        # 목표점: 해양 항로 비콘 (Nautical Beacon Target)
-        pulse = math.sin(env.frame * 0.09) * 4.5
-        pygame.draw.circle(env.screen, (0, 240, 100, 40), (int(env.target[0]), int(env.target[1])), int(20 + pulse), 1)
-        pygame.draw.circle(env.screen, (0, 230, 90, 75), (int(env.target[0]), int(env.target[1])), int(14 + pulse * 0.5))
-        pygame.draw.circle(env.screen, (20, 245, 80), (int(env.target[0]), int(env.target[1])), 10)
-        pygame.draw.circle(env.screen, (255, 255, 255), (int(env.target[0]), int(env.target[1])), 5)
-        # 타겟 십자선 (Compass Crosshair)
-        tx, ty = int(env.target[0]), int(env.target[1])
-        pygame.draw.line(env.screen, (255, 255, 255, 180), (tx - 16, ty), (tx + 16, ty), 1)
-        pygame.draw.line(env.screen, (255, 255, 255, 180), (tx, ty - 16), (tx, ty + 16), 1)
+        # 목표점: 해양 항로 비콘
+        tgx = sx(env.target[0]); tgy = env.target[1]
+        if -30 < tgx < env.w + 30:
+            pulse = math.sin(env.frame * 0.09) * 4.5
+            pygame.draw.circle(env.screen, (0, 240, 100, 40), (int(tgx), int(tgy)), int(20 + pulse), 1)
+            pygame.draw.circle(env.screen, (0, 230, 90, 75), (int(tgx), int(tgy)), int(14 + pulse * 0.5))
+            pygame.draw.circle(env.screen, (20, 245, 80), (int(tgx), int(tgy)), 10)
+            pygame.draw.circle(env.screen, (255, 255, 255), (int(tgx), int(tgy)), 5)
+            itgx, itgy = int(tgx), int(tgy)
+            pygame.draw.line(env.screen, (255, 255, 255, 180), (itgx - 16, itgy), (itgx + 16, itgy), 1)
+            pygame.draw.line(env.screen, (255, 255, 255, 180), (itgx, itgy - 16), (itgx, itgy + 16), 1)
         
         # 5. 실시간 동적 추종 궤적 (베지어 곡선 및 웨이포인트)
         is_lt = getattr(env, 'linetrace_mode', False)
@@ -170,36 +190,36 @@ class EnvRenderer:
             if env.next_wp is not None:
                 nwp = env.next_wp
                 if nwp.get("pair") != (-1, -1):
-                    pygame.draw.line(env.screen, (255, 140, 0), (int(nwp["c1"][0]), int(nwp["c1"][1])), (int(nwp["c2"][0]), int(nwp["c2"][1])), 3)
-                pygame.draw.circle(env.screen, (200, 100, 255, 100), (int(nwp["pos"][0]), int(nwp["pos"][1])), 8)
-                pygame.draw.circle(env.screen, (200, 100, 255), (int(nwp["pos"][0]), int(nwp["pos"][1])), 3)
+                    pygame.draw.line(env.screen, (255, 140, 0), (int(sx(nwp["c1"][0])), int(nwp["c1"][1])), (int(sx(nwp["c2"][0])), int(nwp["c2"][1])), 3)
+                pygame.draw.circle(env.screen, (200, 100, 255, 100), (int(sx(nwp["pos"][0])), int(nwp["pos"][1])), 8)
+                pygame.draw.circle(env.screen, (200, 100, 255), (int(sx(nwp["pos"][0])), int(nwp["pos"][1])), 3)
 
             if env.next_bezier_path is not None:
-                pts = [(int(x), int(y)) for x, y in env.next_bezier_path]
+                pts = [(int(sx(x)), int(y)) for x, y in env.next_bezier_path]
                 if len(pts) > 1:
                     pygame.draw.lines(env.screen, (255, 200, 50), False, pts, 3)
 
             if env.next_pursuit_target is not None:
                 px_nt, py_nt = env.next_pursuit_target
-                pygame.draw.circle(env.screen, (255, 255, 255), (int(px_nt), int(py_nt)), 8, 2)
-                pygame.draw.circle(env.screen, (255, 150, 50), (int(px_nt), int(py_nt)), 4)
+                pygame.draw.circle(env.screen, (255, 255, 255), (int(sx(px_nt)), int(py_nt)), 8, 2)
+                pygame.draw.circle(env.screen, (255, 150, 50), (int(sx(px_nt)), int(py_nt)), 4)
 
         if show_1st:
             if env.current_wp is not None:
                 wp = env.current_wp
-                pygame.draw.line(env.screen, (0, 255, 200), (int(wp["c1"][0]), int(wp["c1"][1])), (int(wp["c2"][0]), int(wp["c2"][1])), 4)
-                pygame.draw.circle(env.screen, (0, 255, 255, 100), (int(wp["pos"][0]), int(wp["pos"][1])), 10)
-                pygame.draw.circle(env.screen, (0, 255, 255), (int(wp["pos"][0]), int(wp["pos"][1])), 4)
+                pygame.draw.line(env.screen, (0, 255, 200), (int(sx(wp["c1"][0])), int(wp["c1"][1])), (int(sx(wp["c2"][0])), int(wp["c2"][1])), 4)
+                pygame.draw.circle(env.screen, (0, 255, 255, 100), (int(sx(wp["pos"][0])), int(wp["pos"][1])), 10)
+                pygame.draw.circle(env.screen, (0, 255, 255), (int(sx(wp["pos"][0])), int(wp["pos"][1])), 4)
                              
             if env.bezier_path is not None:
-                pts = [(int(x), int(y)) for x, y in env.bezier_path]
+                pts = [(int(sx(x)), int(y)) for x, y in env.bezier_path]
                 if len(pts) > 1:
                     pygame.draw.lines(env.screen, (50, 210, 255), False, pts, 4)
 
             if env.pursuit_target is not None:
                 px_t, py_t = env.pursuit_target
-                pygame.draw.circle(env.screen, (255, 255, 255), (int(px_t), int(py_t)), 10, 2)
-                pygame.draw.circle(env.screen, (255, 50, 150), (int(px_t), int(py_t)), 5)
+                pygame.draw.circle(env.screen, (255, 255, 255), (int(sx(px_t)), int(py_t)), 10, 2)
+                pygame.draw.circle(env.screen, (255, 50, 150), (int(sx(px_t)), int(py_t)), 5)
 
         # 6. 차순위 후보 웨이포인트 렌더링 (투명도 적용, 라인트레이싱 모드에서는 완전 제외)
         if not is_lt and getattr(env, 'show_candidates', True) and getattr(env, 'candidate_wps', None):
@@ -210,13 +230,12 @@ class EnvRenderer:
                 col = cand_colors[rank_idx % len(cand_colors)]
                 c1, c2 = cand["c1"], cand["c2"]
                 mid = cand["pos"]
-                pygame.draw.line(cand_surf, col, (int(c1[0]), int(c1[1])), (int(c2[0]), int(c2[1])), 2)
-                pygame.draw.circle(cand_surf, (col[0], col[1], col[2], 50), (int(mid[0]), int(mid[1])), 9)
-                pygame.draw.circle(cand_surf, col, (int(mid[0]), int(mid[1])), 9, 2)
-                pygame.draw.circle(cand_surf, (col[0], col[1], col[2], 210), (int(mid[0]), int(mid[1])), 3)
-                
+                pygame.draw.line(cand_surf, col, (int(sx(c1[0])), int(c1[1])), (int(sx(c2[0])), int(c2[1])), 2)
+                pygame.draw.circle(cand_surf, (col[0], col[1], col[2], 50), (int(sx(mid[0])), int(mid[1])), 9)
+                pygame.draw.circle(cand_surf, col, (int(sx(mid[0])), int(mid[1])), 9, 2)
+                pygame.draw.circle(cand_surf, (col[0], col[1], col[2], 210), (int(sx(mid[0])), int(mid[1])), 3)
                 txt_rank = self.small_font.render(f"#{rank_idx + 2}", True, (col[0], col[1], col[2]))
-                cand_surf.blit(txt_rank, (int(mid[0]) + 10, int(mid[1]) - 8))
+                cand_surf.blit(txt_rank, (int(sx(mid[0])) + 10, int(mid[1]) - 8))
             env.screen.blit(cand_surf, (0, 0))
 
         # 6-2. 고려 중인 모든 갭의 중간점 위치 렌더링 (Gaps 버튼 클릭 시 ON/OFF 토글, 라인트레이싱 모드에서는 완전 제외)
@@ -227,7 +246,6 @@ class EnvRenderer:
                 gaps_surf = self._all_gaps_surf
             else:
                 gaps_surf.fill((0, 0, 0, 0))
-
             visible_idx = 1
             for g in env.all_gaps:
                 mid = g["pos"]
@@ -236,25 +254,25 @@ class EnvRenderer:
                 dy = mid[1] - by
                 if dx * ch + dy * sh < 0:
                     continue
-
+                msx = int(sx(mid[0]))
+                if msx < -20 or msx > env.w + 20:
+                    continue
                 c1, c2 = g.get("c1"), g.get("c2")
                 # 갭 부표 사이 얇은 가이드 라인
                 if c1 is not None and c2 is not None:
-                    pygame.draw.line(gaps_surf, (0, 220, 255, 55), (int(c1[0]), int(c1[1])), (int(c2[0]), int(c2[1])), 1)
+                    pygame.draw.line(gaps_surf, (0, 220, 255, 55), (int(sx(c1[0])), int(c1[1])), (int(sx(c2[0])), int(c2[1])), 1)
                 # 갭 중간점 마커 (반투명 헤일로 + 링 + 중심 코어)
-                pygame.draw.circle(gaps_surf, (0, 240, 255, 45), (int(mid[0]), int(mid[1])), 8)
-                pygame.draw.circle(gaps_surf, (0, 240, 255, 180), (int(mid[0]), int(mid[1])), 6, 1)
-                pygame.draw.circle(gaps_surf, (255, 255, 255, 230), (int(mid[0]), int(mid[1])), 2)
-
+                pygame.draw.circle(gaps_surf, (0, 240, 255, 45), (msx, int(mid[1])), 8)
+                pygame.draw.circle(gaps_surf, (0, 240, 255, 180), (msx, int(mid[1])), 6, 1)
+                pygame.draw.circle(gaps_surf, (255, 255, 255, 230), (msx, int(mid[1])), 2)
                 # 갭 인덱스 라벨 (G1, G2, ...)
                 lbl_g = self.micro_font.render(f"G{visible_idx}", True, (0, 240, 255))
-                gaps_surf.blit(lbl_g, (int(mid[0]) + 8, int(mid[1]) - 6))
+                gaps_surf.blit(lbl_g, (msx + 8, int(mid[1]) - 6))
                 visible_idx += 1
-
             env.screen.blit(gaps_surf, (0, 0))
 
-        # 6. 선박 형상 정밀 렌더링
-        self._draw_boat_hull(bx, by, ch, sh)
+        # 선박 형상 정밀 렌더링 (스크린 좌표)
+        self._draw_boat_hull(sbx, sby, ch, sh)
 
         # 7. 하단 대시보드 UI
         self._draw_dashboard(hits)
@@ -268,7 +286,6 @@ class EnvRenderer:
         env.mode_btn_top_rect = top_btn
         top_hover = top_btn.collidepoint(mpos)
         is_lt_active = getattr(env, 'linetrace_mode', False)
-
         if is_lt_active:
             t_str = "LINE TRACING"
             t_bg = (45, 12, 36, 210) if top_hover else (32, 8, 25, 185)
@@ -279,7 +296,6 @@ class EnvRenderer:
             t_bg = (18, 36, 58, 210) if top_hover else (12, 26, 42, 185)
             t_border = (0, 190, 240) if top_hover else (0, 125, 175)
             t_col = (200, 235, 255) if top_hover else (150, 195, 225)
-
         top_surf = pygame.Surface((top_btn.w, top_btn.h), pygame.SRCALPHA)
         pygame.draw.rect(top_surf, t_bg, (0, 0, top_btn.w, top_btn.h), border_radius=4)
         pygame.draw.rect(top_surf, t_border, (0, 0, top_btn.w, top_btn.h), 1, border_radius=4)
@@ -287,7 +303,80 @@ class EnvRenderer:
         top_surf.blit(t_lbl, t_lbl.get_rect(center=(top_btn.w // 2, top_btn.h // 2)))
         env.screen.blit(top_surf, (top_btn.x, top_btn.y))
 
+        # 9. 미니맵 오버레이 (맵이 확장된 경우 주행화면 우측 하단에 표시)
+        if env.map_w > env.w:
+            self._draw_minimap()
+
         pygame.display.flip()
+
+    def _draw_minimap(self):
+        """전체 맵에서 현재 위치를 표시하는 미니맵 오버레이 (주행화면 우측 하단)"""
+        env = self.env
+        
+        # 미니맵 크기 및 위치 설정 (주행화면 맨아래 우측, 텔레메트리 HUD 패널과 겹치지 않도록 배치)
+        mm_w = 340   # 미니맵 가로
+        mm_h = 32    # 미니맵 세로
+        mm_x = env.w - mm_w - 15  # 우측
+        mm_y = env.sim_h - mm_h - 10  # 주행화면(sim_h) 맨아래
+        
+        # 스케일 팩터
+        scale_x = mm_w / env.map_w
+        scale_y = mm_h / env.sim_h
+        
+        # 미니맵 배경 (반투명 다크블루)
+        mm_surf = pygame.Surface((mm_w + 4, mm_h + 4), pygame.SRCALPHA)
+        pygame.draw.rect(mm_surf, (8, 18, 38, 200), (0, 0, mm_w + 4, mm_h + 4), border_radius=3)
+        pygame.draw.rect(mm_surf, (40, 100, 160, 180), (2, 2, mm_w, mm_h), border_radius=2)
+        
+        # 장애물 (작은 빨간 점)
+        for ox, oy, r in env.dynamic_obstacles:
+            mx = int(2 + ox * scale_x)
+            my = int(2 + oy * scale_y)
+            pygame.draw.circle(mm_surf, (220, 60, 40, 200), (mx, my), max(1, int(r * scale_x)))
+        
+        # 항적 (env.trail 표면 축소 렌더링)
+        mm_trail = pygame.transform.scale(env.trail, (mm_w, mm_h))
+        mm_surf.blit(mm_trail, (2, 2))
+        
+        # 웨이포인트 (1st: 시안, 2nd: 보라)
+        is_lt = getattr(env, 'linetrace_mode', False)
+        if not is_lt:
+            if env.current_wp is not None:
+                wp = env.current_wp["pos"]
+                pygame.draw.circle(mm_surf, (0, 255, 255), (int(2 + wp[0] * scale_x), int(2 + wp[1] * scale_y)), 3)
+            if env.next_wp is not None:
+                nwp = env.next_wp["pos"]
+                pygame.draw.circle(mm_surf, (200, 100, 255), (int(2 + nwp[0] * scale_x), int(2 + nwp[1] * scale_y)), 2)
+        
+        # 목표점 (녹색)
+        tgx_mm = int(2 + env.target[0] * scale_x)
+        tgy_mm = int(2 + env.target[1] * scale_y)
+        pygame.draw.circle(mm_surf, (0, 240, 80), (tgx_mm, tgy_mm), 4)
+        pygame.draw.circle(mm_surf, (255, 255, 255), (tgx_mm, tgy_mm), 2)
+        
+        # 현재 뷰포트 범위 (밝은 테두리 사각형)
+        vp_x = int(2 + env.cam_x * scale_x)
+        vp_w = int(env.w * scale_x)
+        vp_h = mm_h
+        pygame.draw.rect(mm_surf, (255, 255, 255, 150), (vp_x, 2, vp_w, vp_h), 1)
+        
+        # 보트 현재 위치 (밝은 시안 점, 가장 마지막에 그려서 가장 위에 표시)
+        bx_mm = int(2 + env.boat_pos[0] * scale_x)
+        by_mm = int(2 + env.boat_pos[1] * scale_y)
+        pygame.draw.circle(mm_surf, (0, 255, 255), (bx_mm, by_mm), 4)
+        pygame.draw.circle(mm_surf, (255, 255, 255), (bx_mm, by_mm), 2)
+        
+        # "MAP" 라벨
+        lbl = self.micro_font.render("MAP", True, (180, 210, 240))
+        mm_surf.blit(lbl, (4, mm_h - 8))
+        
+        # 진행률 표시
+        progress = min(100, max(0, env.boat_pos[0] / env.map_w * 100))
+        prog_str = f"{progress:.0f}%"
+        prog_lbl = self.micro_font.render(prog_str, True, (200, 255, 200))
+        mm_surf.blit(prog_lbl, (mm_w - 26, mm_h - 8))
+        
+        env.screen.blit(mm_surf, (mm_x, mm_y))
 
     def _draw_boat_hull(self, bx, by, ch, sh):
         env = self.env

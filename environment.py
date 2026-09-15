@@ -4,7 +4,7 @@ import pygame
 import numpy as np
 import math
 import random
-from config import WIDTH, HEIGHT, GRID, GRID_W, GRID_H
+from config import WIDTH, HEIGHT, MAP_W, GRID, GRID_W, GRID_H
 from utils import wrap
 from perception import init_grid
 from navigation import reactive_avoidance
@@ -15,6 +15,8 @@ class BoatEnv:
         pygame.init()
         self.w = WIDTH
         self.h = HEIGHT
+        self.map_w = MAP_W  # 월드 맵 가로 폭 (7200px)
+        self.cam_x = 0      # 카메라 X 오프셋 (보트 추종)
         self.sim_h = 630
         self.screen = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption("kaboat simulation")
@@ -70,13 +72,13 @@ class BoatEnv:
             (-L * 0.35, -GAP * 0.85)
         ]
         
-        self.trail = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        self.trail = pygame.Surface((self.map_w, self.sim_h), pygame.SRCALPHA)
         self.path_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         self.wake_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         self.occ_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         self.shadow_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         
-        self.obs_n = 80
+        self.obs_n = int(80 * (self.map_w / self.w))   # 맵 확장에 비례하는 장애물 수 (기본 80개)
         self.obs_r = 17
         self.min_obs = 120
         
@@ -165,7 +167,8 @@ class BoatEnv:
         self.boat_pos = np.array([65, self.sim_h/2], dtype=np.float32)
         self.boat_vel = np.zeros(2)
         self.boat_ang_vel = 0
-        self.target = np.array([self.w - 100, self.sim_h/2], dtype=np.float32)
+        self.target = np.array([self.map_w - 100, self.sim_h/2], dtype=np.float32)
+        self.cam_x = 0
         
         self.trail.fill((0, 0, 0, 0))
         self.path_surf.fill((0, 0, 0, 0))
@@ -175,7 +178,7 @@ class BoatEnv:
         t = 0
         while len(obs) < self.obs_n and t < 5000:
             t += 1
-            x = random.randint(300, self.w - 300)
+            x = random.randint(300, self.map_w - 300)
             y = random.randint(30, self.sim_h - 30)
             p = np.array([x, y])
             if np.linalg.norm(p - self.target) < 180: continue
@@ -423,7 +426,7 @@ class BoatEnv:
             hull_margin = 18.0
             if bx <= hull_margin or \
                by <= hull_margin or by >= (self.sim_h - hull_margin) or \
-               bx >= self.w:
+               bx >= self.map_w:
                 return True
 
         # 장애물 충돌: 선체 로컬 좌표계로 변환하여 3개 선체 폴리곤(좌/우 선체, 데크)과 원형 장애물 정밀 표면 충돌 검사
@@ -647,6 +650,13 @@ class BoatEnv:
             return 0.0
 
         return np.clip(steer_f + avoid_multiplier * avoid, -1, 1)
+
+    def update_camera(self):
+        """카메라 X 오프셋을 보트 위치에 맞춰 부드럽게 추종 (맵 경계 클램핑)"""
+        target_cam_x = self.boat_pos[0] - self.w / 2
+        target_cam_x = max(0, min(self.map_w - self.w, target_cam_x))
+        # 부드러운 카메라 추종 (lerp)
+        self.cam_x = self.cam_x * 0.85 + target_cam_x * 0.15
 
     def render(self, hits):
         self.renderer.render(hits)
