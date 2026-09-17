@@ -1113,40 +1113,20 @@ class EnvRenderer:
                     panel_surf.fill((8, 18, 30))
                     pygame.draw.rect(panel_surf, (0, 180, 255), (0, 0, 320, 220), 2)
                     
-                    # 상단 라벨 (버튼이 아닌 패널 헤더 정보)
-                    t_mini = self.small_font.render("2D MAP VIEW (1800x630)", True, (0, 230, 255))
-                    panel_surf.blit(t_mini, (10, 6))
+                    # 상단 라벨 (화면 크기 생략, 간략한 패널 이름 표기: "2D MAP")
+                    t_mini = self.font.render("2D MAP", True, (240, 245, 255))
+                    panel_surf.blit(t_mini, (10, 8))
                     
                     # 1800:630 고정 비율(20:7) 스케일링: 가로 316px, 세로 110px (상하 왜곡/잘림 완벽 방지)
                     mini_w, mini_h = 316, 110
                     mini_2d = pygame.transform.smoothscale(self.world_2d_surf, (mini_w, mini_h))
-                    map_x, map_y = 2, 28
+                    map_x, map_y = 2, 34
                     panel_surf.blit(mini_2d, (map_x, map_y))
                     pygame.draw.rect(panel_surf, (0, 140, 210), (map_x - 1, map_y - 1, mini_w + 2, mini_h + 2), 1)
                     
-                    # 하단 여백 정보 영역 (y: 142 ~ 218)
-                    pygame.draw.line(panel_surf, (0, 90, 140), (0, 142), (320, 142), 1)
-                    
-                    # 3D 엔진 백엔드 정보 (하단 슬롯 표시)
-                    lbl_eng = self.micro_font.render("ENGINE: ModernGL 3.3 Core Profile (EGL)", True, (0, 255, 200))
-                    panel_surf.blit(lbl_eng, (10, 148))
-                    
-                    # 실시간 선박 텔레메트리 요약
-                    speed_m_s = float(np.linalg.norm(env.boat_vel)) / 50.0
-                    lbl_tel = self.micro_font.render(
-                        f"POS: ({bx:.0f}, {by:.0f}) | HDG: {int(math.degrees(h))%360:03d}\u00b0 | SPD: {speed_m_s:.1f} m/s",
-                        True, (200, 225, 250)
-                    )
-                    panel_surf.blit(lbl_tel, (10, 168))
-                    
-                    # 현재 알고리즘 모드 및 전체화면 상태
-                    is_lt = getattr(env, 'linetrace_mode', False)
-                    mode_name = "LINE TRACING" if is_lt else "GAP NAVIGATION"
-                    lbl_mode = self.micro_font.render(
-                        f"NAV: {mode_name} | FULLSCREEN 3D ACTIVE",
-                        True, (255, 210, 100)
-                    )
-                    panel_surf.blit(lbl_mode, (10, 188))
+                    # 하단 엔진 정보 텍스트 (화면 크기, 현재 nav 상태 등 불필요한 정보 완전 배제하고 엔진 정보만 간략 표출)
+                    lbl_eng = self.small_font.render("ModernGL 3.3 Core Profile", True, (0, 210, 255))
+                    panel_surf.blit(lbl_eng, lbl_eng.get_rect(center=(160, 178)))
                     
                     env.screen.blit(panel_surf, (1050, env.sim_h + 35))
                 else:

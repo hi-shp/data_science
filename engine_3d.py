@@ -830,16 +830,19 @@ class _Engine3DCore:
         
         # [2] 해상도별 반응형 폰트 및 바 크기 결정
         is_large = (w > 600)
-        hdr_h = 34 if is_large else 24
-        info_h = 26 if is_large else 20
         f_title = self.large_font if is_large else self.font
-        f_hint = self.large_info_font if is_large else self.micro_font
         f_info = self.large_info_font if is_large else self.micro_font
         
-        # 상단 타이틀 바 및 3D Engine 문구 완전 제거 (시인성 및 화면 개방감 극대화)
-        # (단축키 및 모드 전환은 상단 좌측 UI 버튼과 연동)
+        # [3] 패널 이름 (좌측 상단 간략 표기: "3D VIEW")
+        title_txt = "3D VIEW"
+        lbl_title = f_title.render(title_txt, True, (240, 245, 255))
+        lbl_shadow = f_title.render(title_txt, True, (10, 20, 35))
+        t_x = 205 if is_large else 10
+        t_y = 18 if is_large else 8
+        surf.blit(lbl_shadow, (t_x + 1, t_y + 1))
+        surf.blit(lbl_title, (t_x, t_y))
         
-        # [3] 1인칭 조타석 뷰 전용 조타 HUD (인공 수평선 피치 사다리 및 나침반)
+        # [4] 1인칭 조타석 뷰 전용 조타 HUD (십자선만 유지, 상단 중앙 파란색 헤딩 텍스트는 제거)
         if self.cam_mode == 0:
             cx, cy = w // 2, h // 2
             ret_r = 24 if is_large else 16
@@ -851,29 +854,29 @@ class _Engine3DCore:
             pygame.draw.line(surf, (0, 255, 220, 200), (cx, cy - ret_arm // 2), (cx, cy - 6), 1)
             pygame.draw.circle(surf, (255, 255, 255), (cx, cy), 2)
             
-            # 상단 디지털 나침반 테이프
-            hdg_deg = int(math.degrees(heading)) % 360
-            lbl_hdg = (self.large_font if is_large else self.micro_font).render(f"HEADING {hdg_deg:03d}°", True, (0, 255, 220))
-            surf.blit(lbl_hdg, (cx - lbl_hdg.get_width() // 2, 12))
-            
-        # [4] 하단 인포 바 (선속 및 러더 각도)
-        info_y = h - info_h
-        pygame.draw.rect(surf, (8, 18, 30, 210), (0, info_y, w, info_h))
-        pygame.draw.line(surf, (0, 140, 200), (0, info_y), (w, info_y), 1)
-        
+        # [5] 하단 정보 표출 (선속, 헤딩, 러더 각도, 엔진 정보)
+        # 상단 중앙의 파란색 헤딩을 제거하고 하단 흰색 텍스트 아이템들 사이에 통합
+        hdg_deg = int(math.degrees(heading)) % 360
         steer_deg = math.degrees(steer)
         knots = speed * 1.94384
+        
         if is_large:
-            lbl_stat = f_info.render(
-                f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | RUDDER: {steer_deg:+.1f}° | ModernGL 3.3 Core Profile (EGL)",
-                True, (225, 242, 255)
-            )
-            surf.blit(lbl_stat, (w - lbl_stat.get_width() - 16, info_y + 5))
+            # 전체화면 3D 모드: 화면을 가리는 하단 검은색 바를 추가하지 않고 3D 화면을 100% 꽉 채우며, 우측 하단 텍스트는 그대로 유지
+            txt_str = f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | HDG: {hdg_deg:03d}° | RUDDER: {steer_deg:+.1f}° | ModernGL 3.3 Core Profile"
+            lbl_stat = f_info.render(txt_str, True, (225, 242, 255))
+            lbl_stat_sh = f_info.render(txt_str, True, (10, 15, 25))
+            txt_x = w - lbl_stat.get_width() - 16
+            txt_y = h - 24
+            surf.blit(lbl_stat_sh, (txt_x + 1, txt_y + 1))
+            surf.blit(lbl_stat, (txt_x, txt_y))
         else:
-            lbl_stat = f_info.render(
-                f"SPEED: {speed:.1f}m/s | RUD: {steer_deg:+.1f}° | ModernGL 3.3 Core",
-                True, (225, 242, 255)
-            )
+            # 기본 3D 패널(320x220): 하단 바 영역에 표출
+            info_h = 20
+            info_y = h - info_h
+            pygame.draw.rect(surf, (8, 18, 30, 210), (0, info_y, w, info_h))
+            pygame.draw.line(surf, (0, 140, 200), (0, info_y), (w, info_y), 1)
+            txt_str = f"SPEED: {speed:.1f}m/s | HDG: {hdg_deg:03d}° | RUD: {steer_deg:+.1f}° | ModernGL 3.3 Core"
+            lbl_stat = f_info.render(txt_str, True, (225, 242, 255))
             surf.blit(lbl_stat, (8, info_y + 3))
 
 
