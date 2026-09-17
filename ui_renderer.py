@@ -1743,10 +1743,10 @@ class EnvRenderer:
         modal_surf.blit(m1_surf, (c1_x + 14, card_y + 42))
 
         m2_surf = self.ko_font.render(f"시간: {cur_time:.2f}s", True, (215, 235, 255))
-        modal_surf.blit(m2_surf, (c1_x + 135, card_y + 42))
+        modal_surf.blit(m2_surf, (c1_x + 130, card_y + 42))
 
-        m3_surf = self.ko_font.render(f"회전각: {cur_turn:.1f}\u00b0", True, (215, 235, 255))
-        modal_surf.blit(m3_surf, (c1_x + 255, card_y + 42))
+        m3_surf = self.ko_font.render(f"누적 회전: {cur_turn:.1f}\u00b0", True, (215, 235, 255))
+        modal_surf.blit(m3_surf, (c1_x + 242, card_y + 42))
 
         # 우측 카드: GAP 알고리즘 벤치마크
         c2_x = mw - 30 - card_w
@@ -1765,10 +1765,10 @@ class EnvRenderer:
         modal_surf.blit(ai1_surf, (c2_x + 14, card_y + 42))
 
         ai2_surf = self.ko_font.render(f"시간: {ai_b['time']:.1f}s", True, (190, 235, 255))
-        modal_surf.blit(ai2_surf, (c2_x + 135, card_y + 42))
+        modal_surf.blit(ai2_surf, (c2_x + 130, card_y + 42))
 
-        ai3_surf = self.ko_font.render(f"회전각: {ai_b['cumulative_turn_deg']:.1f}\u00b0", True, (190, 235, 255))
-        modal_surf.blit(ai3_surf, (c2_x + 255, card_y + 42))
+        ai3_surf = self.ko_font.render(f"누적 회전: {ai_b['cumulative_turn_deg']:.1f}\u00b0", True, (190, 235, 255))
+        modal_surf.blit(ai3_surf, (c2_x + 242, card_y + 42))
 
         # 6. 상위 10등 랭킹 테이블 (TOP 10 LEADERBOARD)
         tbl_y = 166
@@ -1786,7 +1786,7 @@ class EnvRenderer:
             ("기록명", 200),
             ("충돌", 110),
             ("시간", 120),
-            ("회전각", 120),
+            ("누적 회전", 120),
             ("일시", 140)
         ]
         col_x = 44
@@ -1802,7 +1802,7 @@ class EnvRenderer:
         ai_entry["player"] = "GAP 알고리즘"
         all_entries.append(ai_entry)
 
-        # 정렬: 1순위 충돌, 2순위 시간, 3순위 누적회전각
+        # 정렬: 1순위 충돌, 2순위 시간, 3순위 누적회전
         all_entries.sort(key=lambda r: (
             r.get("collisions", 999),
             r.get("time", 9999.0),
@@ -1850,7 +1850,7 @@ class EnvRenderer:
             # 구분 / 기록명
             p_name = entry.get("player", "Player")
             if is_ai:
-                tag_surf = self.ko_bold_font.render(f"[AI] {p_name}", True, (0, 245, 255))
+                tag_surf = self.ko_bold_font.render(p_name, True, (0, 245, 255))
             elif is_cur_attempt:
                 tag_surf = self.ko_bold_font.render(f"[YOU] {p_name}", True, (255, 215, 70))
             else:
@@ -1873,7 +1873,7 @@ class EnvRenderer:
             modal_surf.blit(tm_surf, (col_x + 6, row_y + 3))
             col_x += 120
 
-            # 누적 회전각
+            # 누적 회전
             trn_val = entry.get("cumulative_turn_deg", 0.0)
             trn_str = f"{trn_val:.1f}\u00b0"
             trn_surf = self.ko_font.render(trn_str, True, t_col)
@@ -1887,11 +1887,11 @@ class EnvRenderer:
 
             row_y += row_h
 
-        # 7. 하단 조작 버튼 (다시 도전 / 복귀)
+        # 7. 하단 조작 버튼 (RETRY / EXIT)
         btn_w, btn_h = 170, 36
         btn_y = 476
 
-        # [다시 도전] 버튼
+        # [다시 도전] RETRY 버튼
         r_x = mw // 2 - btn_w - 14
         r_rect_global = pygame.Rect(mx + r_x, my + btn_y, btn_w, btn_h)
         env.leaderboard_retry_rect = r_rect_global
@@ -1903,10 +1903,10 @@ class EnvRenderer:
 
         pygame.draw.rect(modal_surf, r_bg, (r_x, btn_y, btn_w, btn_h), border_radius=6)
         pygame.draw.rect(modal_surf, r_bd, (r_x, btn_y, btn_w, btn_h), 1, border_radius=6)
-        r_lbl = self.ko_bold_font.render("다시 도전", True, r_txt_col)
+        r_lbl = self.ko_bold_font.render("RETRY", True, r_txt_col)
         modal_surf.blit(r_lbl, r_lbl.get_rect(center=(r_x + btn_w // 2, btn_y + btn_h // 2)))
 
-        # [복귀] 버튼
+        # [복귀] EXIT 버튼
         e_x = mw // 2 + 14
         e_rect_global = pygame.Rect(mx + e_x, my + btn_y, btn_w, btn_h)
         env.leaderboard_exit_rect = e_rect_global
@@ -1918,11 +1918,11 @@ class EnvRenderer:
 
         pygame.draw.rect(modal_surf, e_bg, (e_x, btn_y, btn_w, btn_h), border_radius=6)
         pygame.draw.rect(modal_surf, e_bd, (e_x, btn_y, btn_w, btn_h), 1, border_radius=6)
-        e_lbl = self.ko_bold_font.render("복귀", True, e_txt_col)
+        e_lbl = self.ko_bold_font.render("EXIT", True, e_txt_col)
         modal_surf.blit(e_lbl, e_lbl.get_rect(center=(e_x + btn_w // 2, btn_y + btn_h // 2)))
 
-        # 하단 단축키 가이드: 스페이스(다시 도전)와 esc(복귀)만 간결하게 표시
-        guide_str = "[SPACE] 다시 도전   |   [ESC] 복귀"
+        # 하단 단축키 가이드: 스페이스(RETRY)와 esc(EXIT)만 간결하게 표시
+        guide_str = "[SPACE] RETRY   |   [ESC] EXIT"
         g_surf = self.ko_small_font.render(guide_str, True, (130, 155, 185))
         modal_surf.blit(g_surf, g_surf.get_rect(center=(mw // 2, 528)))
 
