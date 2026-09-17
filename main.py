@@ -24,10 +24,15 @@ def run():
                 # 랭킹 모달이 열려 있을 때 키보드 단축키
                 if getattr(env, 'show_leaderboard', False):
                     if e.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_r]:
-                        env.reset_manual_episode()
-                        continue
+                        if not getattr(env, 'leaderboard_view_only', False):
+                            env.reset_manual_episode()
+                            continue
                     elif e.key in [pygame.K_ESCAPE, pygame.K_m]:
-                        env.toggle_manual_mode()
+                        if getattr(env, 'leaderboard_view_only', False):
+                            env.show_leaderboard = False
+                            env.leaderboard_view_only = False
+                        else:
+                            env.toggle_manual_mode()
                         continue
 
                 if e.key == pygame.K_SPACE:
@@ -384,6 +389,7 @@ def run():
                     )
                     env.last_manual_result = record
                     env.show_leaderboard = True
+                    env.leaderboard_view_only = False
                     env.boat_vel = np.zeros(2)
                     env.boat_ang_vel = 0.0
                 # 수동 조종 모드에서는 충돌 발생 시 에피소드를 종료/리스폰하지 않고 계속 주행함

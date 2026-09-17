@@ -270,7 +270,11 @@ class BoatEnv:
                 self.reset_manual_episode()
                 return
             if getattr(self, 'leaderboard_exit_rect', None) and self.leaderboard_exit_rect.collidepoint(pos):
-                self.toggle_manual_mode()
+                if getattr(self, 'leaderboard_view_only', False):
+                    self.show_leaderboard = False
+                    self.leaderboard_view_only = False
+                else:
+                    self.toggle_manual_mode()
                 return
             return
 
@@ -287,6 +291,12 @@ class BoatEnv:
         # 0-2. 새 에피소드 재시작 버튼 클릭 (RC 모드 상태에서만 활성화, 눈 깜빡임 버튼 좌측)
         if getattr(self, 'manual_mode', False) and getattr(self, 'restart_btn_rect', None) and self.restart_btn_rect.collidepoint(pos):
             self.reset_manual_episode()
+            return
+
+        # 0-3. 랭킹 대시보드 열람 버튼 클릭 (RC 모드 상태에서만 활성화, 재시작 버튼 좌측)
+        if getattr(self, 'manual_mode', False) and getattr(self, 'leaderboard_btn_rect', None) and self.leaderboard_btn_rect.collidepoint(pos):
+            self.show_leaderboard = True
+            self.leaderboard_view_only = True
             return
 
         # 1. 3D 전체화면/2D 화면 교체 버튼 클릭 (메인 화면 좌측 하단)
@@ -419,6 +429,7 @@ class BoatEnv:
         """RC 수동 조종 모드 상태를 유지하면서 새 에피소드로 리셋"""
         self.manual_mode = True
         self.show_leaderboard = False
+        self.leaderboard_view_only = False
         self.last_manual_result = None
         self.manual_start_time = time.time()
         self.manual_collisions = 0

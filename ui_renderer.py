@@ -1674,9 +1674,39 @@ class EnvRenderer:
             rst_surf.blit(icon_surf, (0, 0))
 
             env.screen.blit(rst_surf, (rst_x, btn_y))
+
+            # [버튼 3] 랭킹 대시보드 바로보기 버튼 (재시작 버튼 좌측)
+            rank_btn_w, rank_btn_h = 42, 38
+            rank_x = rst_x - rank_btn_w - 6
+            rank_rect = pygame.Rect(rank_x, btn_y, rank_btn_w, rank_btn_h)
+            env.leaderboard_btn_rect = rank_rect
+
+            is_rank_hover = rank_rect.collidepoint(mpos)
+            rank_surf = pygame.Surface((rank_btn_w, rank_btn_h), pygame.SRCALPHA)
+
+            rank_bg = (34, 42, 54, 230) if is_rank_hover else (24, 30, 38, 190)
+            rank_border = (70, 85, 105, 200) if is_rank_hover else (45, 60, 80, 160)
+            rank_accent = (215, 228, 245) if is_rank_hover else (160, 180, 205)
+
+            pygame.draw.rect(rank_surf, rank_bg, (0, 0, rank_btn_w, rank_btn_h), border_radius=6)
+            pygame.draw.rect(rank_surf, rank_border, (0, 0, rank_btn_w, rank_btn_h), 1, border_radius=6)
+
+            # 포디움/바 차트 랭킹 정밀 벡터 아이콘 (3x 슈퍼샘플링)
+            s3_rk = pygame.Surface((w3, h3), pygame.SRCALPHA)
+            base_y = cy3 + 18
+            pygame.draw.line(s3_rk, rank_accent, (cx3 - 33, base_y), (cx3 + 33, base_y), 5)
+            pygame.draw.rect(s3_rk, rank_accent, (cx3 - 27, base_y - 28, 14, 28), border_radius=3)
+            pygame.draw.rect(s3_rk, rank_accent, (cx3 - 7, base_y - 44, 14, 44), border_radius=3)
+            pygame.draw.rect(s3_rk, rank_accent, (cx3 + 13, base_y - 18, 14, 18), border_radius=3)
+
+            rk_icon = pygame.transform.smoothscale(s3_rk, (rank_btn_w, rank_btn_h))
+            rank_surf.blit(rk_icon, (0, 0))
+
+            env.screen.blit(rank_surf, (rank_x, btn_y))
         else:
             env.blind_btn_rect = None
             env.restart_btn_rect = None
+            env.leaderboard_btn_rect = None
 
     def _draw_leaderboard_modal(self):
         """RC 수동 조종 모드 목적지 도달 시 상위 10등 랭킹 및 GAP 알고리즘 벤치마크 비교 모달 창 표출"""
@@ -1711,7 +1741,11 @@ class EnvRenderer:
         last_rec = getattr(env, 'last_manual_result', None)
         if last_rec is None:
             cur_coll = getattr(env, 'manual_collisions', 0)
-            cur_time = round(time.time() - getattr(env, 'manual_start_time', time.time()), 2)
+            m_start = getattr(env, 'manual_start_time', 0.0)
+            if m_start <= 0 or abs(time.time() - m_start) > 86400:
+                cur_time = 0.0
+            else:
+                cur_time = round(time.time() - m_start, 2)
             cur_turn = round(getattr(env, 'manual_cum_turn', 0.0), 1)
             last_rec = {"collisions": cur_coll, "time": cur_time, "cumulative_turn_deg": cur_turn, "date": "NOW", "timestamp": time.time()}
         else:
@@ -1887,44 +1921,65 @@ class EnvRenderer:
 
             row_y += row_h
 
-        # 7. 하단 조작 버튼 (RETRY / EXIT) - 절제된 차분한 다크 슬레이트 스타일
+        # 7. 하단 조작 버튼 (RETRY / EXIT)
+        is_view_only = getattr(env, 'leaderboard_view_only', False)
         btn_w, btn_h = 160, 36
         btn_y = 476
 
-        # [RETRY] 버튼
-        r_x = mw // 2 - btn_w - 12
-        r_rect_global = pygame.Rect(mx + r_x, my + btn_y, btn_w, btn_h)
-        env.leaderboard_retry_rect = r_rect_global
-        r_hover = r_rect_global.collidepoint(mpos)
+        if is_view_only:
+            # 랭킹 버튼으로 진입한 경우: RETRY 없이 EXIT 버튼만 단독 배치
+            env.leaderboard_retry_rect = None
 
-        r_bg = (34, 42, 54, 230) if r_hover else (24, 30, 38, 200)
-        r_bd = (70, 85, 105) if r_hover else (48, 60, 75)
-        r_txt_col = (215, 228, 245) if r_hover else (170, 185, 205)
+            e_x = (mw - btn_w) // 2
+            e_rect_global = pygame.Rect(mx + e_x, my + btn_y, btn_w, btn_h)
+            env.leaderboard_exit_rect = e_rect_global
+            e_hover = e_rect_global.collidepoint(mpos)
 
-        pygame.draw.rect(modal_surf, r_bg, (r_x, btn_y, btn_w, btn_h), border_radius=6)
-        pygame.draw.rect(modal_surf, r_bd, (r_x, btn_y, btn_w, btn_h), 1, border_radius=6)
-        r_lbl = self.ko_bold_font.render("RETRY", True, r_txt_col)
-        modal_surf.blit(r_lbl, r_lbl.get_rect(center=(r_x + btn_w // 2, btn_y + btn_h // 2)))
+            e_bg = (34, 42, 54, 230) if e_hover else (24, 30, 38, 200)
+            e_bd = (70, 85, 105) if e_hover else (48, 60, 75)
+            e_txt_col = (215, 228, 245) if e_hover else (170, 185, 205)
 
-        # [EXIT] 버튼
-        e_x = mw // 2 + 12
-        e_rect_global = pygame.Rect(mx + e_x, my + btn_y, btn_w, btn_h)
-        env.leaderboard_exit_rect = e_rect_global
-        e_hover = e_rect_global.collidepoint(mpos)
+            pygame.draw.rect(modal_surf, e_bg, (e_x, btn_y, btn_w, btn_h), border_radius=6)
+            pygame.draw.rect(modal_surf, e_bd, (e_x, btn_y, btn_w, btn_h), 1, border_radius=6)
+            e_lbl = self.ko_bold_font.render("EXIT", True, e_txt_col)
+            modal_surf.blit(e_lbl, e_lbl.get_rect(center=(e_x + btn_w // 2, btn_y + btn_h // 2)))
 
-        e_bg = (34, 42, 54, 230) if e_hover else (24, 30, 38, 200)
-        e_bd = (70, 85, 105) if e_hover else (48, 60, 75)
-        e_txt_col = (215, 228, 245) if e_hover else (170, 185, 205)
+            guide_str = "[ESC] EXIT"
+            g_surf = self.ko_small_font.render(guide_str, True, (100, 115, 132))
+            modal_surf.blit(g_surf, g_surf.get_rect(center=(mw // 2, 528)))
+        else:
+            # 미션 완주로 진입한 경우: RETRY 및 EXIT 두 개 버튼 표출
+            r_x = mw // 2 - btn_w - 12
+            r_rect_global = pygame.Rect(mx + r_x, my + btn_y, btn_w, btn_h)
+            env.leaderboard_retry_rect = r_rect_global
+            r_hover = r_rect_global.collidepoint(mpos)
 
-        pygame.draw.rect(modal_surf, e_bg, (e_x, btn_y, btn_w, btn_h), border_radius=6)
-        pygame.draw.rect(modal_surf, e_bd, (e_x, btn_y, btn_w, btn_h), 1, border_radius=6)
-        e_lbl = self.ko_bold_font.render("EXIT", True, e_txt_col)
-        modal_surf.blit(e_lbl, e_lbl.get_rect(center=(e_x + btn_w // 2, btn_y + btn_h // 2)))
+            r_bg = (34, 42, 54, 230) if r_hover else (24, 30, 38, 200)
+            r_bd = (70, 85, 105) if r_hover else (48, 60, 75)
+            r_txt_col = (215, 228, 245) if r_hover else (170, 185, 205)
 
-        # 하단 단축키 가이드: 스페이스(RETRY)와 esc(EXIT)만 간결하게 표시
-        guide_str = "[SPACE] RETRY   |   [ESC] EXIT"
-        g_surf = self.ko_small_font.render(guide_str, True, (100, 115, 132))
-        modal_surf.blit(g_surf, g_surf.get_rect(center=(mw // 2, 528)))
+            pygame.draw.rect(modal_surf, r_bg, (r_x, btn_y, btn_w, btn_h), border_radius=6)
+            pygame.draw.rect(modal_surf, r_bd, (r_x, btn_y, btn_w, btn_h), 1, border_radius=6)
+            r_lbl = self.ko_bold_font.render("RETRY", True, r_txt_col)
+            modal_surf.blit(r_lbl, r_lbl.get_rect(center=(r_x + btn_w // 2, btn_y + btn_h // 2)))
+
+            e_x = mw // 2 + 12
+            e_rect_global = pygame.Rect(mx + e_x, my + btn_y, btn_w, btn_h)
+            env.leaderboard_exit_rect = e_rect_global
+            e_hover = e_rect_global.collidepoint(mpos)
+
+            e_bg = (34, 42, 54, 230) if e_hover else (24, 30, 38, 200)
+            e_bd = (70, 85, 105) if e_hover else (48, 60, 75)
+            e_txt_col = (215, 228, 245) if e_hover else (170, 185, 205)
+
+            pygame.draw.rect(modal_surf, e_bg, (e_x, btn_y, btn_w, btn_h), border_radius=6)
+            pygame.draw.rect(modal_surf, e_bd, (e_x, btn_y, btn_w, btn_h), 1, border_radius=6)
+            e_lbl = self.ko_bold_font.render("EXIT", True, e_txt_col)
+            modal_surf.blit(e_lbl, e_lbl.get_rect(center=(e_x + btn_w // 2, btn_y + btn_h // 2)))
+
+            guide_str = "[SPACE] RETRY   |   [ESC] EXIT"
+            g_surf = self.ko_small_font.render(guide_str, True, (100, 115, 132))
+            modal_surf.blit(g_surf, g_surf.get_rect(center=(mw // 2, 528)))
 
         # 화면에 모달 최종 표출
         env.screen.blit(modal_surf, (mx, my))
