@@ -865,7 +865,7 @@ class EnvRenderer:
         
         txt_surf = self.font.render("LiDAR View", True, (255, 255, 255))
         self.pov_surf.blit(txt_surf, (10, pov_h - txt_surf.get_height() - 5))
-        env.screen.blit(self.pov_surf, (380, env.sim_h + 35))
+        env.screen.blit(self.pov_surf, (365, env.sim_h + 35))
 
         # --- 2. 180도 라이다 각도 세로 게이지 뷰 (LiDAR Gauge View) ---
         cam_w, cam_h = 320, 220
@@ -971,7 +971,7 @@ class EnvRenderer:
             by_pos = 7
             badge_rect = pygame.Rect(bx_pos, by_pos, btn_w, btn_h)
             # 화면 절대 좌표로 버튼 클릭 영역 저장 (환경 handle_click 연동)
-            env.gaps_btn_rect = pygame.Rect(735 + bx_pos, env.sim_h + 35 + by_pos, btn_w, btn_h)
+            env.gaps_btn_rect = pygame.Rect(730 + bx_pos, env.sim_h + 35 + by_pos, btn_w, btn_h)
 
             mpos = pygame.mouse.get_pos()
             is_hover = env.gaps_btn_rect.collidepoint(mpos)
@@ -1112,7 +1112,7 @@ class EnvRenderer:
             ltxt = self.small_font.render(txt, True, (225, 238, 255))
             self.cam_surf.blit(ltxt, (ix + 13, legend_bar_y + 5))
 
-        env.screen.blit(self.cam_surf, (735, env.sim_h + 35))
+        env.screen.blit(self.cam_surf, (730, env.sim_h + 35))
 
         # --- 3. 실시간 하드웨어 가속 ModernGL 3D 엔진 뷰포트 & 2D 화면 스왑 슬롯 (버튼 없음) ---
         env.cam_panel_btn_rect = None
@@ -1128,7 +1128,7 @@ class EnvRenderer:
                     t_mini = self.font.render("2D MAP", True, (240, 245, 255))
                     panel_surf.blit(t_mini, (10, 8))
                     
-                    # 1920:672 고정 비율(20:7) 스케일링: 가로 316px, 세로 110px (상하 왜곡/잘림 완벽 방지)
+                    # 1840:644 고정 비율(20:7) 스케일링: 가로 316px, 세로 110px (상하 왜곡/잘림 완벽 방지)
                     mini_w, mini_h = 316, 110
                     mini_2d = pygame.transform.smoothscale(self.world_2d_surf, (mini_w, mini_h))
                     map_x, map_y = 2, 34
@@ -1139,11 +1139,11 @@ class EnvRenderer:
                     lbl_eng = self.engine_info_font.render("Pygame 2D Engine", True, (0, 210, 255))
                     panel_surf.blit(lbl_eng, lbl_eng.get_rect(center=(160, 178)))
                     
-                    env.screen.blit(panel_surf, (1090, env.sim_h + 35))
+                    env.screen.blit(panel_surf, (1075, env.sim_h + 35))
                 else:
                     # 기본 2D 모드: 하단 슬롯에 320x220 3D 뷰포트 표출 (패널 상에 어떤 버튼도 배치하지 않음)
                     surf_3d = self.engine_3d.render(env, hits, 320, 220)
-                    env.screen.blit(surf_3d, (1090, env.sim_h + 35))
+                    env.screen.blit(surf_3d, (1075, env.sim_h + 35))
             except Exception as e:
                 print(f"[Warning] 3D render failed: {e}")
 
@@ -1276,7 +1276,7 @@ class EnvRenderer:
         # 하단 실시간 궤적 수치
         surf.blit(self.small_font.render(f"Len: {path_len_m:.1f}m | Lat Dev: {end_ym:+.1f}m", True, (220, 235, 255)), (8, 188))
         
-        env.screen.blit(surf, (1445, env.sim_h + 35))
+        env.screen.blit(surf, (1420, env.sim_h + 35))
 
     def _draw_weight_breakdown(self):
         """우측 하단: 웨이포인트 우선순위 가중치 비율 분포 막대 게이지"""
@@ -1349,7 +1349,7 @@ class EnvRenderer:
                 txt_pct = self.small_font.render("--%", True, (90, 120, 150))
                 surf.blit(txt_pct, (bar_x + bar_w + 6, y_pos - 2))
             
-        env.screen.blit(surf, (1670, env.sim_h + 35))
+        env.screen.blit(surf, (1630, env.sim_h + 35))
 
     def _draw_telemetry(self):
         """우상단 실시간 텔레메트리 HUD"""

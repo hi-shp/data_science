@@ -881,7 +881,7 @@ class _Engine3DCore:
             surf.blit(lbl_stat, (8, info_y + 3))
 
 
-def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name, full_w=1920, full_h=780):
+def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name, full_w=1840, full_h=644):
     """
     독립 OS 프로세스에서 실행되는 3D 렌더링 워커 루프
     - 메인 Pygame 프로세스의 X11/Wayland 2D 그래픽스 파이프라인과 완벽히 격리
