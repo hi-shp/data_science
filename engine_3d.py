@@ -38,9 +38,10 @@ class _Engine3DCore:
         self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
         
         self._fbo_cache = {}
-        # 사전 캐싱: 패널(320x220) 및 전체화면(1800x630) FBO를 VRAM에 고정 상주
+        # 사전 캐싱: 패널(320x220) 및 전체화면 FBO를 VRAM에 고정 상주
         self._get_fbo(320, 220)
-        self._get_fbo(1800, 630)
+        from config import WIDTH, SIM_H
+        self._get_fbo(WIDTH, SIM_H)
         
         # GLSL 셰이더 컴파일
         self._init_shaders()
@@ -880,7 +881,7 @@ class _Engine3DCore:
             surf.blit(lbl_stat, (8, info_y + 3))
 
 
-def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name):
+def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name, full_w=1920, full_h=780):
     """
     독립 OS 프로세스에서 실행되는 3D 렌더링 워커 루프
     - 메인 Pygame 프로세스의 X11/Wayland 2D 그래픽스 파이프라인과 완벽히 격리
@@ -897,7 +898,7 @@ def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name):
     shm_full = shared_memory.SharedMemory(name=shm_full_name)
     
     buf_panel = np.ndarray((220, 320, 4), dtype=np.uint8, buffer=shm_panel.buf)
-    buf_full = np.ndarray((630, 1800, 4), dtype=np.uint8, buffer=shm_full.buf)
+    buf_full = np.ndarray((full_h, full_w, 4), dtype=np.uint8, buffer=shm_full.buf)
     
     class ProxyEnv:
         pass
@@ -945,25 +946,30 @@ class Engine3D:
     - POSIX 공유 메모리(/dev/shm) 기반 마이크로초 단위 무복사(Zero-Copy) 버퍼 교환
     - 메인 Pygame 윈도우 서피스 검은 화면 및 드라이버 훅 충돌 원천 방지
     """
-    def __init__(self, width=320, height=220):
+    def __init__(self, width=320, height=220, full_w=None, full_h=None):
+        from config import WIDTH, SIM_H
+        if full_w is None: full_w = WIDTH
+        if full_h is None: full_h = SIM_H
         self.width = width
         self.height = height
+        self.full_w = full_w
+        self.full_h = full_h
         self._closed = False
         
-        # 패널(320x220) 및 전체화면(1800x630) 공유 메모리 블록 생성
+        # 패널(320x220) 및 전체화면(full_w x full_h) 공유 메모리 블록 생성
         self.shm_panel = shared_memory.SharedMemory(create=True, size=320 * 220 * 4)
-        self.shm_full = shared_memory.SharedMemory(create=True, size=1800 * 630 * 4)
+        self.shm_full = shared_memory.SharedMemory(create=True, size=full_w * full_h * 4)
         
         # Pygame Surface를 공유 메모리에 직접 매핑 (고정 참조)
         self.surf_panel = pygame.image.frombuffer(self.shm_panel.buf, (320, 220), 'RGBA')
-        self.surf_full = pygame.image.frombuffer(self.shm_full.buf, (1800, 630), 'RGBA')
+        self.surf_full = pygame.image.frombuffer(self.shm_full.buf, (full_w, full_h), 'RGBA')
         
         # 클린 프로세스 스폰
         ctx_spawn = mp.get_context('spawn')
         self.parent_conn, self.child_conn = ctx_spawn.Pipe(duplex=True)
         self.proc = ctx_spawn.Process(
             target=_engine_3d_worker_proc,
-            args=(self.child_conn, self.shm_panel.name, self.shm_full.name),
+            args=(self.child_conn, self.shm_panel.name, self.shm_full.name, full_w, full_h),
             daemon=True
         )
         self.proc.start()

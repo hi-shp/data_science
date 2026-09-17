@@ -624,7 +624,7 @@ class EnvRenderer:
             if getattr(env, 'show_closest_obstacle', True):
                 pygame.draw.rect(env.screen, (255, 20, 190), env.cb1_rect.inflate(-6, -6))
             txt_col1 = (255, 140, 220) if cb1_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show Closest Obstacle", txt_col1), (70, 670))
+            env.screen.blit(self.get_text_surf(self.font, "Show Closest Obstacle", txt_col1), (70, env.cb1_rect.centery - 10))
 
             # 2. Show LiDAR Hits (소프트 옐로우)
             cb2_row = getattr(env, 'cb2_row_rect', env.cb2_rect)
@@ -635,7 +635,7 @@ class EnvRenderer:
             if env.show_lidar:
                 pygame.draw.rect(env.screen, (225, 220, 130), env.cb2_rect.inflate(-6, -6))
             txt_col2 = (250, 245, 175) if cb2_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Hits", txt_col2), (70, 706))
+            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Hits", txt_col2), (70, env.cb2_rect.centery - 10))
 
             # 3. Show LiDAR Range (세이지 그린)
             cb3_row = getattr(env, 'cb3_row_rect', env.cb3_rect)
@@ -646,7 +646,7 @@ class EnvRenderer:
             if env.show_lidar_range:
                 pygame.draw.rect(env.screen, (80, 175, 140), env.cb3_rect.inflate(-6, -6))
             txt_col3 = (130, 225, 180) if cb3_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Range", txt_col3), (70, 742))
+            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Range", txt_col3), (70, env.cb3_rect.centery - 10))
         else:
             # [기본 갭 항법 모드 UI] 5개 체크박스 구성
             # 1. Show 1st Path (시안)
@@ -657,7 +657,7 @@ class EnvRenderer:
             pygame.draw.rect(env.screen, (255, 255, 255), env.cb1_rect, 2)
             if getattr(env, 'show_1st_path', True): pygame.draw.rect(env.screen, (0, 255, 200), env.cb1_rect.inflate(-6, -6))
             txt_col1 = (120, 255, 230) if cb1_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show 1st Path", txt_col1), (70, 670))
+            env.screen.blit(self.get_text_surf(self.font, "Show 1st Path", txt_col1), (70, env.cb1_rect.centery - 10))
 
             # 2. Show 2nd Path (오렌지)
             cb2_row = getattr(env, 'cb2_row_rect', env.cb2_rect)
@@ -667,7 +667,7 @@ class EnvRenderer:
             pygame.draw.rect(env.screen, (255, 255, 255), env.cb2_rect, 2)
             if getattr(env, 'show_2nd_path', True): pygame.draw.rect(env.screen, (255, 140, 0), env.cb2_rect.inflate(-6, -6))
             txt_col2 = (255, 185, 95) if cb2_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show 2nd Path", txt_col2), (70, 706))
+            env.screen.blit(self.get_text_surf(self.font, "Show 2nd Path", txt_col2), (70, env.cb2_rect.centery - 10))
 
             # 3. Show Candidate WPs (연보라)
             cb3_row = getattr(env, 'cb3_row_rect', env.cb3_rect)
@@ -677,7 +677,7 @@ class EnvRenderer:
             pygame.draw.rect(env.screen, (255, 255, 255), env.cb3_rect, 2)
             if getattr(env, 'show_candidates', True): pygame.draw.rect(env.screen, (160, 180, 255), env.cb3_rect.inflate(-6, -6))
             txt_col3 = (195, 215, 255) if cb3_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show Candidate WPs", txt_col3), (70, 742))
+            env.screen.blit(self.get_text_surf(self.font, "Show Candidate WPs", txt_col3), (70, env.cb3_rect.centery - 10))
 
             # 4. Show LiDAR Hits (소프트 옐로우)
             cb4_row = getattr(env, 'cb4_row_rect', env.cb4_rect)
@@ -687,7 +687,7 @@ class EnvRenderer:
             pygame.draw.rect(env.screen, (255, 255, 255), env.cb4_rect, 2)
             if env.show_lidar: pygame.draw.rect(env.screen, (225, 220, 130), env.cb4_rect.inflate(-6, -6))
             txt_col4 = (250, 245, 175) if cb4_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Hits", txt_col4), (70, 778))
+            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Hits", txt_col4), (70, env.cb4_rect.centery - 10))
 
             # 5. Show LiDAR Range (세이지 그린)
             cb5_row = getattr(env, 'cb5_row_rect', env.cb5_rect)
@@ -697,7 +697,7 @@ class EnvRenderer:
             pygame.draw.rect(env.screen, (255, 255, 255), env.cb5_rect, 2)
             if env.show_lidar_range: pygame.draw.rect(env.screen, (80, 175, 140), env.cb5_rect.inflate(-6, -6))
             txt_col5 = (130, 225, 180) if cb5_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Range", txt_col5), (70, 814))
+            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Range", txt_col5), (70, env.cb5_rect.centery - 10))
         
         # 일시정지(PAUSE) 버튼
         is_paused = getattr(env, 'paused', False)
@@ -865,7 +865,7 @@ class EnvRenderer:
         
         txt_surf = self.font.render("LiDAR View", True, (255, 255, 255))
         self.pov_surf.blit(txt_surf, (10, pov_h - txt_surf.get_height() - 5))
-        env.screen.blit(self.pov_surf, (350, env.sim_h + 35))
+        env.screen.blit(self.pov_surf, (380, env.sim_h + 40))
 
         # --- 2. 180도 라이다 각도 세로 게이지 뷰 (LiDAR Gauge View) ---
         cam_w, cam_h = 320, 220
@@ -971,7 +971,7 @@ class EnvRenderer:
             by_pos = 7
             badge_rect = pygame.Rect(bx_pos, by_pos, btn_w, btn_h)
             # 화면 절대 좌표로 버튼 클릭 영역 저장 (환경 handle_click 연동)
-            env.gaps_btn_rect = pygame.Rect(700 + bx_pos, env.sim_h + 35 + by_pos, btn_w, btn_h)
+            env.gaps_btn_rect = pygame.Rect(735 + bx_pos, env.sim_h + 40 + by_pos, btn_w, btn_h)
 
             mpos = pygame.mouse.get_pos()
             is_hover = env.gaps_btn_rect.collidepoint(mpos)
@@ -1112,14 +1112,14 @@ class EnvRenderer:
             ltxt = self.small_font.render(txt, True, (225, 238, 255))
             self.cam_surf.blit(ltxt, (ix + 13, legend_bar_y + 5))
 
-        env.screen.blit(self.cam_surf, (700, env.sim_h + 35))
+        env.screen.blit(self.cam_surf, (735, env.sim_h + 40))
 
         # --- 3. 실시간 하드웨어 가속 ModernGL 3D 엔진 뷰포트 & 2D 화면 스왑 슬롯 (버튼 없음) ---
         env.cam_panel_btn_rect = None
         if getattr(self, 'engine_3d', None) is not None:
             try:
                 if getattr(env, 'fullscreen_3d', False):
-                    # 3D 전체화면 활성화 시: 하단 320x220 슬롯에 가로세로 비율(20:7)을 엄격히 고정한 2D 전체 맵 표출 (화면상 장애물 1:1 일치)
+                    # 3D 전체화면 활성화 시: 하단 320x220 슬롯에 가로세로 비율을 엄격히 고정한 2D 전체 맵 표출 (화면상 장애물 1:1 일치)
                     panel_surf = pygame.Surface((320, 220))
                     panel_surf.fill((8, 18, 30))
                     pygame.draw.rect(panel_surf, (0, 180, 255), (0, 0, 320, 220), 2)
@@ -1128,8 +1128,8 @@ class EnvRenderer:
                     t_mini = self.font.render("2D MAP", True, (240, 245, 255))
                     panel_surf.blit(t_mini, (10, 8))
                     
-                    # 1800:630 고정 비율(20:7) 스케일링: 가로 316px, 세로 110px (상하 왜곡/잘림 완벽 방지)
-                    mini_w, mini_h = 316, 110
+                    # 1920:780 고정 비율 스케일링: 가로 316px, 세로 128px (상하 왜곡/잘림 완벽 방지)
+                    mini_w, mini_h = 316, 128
                     mini_2d = pygame.transform.smoothscale(self.world_2d_surf, (mini_w, mini_h))
                     map_x, map_y = 2, 34
                     panel_surf.blit(mini_2d, (map_x, map_y))
@@ -1137,13 +1137,13 @@ class EnvRenderer:
                     
                     # 하단 엔진 정보 텍스트 (3D 엔진 텍스트와 동일한 14px 폰트)
                     lbl_eng = self.engine_info_font.render("Pygame 2D Engine", True, (0, 210, 255))
-                    panel_surf.blit(lbl_eng, lbl_eng.get_rect(center=(160, 178)))
+                    panel_surf.blit(lbl_eng, lbl_eng.get_rect(center=(160, 185)))
                     
-                    env.screen.blit(panel_surf, (1050, env.sim_h + 35))
+                    env.screen.blit(panel_surf, (1090, env.sim_h + 40))
                 else:
                     # 기본 2D 모드: 하단 슬롯에 320x220 3D 뷰포트 표출 (패널 상에 어떤 버튼도 배치하지 않음)
                     surf_3d = self.engine_3d.render(env, hits, 320, 220)
-                    env.screen.blit(surf_3d, (1050, env.sim_h + 35))
+                    env.screen.blit(surf_3d, (1090, env.sim_h + 40))
             except Exception as e:
                 print(f"[Warning] 3D render failed: {e}")
 
@@ -1276,7 +1276,7 @@ class EnvRenderer:
         # 하단 실시간 궤적 수치
         surf.blit(self.small_font.render(f"Len: {path_len_m:.1f}m | Lat Dev: {end_ym:+.1f}m", True, (220, 235, 255)), (8, 188))
         
-        env.screen.blit(surf, (1385, env.sim_h + 35))
+        env.screen.blit(surf, (1445, env.sim_h + 40))
 
     def _draw_weight_breakdown(self):
         """우측 하단: 웨이포인트 우선순위 가중치 비율 분포 막대 게이지"""
@@ -1349,7 +1349,7 @@ class EnvRenderer:
                 txt_pct = self.small_font.render("--%", True, (90, 120, 150))
                 surf.blit(txt_pct, (bar_x + bar_w + 6, y_pos - 2))
             
-        env.screen.blit(surf, (1590, env.sim_h + 35))
+        env.screen.blit(surf, (1670, env.sim_h + 40))
 
     def _draw_telemetry(self):
         """우상단 실시간 텔레메트리 HUD"""

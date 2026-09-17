@@ -4,7 +4,7 @@ import pygame
 import numpy as np
 import math
 import random
-from config import WIDTH, HEIGHT, MAP_W, GRID, GRID_W, GRID_H
+from config import WIDTH, HEIGHT, SIM_H, DASH_H, MAP_W, GRID, GRID_W, GRID_H
 from utils import wrap
 from perception import init_grid
 from navigation import reactive_avoidance
@@ -15,9 +15,10 @@ class BoatEnv:
         pygame.init()
         self.w = WIDTH
         self.h = HEIGHT
-        self.map_w = MAP_W  # 월드 맵 가로 폭 (7200px)
+        self.map_w = MAP_W  # 월드 맵 가로 폭 (1920px)
         self.cam_x = 0      # 카메라 X 오프셋 (보트 추종)
-        self.sim_h = 630
+        self.sim_h = SIM_H
+        self.is_fullscreen_window = False
         self.screen = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption("kaboat simulation")
         self.clock = pygame.time.Clock()
@@ -125,34 +126,37 @@ class BoatEnv:
         self.show_closest_obstacle = True
         self.closest_avoid_hit = None
         
-        self.cb1_rect = pygame.Rect(40, 668, 20, 20)
-        self.cb2_rect = pygame.Rect(40, 704, 20, 20)
-        self.cb3_rect = pygame.Rect(40, 740, 20, 20)
-        self.cb4_rect = pygame.Rect(40, 776, 20, 20)
-        self.cb5_rect = pygame.Rect(40, 812, 20, 20)
+        # 체크박스 및 버튼 좌표 (self.sim_h 기준 동적 오프셋 계산)
+        base_y = self.sim_h + 33
+        self.cb1_rect = pygame.Rect(40, base_y + 5, 20, 20)
+        self.cb2_rect = pygame.Rect(40, base_y + 41, 20, 20)
+        self.cb3_rect = pygame.Rect(40, base_y + 77, 20, 20)
+        self.cb4_rect = pygame.Rect(40, base_y + 113, 20, 20)
+        self.cb5_rect = pygame.Rect(40, base_y + 149, 20, 20)
         
         # 체크박스 및 텍스트 라벨 전체 클릭 영역 (가로 275px)
-        self.cb1_row_rect = pygame.Rect(35, 663, 275, 30)
-        self.cb2_row_rect = pygame.Rect(35, 699, 275, 30)
-        self.cb3_row_rect = pygame.Rect(35, 735, 275, 30)
-        self.cb4_row_rect = pygame.Rect(35, 771, 275, 30)
-        self.cb5_row_rect = pygame.Rect(35, 807, 275, 30)
+        self.cb1_row_rect = pygame.Rect(35, base_y, 275, 30)
+        self.cb2_row_rect = pygame.Rect(35, base_y + 36, 275, 30)
+        self.cb3_row_rect = pygame.Rect(35, base_y + 72, 275, 30)
+        self.cb4_row_rect = pygame.Rect(35, base_y + 108, 275, 30)
+        self.cb5_row_rect = pygame.Rect(35, base_y + 144, 275, 30)
         
         self.paused = False
-        self.pause_btn = pygame.Rect(38, 848, 52, 34)
+        btn_y = base_y + 185
+        self.pause_btn = pygame.Rect(38, btn_y, 52, 34)
         self.sim_speed = 1
         self.speed_btns = {
-            1: pygame.Rect(96, 848, 38, 34),
-            2: pygame.Rect(140, 848, 38, 34),
-            4: pygame.Rect(184, 848, 38, 34),
-            8: pygame.Rect(228, 848, 38, 34),
-            16: pygame.Rect(272, 848, 46, 34)
+            1: pygame.Rect(96, btn_y, 38, 34),
+            2: pygame.Rect(140, btn_y, 38, 34),
+            4: pygame.Rect(184, btn_y, 38, 34),
+            8: pygame.Rect(228, btn_y, 38, 34),
+            16: pygame.Rect(272, btn_y, 46, 34)
         }
         
         # 실시간 3D 그래픽스 엔진 상태 변수
         self.cam_3d_mode = 1  # 0: 1인칭 조타석, 1: 3인칭 추종 체이스, 2: 전술 드론
         self.fullscreen_3d = False
-        self.panel_3d_rect = pygame.Rect(1050, self.sim_h + 35, 320, 220)
+        self.panel_3d_rect = pygame.Rect(1090, self.sim_h + 40, 320, 220)
         
         self.renderer = EnvRenderer(self)
         self.reset()
@@ -298,6 +302,11 @@ class BoatEnv:
                         self.sim_speed = spd
                         self.paused = False
                         break
+
+    def toggle_fullscreen(self):
+        self.is_fullscreen_window = not getattr(self, 'is_fullscreen_window', False)
+        flags = pygame.FULLSCREEN if self.is_fullscreen_window else 0
+        self.screen = pygame.display.set_mode((self.w, self.h), flags)
 
     def update_dynamic_obstacles(self):
         ox = self.obstacles[:, 0]
