@@ -1,19 +1,24 @@
-import moderngl
-import numpy as np
+import os
 import math
+import atexit
+import multiprocessing as mp
+from multiprocessing import shared_memory
+import numpy as np
 import pygame
+import moderngl
 
-class Engine3D:
+class _Engine3DCore:
     """
-    ModernGL 기반 실시간 하드웨어 가속 3D 그래픽스 엔진
-    - 해양 환경(Gerstner Waves), KABOAT 쌍동선 3차원 모델, 실시간 항로 표지 부표,
-      공간 라이다 포인트 클라우드, 베지에 궤적 리본, 다중 시점 카메라 시스템 렌더링
+    내부 3D 렌더링 코어 (독립 워커 프로세스 내부에서 하드웨어 가속 실행)
+    - ModernGL Core Profile 3.3+ EGL 기반 오프스크린 FBO 렌더링
+    - Gerstner Harmonic Waves 해양 셰이더, KABOAT 쌍동선 3D 모델 및 연동 러더,
+      항로 표지 부표, 3차원 라이다 포인트 클라우드, 베지에 리본, 다중 시점 카메라
     """
     def __init__(self, width=320, height=220):
         self.width = width
         self.height = height
         
-        # 1. ModernGL 독립형 컨텍스트 초기화 (Wayland/Xwayland 환경 안정성을 위해 하드웨어 EGL 백엔드 우선 사용)
+        # EGL 독립형 컨텍스트 초기화 (X11 간섭 없는 순수 하드웨어 EGL 백엔드)
         self.ctx = None
         for backend_name in ['egl', None]:
             try:
@@ -35,31 +40,32 @@ class Engine3D:
         self._fbo_cache = {}
         # 사전 캐싱: 패널(320x220) 및 전체화면(1800x630) FBO를 VRAM에 고정 상주
         self._get_fbo(320, 220)
+        self._get_fbo(1800, 630)
         
-        # 2. GLSL 셰이더 컴파일
+        # GLSL 셰이더 컴파일
         self._init_shaders()
         
-        # 3. 3차원 지오메트리 메쉬 생성
+        # 3차원 지오메트리 메쉬 생성
         self._init_ocean_mesh()
         self._init_boat_mesh()
         self._init_rudder_mesh()
         self._init_buoy_meshes()
         self._init_beacon_mesh()
         
-        # 4. 동적 지오메트리 버퍼 (트라이앵글용 & 라인용 분리)
+        # 동적 지오메트리 버퍼 (트라이앵글용 & 라인용 분리)
         self.tri_vbo = self.ctx.buffer(reserve=512 * 1024)
         self.tri_vao = self.ctx.vertex_array(self.prog_unlit, [(self.tri_vbo, '3f 4f', 'in_position', 'in_color')])
         
         self.line_vbo = self.ctx.buffer(reserve=512 * 1024)
         self.line_vao = self.ctx.vertex_array(self.prog_unlit, [(self.line_vbo, '3f 4f', 'in_position', 'in_color')])
         
-        # 5. 카메라 및 시간 변수
+        # 카메라 및 시간 변수
         self.cam_mode = 1  # 0: 1인칭 조타석, 1: 3인칭 추종 체이스, 2: 전술 드론
         self.cam_names = ["1st-Person Helm", "3rd-Person Chase", "Tactical Drone"]
         self.time = 0.0
         self.lidar_rot = 0.0
         
-        # 텍스트 렌더용 폰트 (패널 및 전체화면 모드 반응형 크기)
+        # 텍스트 렌더용 폰트 (워커 프로세스 내부 렌더링)
         pygame.font.init()
         self.font = pygame.font.SysFont("sans-serif", 13, bold=True)
         self.micro_font = pygame.font.SysFont("sans-serif", 11)
@@ -249,222 +255,197 @@ class Engine3D:
         extent = 45.0
         xs = np.linspace(-extent, extent, res, dtype=np.float32)
         zs = np.linspace(-extent, extent, res, dtype=np.float32)
-        grid_x, grid_z = np.meshgrid(xs, zs)
         
         verts = []
         for i in range(res - 1):
             for j in range(res - 1):
-                p0 = [grid_x[i, j], grid_z[i, j]]
-                p1 = [grid_x[i+1, j], grid_z[i+1, j]]
-                p2 = [grid_x[i, j+1], grid_z[i, j+1]]
-                p3 = [grid_x[i+1, j+1], grid_z[i+1, j+1]]
-                verts.extend(p0 + p1 + p2)
-                verts.extend(p1 + p3 + p2)
+                p00 = (xs[i], zs[j])
+                p10 = (xs[i + 1], zs[j])
+                p01 = (xs[i], zs[j + 1])
+                p11 = (xs[i + 1], zs[j + 1])
+                
+                # Tri 1
+                verts.extend([p00[0], p00[1], p10[0], p10[1], p01[0], p01[1]])
+                # Tri 2
+                verts.extend([p10[0], p10[1], p11[0], p11[1], p01[0], p01[1]])
                 
         ocean_data = np.array(verts, dtype=np.float32)
-        self.ocean_count = len(ocean_data) // 2
         self.ocean_vbo = self.ctx.buffer(ocean_data.tobytes())
         self.ocean_vao = self.ctx.vertex_array(self.prog_ocean, [(self.ocean_vbo, '2f', 'in_pos')])
 
     def _init_boat_mesh(self):
-        # KABOAT 정밀 쌍동선(Catamaran) 모델링
+        # KABOAT 쌍동선 3차원 기하 형상 (좌현 선체, 우현 선체, 중앙 연결 데크, 레이더 마스트)
         verts = []
         
         def add_box(center, size, color):
             cx, cy, cz = center
-            sx, sy, sz = size[0]*0.5, size[1]*0.5, size[2]*0.5
+            sx, sy, sz = [s * 0.5 for s in size]
+            r, g, b = color
+            
+            # 6개 면 정의 (pos[3], normal[3], col[3])
             faces = [
-                ([cx-sx, cy+sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx+sx, cy+sy, cz+sz], [cx-sx, cy+sy, cz+sz], [0, 1, 0]),
-                ([cx-sx, cy-sy, cz+sz], [cx+sx, cy-sy, cz+sz], [cx+sx, cy-sy, cz-sz], [cx-sx, cy-sy, cz-sz], [0, -1, 0]),
-                ([cx+sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz+sz], [cx+sx, cy+sy, cz+sz], [cx+sx, cy+sy, cz-sz], [1, 0, 0]),
-                ([cx-sx, cy-sy, cz+sz], [cx-sx, cy-sy, cz-sz], [cx-sx, cy+sy, cz-sz], [cx-sx, cy+sy, cz+sz], [-1, 0, 0]),
-                ([cx+sx, cy-sy, cz+sz], [cx-sx, cy-sy, cz+sz], [cx-sx, cy+sy, cz+sz], [cx+sx, cy+sy, cz+sz], [0, 0, 1]),
-                ([cx-sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx-sx, cy+sy, cz-sz], [0, 0, -1]),
+                # Front (+X)
+                ([cx+sx, cy-sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx+sx, cy+sy, cz+sz], [cx+sx, cy-sy, cz+sz], [1.0, 0.0, 0.0]),
+                # Back (-X)
+                ([cx-sx, cy-sy, cz+sz], [cx-sx, cy+sy, cz+sz], [cx-sx, cy+sy, cz-sz], [cx-sx, cy-sy, cz-sz], [-1.0, 0.0, 0.0]),
+                # Top (+Y)
+                ([cx-sx, cy+sy, cz-sz], [cx-sx, cy+sy, cz+sz], [cx+sx, cy+sy, cz+sz], [cx+sx, cy+sy, cz-sz], [0.0, 1.0, 0.0]),
+                # Bottom (-Y)
+                ([cx-sx, cy-sy, cz+sz], [cx-sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz+sz], [0.0, -1.0, 0.0]),
+                # Right (+Z)
+                ([cx+sx, cy-sy, cz+sz], [cx+sx, cy+sy, cz+sz], [cx-sx, cy+sy, cz+sz], [cx-sx, cy-sy, cz+sz], [0.0, 0.0, 1.0]),
+                # Left (-Z)
+                ([cx-sx, cy-sy, cz-sz], [cx-sx, cy+sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx+sx, cy-sy, cz-sz], [0.0, 0.0, -1.0])
             ]
-            for p0, p1, p2, p3, n in faces:
-                verts.extend(p0 + n + list(color))
-                verts.extend(p1 + n + list(color))
-                verts.extend(p2 + n + list(color))
-                verts.extend(p0 + n + list(color))
-                verts.extend(p2 + n + list(color))
-                verts.extend(p3 + n + list(color))
+            
+            for p0, p1, p2, p3, norm in faces:
+                # Quad -> 2 Triangles
+                for pt in [p0, p1, p2, p0, p2, p3]:
+                    verts.extend(pt + norm + [r, g, b])
 
-        def add_wedge(p_tip, p_base1, p_base2, p_base3, p_base4, color):
-            triangles = [
-                (p_tip, p_base1, p_base2),
-                (p_tip, p_base2, p_base3),
-                (p_tip, p_base3, p_base4),
-                (p_tip, p_base4, p_base1)
-            ]
-            for t1, t2, t3 in triangles:
-                v1 = np.array(t2) - np.array(t1)
-                v2 = np.array(t3) - np.array(t1)
-                n = np.cross(v1, v2)
-                norm = list(n / (np.linalg.norm(n) + 1e-6))
-                verts.extend(t1 + norm + list(color))
-                verts.extend(t2 + norm + list(color))
-                verts.extend(t3 + norm + list(color))
-
-        # 1. 좌/우현 쌍동 폰툰 선체 (순백색 선체 + 해양 시안 레이싱 스트라이프)
-        hull_w = 0.28
-        hull_h = 0.26
-        hull_l = 1.45
-        p_z = 0.38
+        # 좌현 선체 (Left Hull) - 짙은 네이비/메탈릭
+        add_box([0.0, 0.05, -0.38], [1.65, 0.32, 0.28], [0.18, 0.26, 0.36])
+        # 선수 경사부 (Left Bow Slope)
+        add_box([0.75, 0.08, -0.38], [0.45, 0.26, 0.22], [0.88, 0.30, 0.12]) # 선수 고시인성 오렌지
         
-        # 좌현 (Port, -Z)
-        add_box([-0.05, 0.05, -p_z], [hull_l, hull_h, hull_w], [0.95, 0.96, 0.98])
-        add_box([-0.05, 0.16, -p_z], [hull_l, 0.05, hull_w + 0.02], [0.00, 0.72, 0.95])
-        # 우현 (Starboard, +Z)
-        add_box([-0.05, 0.05, p_z], [hull_l, hull_h, hull_w], [0.95, 0.96, 0.98])
-        add_box([-0.05, 0.16, p_z], [hull_l, 0.05, hull_w + 0.02], [0.00, 0.72, 0.95])
+        # 우현 선체 (Right Hull)
+        add_box([0.0, 0.05, 0.38], [1.65, 0.32, 0.28], [0.18, 0.26, 0.36])
+        # 선수 경사부 (Right Bow Slope)
+        add_box([0.75, 0.08, 0.38], [0.45, 0.26, 0.22], [0.88, 0.30, 0.12])
         
-        # 2. 유선형 선수 쇄파 웨지 (Bow Cutwaters)
-        b_x = 0.675
-        t_x = 0.98
-        add_wedge([t_x, 0.08, -p_z], [b_x, 0.18, -p_z - hull_w*0.5], [b_x, 0.18, -p_z + hull_w*0.5], [b_x, -0.08, -p_z + hull_w*0.5], [b_x, -0.08, -p_z - hull_w*0.5], [0.96, 0.97, 0.99])
-        add_wedge([t_x, 0.08, p_z], [b_x, 0.18, p_z - hull_w*0.5], [b_x, 0.18, p_z + hull_w*0.5], [b_x, -0.08, p_z + hull_w*0.5], [b_x, -0.08, p_z - hull_w*0.5], [0.96, 0.97, 0.99])
-
-        # 3. 중앙 알루미늄 브리지 갑판 (Center Deck)
-        add_box([-0.05, 0.17, 0.0], [1.02, 0.05, 0.64], [0.24, 0.30, 0.38])
+        # 중앙 연결 브릿지 데크 (Center Connecting Deck)
+        add_box([0.0, 0.16, 0.0], [1.10, 0.12, 0.62], [0.75, 0.82, 0.90])
         
-        # 4. 방수 전장 박스 (Electronics Enclosure)
-        add_box([-0.08, 0.28, 0.0], [0.60, 0.18, 0.44], [0.12, 0.18, 0.25])
-        add_box([-0.08, 0.38, -0.14], [0.05, 0.03, 0.05], [0.10, 0.95, 0.30]) # Status Green LED
-        add_box([-0.08, 0.38, 0.14], [0.05, 0.03, 0.05], [0.98, 0.70, 0.10])  # Warning Amber LED
-
-        # 5. 센서 마스트
-        add_box([0.14, 0.48, 0.0], [0.05, 0.28, 0.05], [0.82, 0.84, 0.88])
+        # 상부 항법 제어 캐빈 (Avionics Cabin Pod)
+        add_box([0.05, 0.29, 0.0], [0.65, 0.18, 0.44], [0.12, 0.18, 0.26])
         
-        # 6. YDLIDAR TG15 라이다 센서 바디
-        add_box([0.14, 0.64, 0.0], [0.16, 0.06, 0.16], [0.08, 0.08, 0.10])
-        add_box([0.14, 0.68, 0.0], [0.14, 0.03, 0.14], [0.96, 0.76, 0.16]) # Gold Optics Ring
+        # 라이다 센서 마운트 타워 (LiDAR Tower)
+        add_box([0.18, 0.44, 0.0], [0.12, 0.16, 0.12], [0.25, 0.25, 0.30])
+        # 회전형 3D 라이다 센서 퍽 (LiDAR Puck - Golden Highlight)
+        add_box([0.18, 0.54, 0.0], [0.16, 0.08, 0.16], [0.95, 0.75, 0.10])
+        
+        # 통신 안테나 돔 (GPS / V2X Dome)
+        add_box([-0.22, 0.42, 0.10], [0.10, 0.12, 0.10], [0.95, 0.95, 0.98])
+        add_box([-0.22, 0.42, -0.10], [0.10, 0.12, 0.10], [0.95, 0.95, 0.98])
 
         boat_data = np.array(verts, dtype=np.float32)
-        self.boat_count = len(boat_data) // 9
         self.boat_vbo = self.ctx.buffer(boat_data.tobytes())
         self.boat_vao = self.ctx.vertex_array(self.prog_mesh, [(self.boat_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
 
     def _init_rudder_mesh(self):
-        # 조타각에 연동되어 회전하는 선미 러더/추진기 모듈
+        # 선미 조타기 러더 (Rudder Blade)
         verts = []
-        cx, cy, cz = 0.0, 0.0, 0.0
-        sx, sy, sz = 0.16, 0.22, 0.05
-        col = [0.15, 0.16, 0.18]
-        faces = [
-            ([cx-sx, cy+sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx+sx, cy+sy, cz+sz], [cx-sx, cy+sy, cz+sz], [0, 1, 0]),
-            ([cx-sx, cy-sy, cz+sz], [cx+sx, cy-sy, cz+sz], [cx+sx, cy-sy, cz-sz], [cx-sx, cy-sy, cz-sz], [0, -1, 0]),
-            ([cx+sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz+sz], [cx+sx, cy+sy, cz+sz], [cx+sx, cy+sy, cz-sz], [1, 0, 0]),
-            ([cx-sx, cy-sy, cz+sz], [cx-sx, cy-sy, cz-sz], [cx-sx, cy+sy, cz-sz], [cx-sx, cy+sy, cz+sz], [-1, 0, 0]),
-            ([cx+sx, cy-sy, cz+sz], [cx-sx, cy-sy, cz+sz], [cx-sx, cy+sy, cz+sz], [cx+sx, cy+sy, cz+sz], [0, 0, 1]),
-            ([cx-sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx-sx, cy+sy, cz-sz], [0, 0, -1]),
-        ]
-        for p0, p1, p2, p3, n in faces:
-            verts.extend(p0 + n + col)
-            verts.extend(p1 + n + col)
-            verts.extend(p2 + n + col)
-            verts.extend(p0 + n + col)
-            verts.extend(p2 + n + col)
-            verts.extend(p3 + n + col)
+        cx, cy, cz = 0.0, -0.12, 0.0
+        sx, sy, sz = 0.15, 0.24, 0.04
+        r, g, b = 0.95, 0.15, 0.15 # Red Rudders
         
-        rudder_data = np.array(verts, dtype=np.float32)
-        self.rudder_count = len(rudder_data) // 9
-        self.rudder_vbo = self.ctx.buffer(rudder_data.tobytes())
+        faces = [
+            ([cx+sx, cy-sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx+sx, cy+sy, cz+sz], [cx+sx, cy-sy, cz+sz], [1.0, 0.0, 0.0]),
+            ([cx-sx, cy-sy, cz+sz], [cx-sx, cy+sy, cz+sz], [cx-sx, cy+sy, cz-sz], [cx-sx, cy-sy, cz-sz], [-1.0, 0.0, 0.0]),
+            ([cx-sx, cy+sy, cz-sz], [cx-sx, cy+sy, cz+sz], [cx+sx, cy+sy, cz+sz], [cx+sx, cy+sy, cz-sz], [0.0, 1.0, 0.0]),
+            ([cx-sx, cy-sy, cz+sz], [cx-sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz+sz], [0.0, -1.0, 0.0]),
+            ([cx+sx, cy-sy, cz+sz], [cx+sx, cy+sy, cz+sz], [cx-sx, cy+sy, cz+sz], [cx-sx, cy-sy, cz+sz], [0.0, 0.0, 1.0]),
+            ([cx-sx, cy-sy, cz-sz], [cx-sx, cy+sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx+sx, cy-sy, cz-sz], [0.0, 0.0, -1.0])
+        ]
+        for p0, p1, p2, p3, norm in faces:
+            for pt in [p0, p1, p2, p0, p2, p3]:
+                verts.extend(pt + norm + [r, g, b])
+                
+        rud_data = np.array(verts, dtype=np.float32)
+        self.rudder_vbo = self.ctx.buffer(rud_data.tobytes())
         self.rudder_vao = self.ctx.vertex_array(self.prog_mesh, [(self.rudder_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
 
     def _init_buoy_meshes(self):
-        # 3차원 해상 항로 표지 부표 (원통 바디 + 고반사 띠 + 원추 헤드)
-        def create_buoy_data(main_color):
+        # 3D 원통/원뿔 항로 표지 부표 메쉬 (홍색 좌현표지 / 녹색 우현표지)
+        def create_buoy_data(base_color, top_cone=False):
             verts = []
-            n_segs = 18
-            r = 0.36
-            h_cone = 0.50
-            angles = np.linspace(0, 2*np.pi, n_segs, endpoint=False)
+            segments = 14
+            r_body = 0.35
+            h_body = 0.95
+            y_base = -0.25
             
-            for i in range(n_segs):
-                a1 = angles[i]
-                a2 = angles[(i + 1) % n_segs]
-                x1, z1 = math.cos(a1) * r, math.sin(a1) * r
-                x2, z2 = math.cos(a2) * r, math.sin(a2) * r
-                n1 = [math.cos(a1), 0.0, math.sin(a1)]
-                n2 = [math.cos(a2), 0.0, math.sin(a2)]
-                col_white = [0.95, 0.95, 0.95]
+            # 1. 하단 부력 원통체 (Cylindrical Float Body)
+            for i in range(segments):
+                a1 = (i / segments) * 2 * math.pi
+                a2 = ((i + 1) / segments) * 2 * math.pi
+                c1, s1 = math.cos(a1), math.sin(a1)
+                c2, s2 = math.cos(a2), math.sin(a2)
                 
-                # 하단 몸체 (수면 아래 ~ 수면 위)
-                verts.extend([x1, -0.30, z1] + n1 + main_color)
-                verts.extend([x2, -0.30, z2] + n2 + main_color)
-                verts.extend([x2, 0.35, z2] + n2 + main_color)
-                verts.extend([x1, -0.30, z1] + n1 + main_color)
-                verts.extend([x2, 0.35, z2] + n2 + main_color)
-                verts.extend([x1, 0.35, z1] + n1 + main_color)
+                # Side Quad
+                p0 = [c1 * r_body, y_base, s1 * r_body]
+                p1 = [c1 * r_body, y_base + h_body, s1 * r_body]
+                p2 = [c2 * r_body, y_base + h_body, s2 * r_body]
+                p3 = [c2 * r_body, y_base, s2 * r_body]
+                n1 = [c1, 0.0, s1]
+                n2 = [c2, 0.0, s2]
                 
-                # 중단 백색 반사띠
-                verts.extend([x1, 0.35, z1] + n1 + col_white)
-                verts.extend([x2, 0.35, z2] + n2 + col_white)
-                verts.extend([x2, 0.58, z2] + n2 + col_white)
-                verts.extend([x1, 0.35, z1] + n1 + col_white)
-                verts.extend([x2, 0.58, z2] + n2 + col_white)
-                verts.extend([x1, 0.58, z1] + n1 + col_white)
+                verts.extend(p0 + n1 + base_color)
+                verts.extend(p1 + n1 + base_color)
+                verts.extend(p2 + n2 + base_color)
+                verts.extend(p0 + n1 + base_color)
+                verts.extend(p2 + n2 + base_color)
+                verts.extend(p3 + n2 + base_color)
                 
-                # 상단 몸체
-                verts.extend([x1, 0.58, z1] + n1 + main_color)
-                verts.extend([x2, 0.58, z2] + n2 + main_color)
-                verts.extend([x2, 0.82, z2] + n2 + main_color)
-                verts.extend([x1, 0.58, z1] + n1 + main_color)
-                verts.extend([x2, 0.82, z2] + n2 + main_color)
-                verts.extend([x1, 0.82, z1] + n1 + main_color)
+            # 2. 상부 톱마크 원뿔 (Top Cone Mark)
+            h_top = 0.65
+            y_top = y_base + h_body
+            tip = [0.0, y_top + h_top, 0.0]
+            for i in range(segments):
+                a1 = (i / segments) * 2 * math.pi
+                a2 = ((i + 1) / segments) * 2 * math.pi
+                c1, s1 = math.cos(a1), math.sin(a1)
+                c2, s2 = math.cos(a2), math.sin(a2)
                 
-                # 상단 원추형 탑마크
-                apex = [0.0, 0.82 + h_cone, 0.0]
-                v_cone1 = np.array([x1, 0.82, z1])
-                v_cone2 = np.array([x2, 0.82, z2])
-                n_cone = np.cross(v_cone2 - np.array(apex), v_cone1 - np.array(apex))
-                n_cone = list(n_cone / (np.linalg.norm(n_cone) + 1e-6))
+                p_b1 = [c1 * (r_body * 0.7), y_top, s1 * (r_body * 0.7)]
+                p_b2 = [c2 * (r_body * 0.7), y_top, s2 * (r_body * 0.7)]
+                norm = [c1 * 0.7, 0.7, s1 * 0.7]
                 
-                verts.extend(apex + n_cone + main_color)
-                verts.extend([x1, 0.82, z1] + n_cone + main_color)
-                verts.extend([x2, 0.82, z2] + n_cone + main_color)
+                top_col = [1.0, 0.95, 0.2] if top_cone else base_color
+                verts.extend(p_b1 + norm + top_col)
+                verts.extend(tip + norm + top_col)
+                verts.extend(p_b2 + norm + top_col)
+                
             return np.array(verts, dtype=np.float32)
 
-        # 1. 홍색 좌현표지 (Port Buoy)
-        red_data = create_buoy_data([0.92, 0.22, 0.18])
-        self.buoy_red_count = len(red_data) // 9
+        # 홍색 부표 (Red Port Buoy)
+        red_data = create_buoy_data([0.92, 0.16, 0.18], top_cone=False)
         self.buoy_red_vbo = self.ctx.buffer(red_data.tobytes())
         self.buoy_red_vao = self.ctx.vertex_array(self.prog_mesh, [(self.buoy_red_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
-        
-        # 2. 녹색 우현표지 (Starboard Buoy)
-        green_data = create_buoy_data([0.16, 0.75, 0.40])
-        self.buoy_green_count = len(green_data) // 9
+
+        # 녹색 부표 (Green Starboard Buoy)
+        green_data = create_buoy_data([0.15, 0.82, 0.35], top_cone=True)
         self.buoy_green_vbo = self.ctx.buffer(green_data.tobytes())
         self.buoy_green_vao = self.ctx.vertex_array(self.prog_mesh, [(self.buoy_green_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
 
     def _init_beacon_mesh(self):
-        # 최종 목적지 에메랄드 항해 등대 비콘 타워
+        # 최종 목적지 회전형 비콘 타워 (Lighthouse Beacon Tower)
         verts = []
-        n_segs = 16
-        r_base = 0.65
-        r_top = 0.25
-        h_tower = 4.5
-        angles = np.linspace(0, 2*np.pi, n_segs, endpoint=False)
-        col_tower = [0.10, 0.90, 0.45]
+        segments = 16
+        r_base = 0.55
+        r_top = 0.28
+        h_tower = 3.2
+        col_gold = [1.0, 0.85, 0.15]
         
-        for i in range(n_segs):
-            a1 = angles[i]; a2 = angles[(i + 1) % n_segs]
-            x1_b, z1_b = math.cos(a1)*r_base, math.sin(a1)*r_base
-            x2_b, z2_b = math.cos(a2)*r_base, math.sin(a2)*r_base
-            x1_t, z1_t = math.cos(a1)*r_top, math.sin(a1)*r_top
-            x2_t, z2_t = math.cos(a2)*r_top, math.sin(a2)*r_top
-            n1 = [math.cos(a1), 0.2, math.sin(a1)]
-            n2 = [math.cos(a2), 0.2, math.sin(a2)]
+        for i in range(segments):
+            a1 = (i / segments) * 2 * math.pi
+            a2 = ((i + 1) / segments) * 2 * math.pi
+            c1, s1 = math.cos(a1), math.sin(a1)
+            c2, s2 = math.cos(a2), math.sin(a2)
             
-            verts.extend([x1_b, 0.0, z1_b] + n1 + col_tower)
-            verts.extend([x2_b, 0.0, z2_b] + n2 + col_tower)
-            verts.extend([x2_t, h_tower, z2_t] + n2 + col_tower)
-            verts.extend([x1_b, 0.0, z1_b] + n1 + col_tower)
-            verts.extend([x2_t, h_tower, z2_t] + n2 + col_tower)
-            verts.extend([x1_t, h_tower, z1_t] + n1 + col_tower)
+            p0 = [c1 * r_base, 0.0, s1 * r_base]
+            p1 = [c1 * r_top, h_tower, s1 * r_top]
+            p2 = [c2 * r_top, h_tower, s2 * r_top]
+            p3 = [c2 * r_base, 0.0, s2 * r_base]
+            norm = [c1, 0.1, s1]
+            
+            verts.extend(p0 + norm + col_gold)
+            verts.extend(p1 + norm + col_gold)
+            verts.extend(p2 + norm + col_gold)
+            verts.extend(p0 + norm + col_gold)
+            verts.extend(p2 + norm + col_gold)
+            verts.extend(p3 + norm + col_gold)
             
         beacon_data = np.array(verts, dtype=np.float32)
-        self.beacon_count = len(beacon_data) // 9
         self.beacon_vbo = self.ctx.buffer(beacon_data.tobytes())
         self.beacon_vao = self.ctx.vertex_array(self.prog_mesh, [(self.beacon_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
 
@@ -474,77 +455,80 @@ class Engine3D:
         w3 = math.cos(x * 2.10 + z * 1.40 - t * 4.5) * 0.025
         return w1 + w2 + w3
 
-    def _matrix_perspective(self, fovy, aspect, near, far):
-        f = 1.0 / math.tan(math.radians(fovy) / 2.0)
-        m = np.zeros((4, 4), dtype=np.float32)
-        m[0, 0] = f / aspect
-        m[1, 1] = f
-        m[2, 2] = (far + near) / (near - far)
-        m[2, 3] = (2.0 * far * near) / (near - far)
-        m[3, 2] = -1.0
-        return m
+    def _matrix_perspective(self, fovy_deg, aspect, near, far):
+        f = 1.0 / math.tan(math.radians(fovy_deg) / 2.0)
+        M = np.zeros((4, 4), dtype=np.float32)
+        M[0, 0] = f / aspect
+        M[1, 1] = f
+        M[2, 2] = (far + near) / (near - far)
+        M[2, 3] = (2.0 * far * near) / (near - far)
+        M[3, 2] = -1.0
+        return M
 
     def _matrix_look_at(self, eye, target, up):
         eye = np.array(eye, dtype=np.float32)
         target = np.array(target, dtype=np.float32)
         up = np.array(up, dtype=np.float32)
+        
         f = target - eye
-        f /= (np.linalg.norm(f) + 1e-7)
-        u = up / (np.linalg.norm(up) + 1e-7)
-        s = np.cross(f, u)
-        s /= (np.linalg.norm(s) + 1e-7)
+        fn = np.linalg.norm(f)
+        f = f / (fn if fn > 1e-6 else 1.0)
+        
+        s = np.cross(f, up)
+        sn = np.linalg.norm(s)
+        s = s / (sn if sn > 1e-6 else 1.0)
+        
         u = np.cross(s, f)
-        m = np.identity(4, dtype=np.float32)
-        m[0, :3] = s
-        m[1, :3] = u
-        m[2, :3] = -f
-        m[0, 3] = -np.dot(s, eye)
-        m[1, 3] = -np.dot(u, eye)
-        m[2, 3] = np.dot(f, eye)
-        return m
+        
+        M = np.identity(4, dtype=np.float32)
+        M[0, 0:3] = s
+        M[1, 0:3] = u
+        M[2, 0:3] = -f
+        M[0, 3] = -np.dot(s, eye)
+        M[1, 3] = -np.dot(u, eye)
+        M[2, 3] = np.dot(f, eye)
+        return M
 
-    def _matrix_model(self, tx, ty, tz, yaw, pitch=0.0, roll=0.0, sx=1.0, sy=1.0, sz=1.0):
-        # 올바른 3축 오일러 회전 행렬 연산 (Yaw * Pitch * Roll)
-        cy, sy_ang = math.cos(yaw), math.sin(yaw)
+    def _matrix_model(self, x, y, z, yaw, pitch=0.0, roll=0.0):
+        # Yaw -> Pitch -> Roll
+        cy, sy = math.cos(yaw), math.sin(yaw)
         cp, sp = math.cos(pitch), math.sin(pitch)
         cr, sr = math.cos(roll), math.sin(roll)
         
-        Ry = np.array([
-            [cy, 0.0, sy_ang],
-            [0.0, 1.0, 0.0],
-            [-sy_ang, 0.0, cy]
+        Rz = np.array([
+            [cr, -sr, 0, 0],
+            [sr, cr, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
         ], dtype=np.float32)
         
         Rx = np.array([
-            [1.0, 0.0, 0.0],
-            [0.0, cp, -sp],
-            [0.0, sp, cp]
+            [1, 0, 0, 0],
+            [0, cp, -sp, 0],
+            [0, sp, cp, 0],
+            [0, 0, 0, 1]
         ], dtype=np.float32)
         
-        Rz = np.array([
-            [cr, -sr, 0.0],
-            [sr, cr, 0.0],
-            [0.0, 0.0, 1.0]
+        Ry = np.array([
+            [cy, 0, sy, 0],
+            [0, 1, 0, 0],
+            [-sy, 0, cy, 0],
+            [0, 0, 0, 1]
         ], dtype=np.float32)
         
         R = Ry @ Rx @ Rz
-        
-        m = np.identity(4, dtype=np.float32)
-        m[:3, 0] = R[:, 0] * sx
-        m[:3, 1] = R[:, 1] * sy
-        m[:3, 2] = R[:, 2] * sz
-        m[0, 3] = tx
-        m[1, 3] = ty
-        m[2, 3] = tz
-        return m
+        R[0, 3] = x
+        R[1, 3] = y
+        R[2, 3] = z
+        return R
 
-    def render(self, env, hits, width=None, height=None):
+    def render_into_buffer(self, env, hits, width, height, out_buf):
         """
         메인 3D 렌더링 파이프라인
-        - 오프스크린 FBO 렌더링 후 Pygame Surface로 변환 반환
+        - 오프스크린 FBO 렌더링 후 공유 메모리 버퍼 out_buf에 직접 복사 및 HUD 오버레이 합성
         """
-        w = width or self.width
-        h = height or self.height
+        w = width
+        h = height
         fbo, col_tex, depth_rb = self._get_fbo(w, h)
             
         dt = getattr(env, 'dt', 0.04)
@@ -721,7 +705,6 @@ class Engine3D:
                     v1 = p_cur + side; v2 = p_cur - side
                     v3 = p_nxt + side; v4 = p_nxt - side
                     
-                    # 2 Triangles for Quad
                     tri_verts.extend(list(v1) + col_ribbon)
                     tri_verts.extend(list(v2) + col_ribbon)
                     tri_verts.extend(list(v3) + col_ribbon)
@@ -795,15 +778,15 @@ class Engine3D:
             self.line_vbo.write(line_data.tobytes())
             self.line_vao.render(moderngl.LINES, vertices=len(line_data) // 7)
 
-        # 10. FBO 버퍼를 초고속(10,000+ FPS)으로 읽어와 Pygame Surface로 변환
+        # 10. FBO 버퍼를 공유 메모리에 직접 고속 읽기 (Zero-Copy)
         raw_pixels = fbo.read(components=4)
-        surf_3d = pygame.image.frombuffer(raw_pixels, (w, h), 'RGBA')
-        surf_3d = pygame.transform.flip(surf_3d, False, True) # OpenGL Y축 반전 보정
+        raw_arr = np.frombuffer(raw_pixels, dtype=np.uint8).reshape((h, w, 4))
+        # OpenGL Y축 반전 보정 (고속 슬라이싱)
+        out_buf[:] = np.ascontiguousarray(raw_arr[::-1, :, :])
         
-        # 11. 3D 패널 오버레이 HUD 계기판 장식
+        # 11. 공유 메모리 버퍼 위에 직접 3D HUD 계기판 오버레이 합성
+        surf_3d = pygame.image.frombuffer(out_buf, (w, h), 'RGBA')
         self._draw_hud_overlay(surf_3d, env, speed, steer, heading)
-        
-        return surf_3d
 
     def _draw_hud_overlay(self, surf, env, speed, steer, heading):
         w, h = surf.get_size()
@@ -861,3 +844,169 @@ class Engine3D:
             True, (225, 242, 255)
         )
         surf.blit(lbl_stat, (12 if is_large else 8, info_y + (5 if is_large else 3)))
+
+
+def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name):
+    """
+    독립 OS 프로세스에서 실행되는 3D 렌더링 워커 루프
+    - 메인 Pygame 프로세스의 X11/Wayland 2D 그래픽스 파이프라인과 완벽히 격리
+    """
+    try:
+        core = _Engine3DCore(320, 220)
+    except Exception as e:
+        pipe.send({'error': str(e)})
+        return
+
+    pipe.send({'status': 'ready'})
+    
+    shm_panel = shared_memory.SharedMemory(name=shm_panel_name)
+    shm_full = shared_memory.SharedMemory(name=shm_full_name)
+    
+    buf_panel = np.ndarray((220, 320, 4), dtype=np.uint8, buffer=shm_panel.buf)
+    buf_full = np.ndarray((630, 1800, 4), dtype=np.uint8, buffer=shm_full.buf)
+    
+    class ProxyEnv:
+        pass
+    p_env = ProxyEnv()
+    
+    while True:
+        try:
+            req = pipe.recv()
+        except EOFError:
+            break
+            
+        if req is None or req.get('cmd') == 'close':
+            break
+            
+        w = req['w']
+        h = req['h']
+        hits = req.get('hits')
+        
+        p_env.boat_pos = req['boat_pos']
+        p_env.boat_heading = req['boat_heading']
+        p_env.boat_vel = req['boat_vel']
+        p_env.prev_steer = req['prev_steer']
+        p_env.cam_3d_mode = req['cam_3d_mode']
+        p_env.dynamic_obstacles = req['dynamic_obstacles']
+        p_env.target = req['target']
+        p_env.bezier_path = req['bezier_path']
+        p_env.current_wp = req['current_wp']
+        p_env.next_wp = req['next_wp']
+        p_env.linetrace_mode = req['linetrace_mode']
+        p_env.closest_avoid_hit = req['closest_avoid_hit']
+        p_env.dt = req.get('dt', 0.04)
+        
+        target_buf = buf_panel if (w, h) == (320, 220) else buf_full
+        core.render_into_buffer(p_env, hits, w, h, target_buf)
+        pipe.send(True)
+        
+    shm_panel.close()
+    shm_full.close()
+
+
+class Engine3D:
+    """
+    메인 애플리케이션용 고성능 프로세스 격리 3D 엔진 클라이언트
+    - POSIX 공유 메모리(/dev/shm) 기반 마이크로초 단위 무복사(Zero-Copy) 버퍼 교환
+    - 메인 Pygame 윈도우 서피스 검은 화면 및 드라이버 훅 충돌 원천 방지
+    """
+    def __init__(self, width=320, height=220):
+        self.width = width
+        self.height = height
+        self._closed = False
+        
+        # 패널(320x220) 및 전체화면(1800x630) 공유 메모리 블록 생성
+        self.shm_panel = shared_memory.SharedMemory(create=True, size=320 * 220 * 4)
+        self.shm_full = shared_memory.SharedMemory(create=True, size=1800 * 630 * 4)
+        
+        # Pygame Surface를 공유 메모리에 직접 매핑 (고정 참조)
+        self.surf_panel = pygame.image.frombuffer(self.shm_panel.buf, (320, 220), 'RGBA')
+        self.surf_full = pygame.image.frombuffer(self.shm_full.buf, (1800, 630), 'RGBA')
+        
+        # 클린 프로세스 스폰
+        ctx_spawn = mp.get_context('spawn')
+        self.parent_conn, self.child_conn = ctx_spawn.Pipe(duplex=True)
+        self.proc = ctx_spawn.Process(
+            target=_engine_3d_worker_proc,
+            args=(self.child_conn, self.shm_panel.name, self.shm_full.name),
+            daemon=True
+        )
+        self.proc.start()
+        
+        # 워커 시작 상태 확인
+        init_res = self.parent_conn.recv()
+        if 'error' in init_res:
+            self.close()
+            raise RuntimeError(f"3D Worker process initialization failed: {init_res['error']}")
+            
+        atexit.register(self.close)
+
+    def render(self, env, hits, width=None, height=None):
+        if self._closed or not self.proc.is_alive():
+            # 워커가 비활성 상태인 경우 대체용 서피스 반환
+            w = width or self.width
+            h = height or self.height
+            s = pygame.Surface((w, h))
+            s.fill((20, 40, 60))
+            return s
+            
+        w = width or self.width
+        h = height or self.height
+        
+        # 최소 상태 페이로드 직렬화
+        req = {
+            'w': w, 'h': h,
+            'boat_pos': tuple(env.boat_pos),
+            'boat_heading': float(env.boat_heading),
+            'boat_vel': tuple(getattr(env, 'boat_vel', [0.0, 0.0])),
+            'prev_steer': float(getattr(env, 'prev_steer', 0.0)),
+            'cam_3d_mode': int(getattr(env, 'cam_3d_mode', 1)),
+            'dynamic_obstacles': [list(obs) for obs in env.dynamic_obstacles],
+            'target': tuple(env.target),
+            'bezier_path': [list(p) for p in env.bezier_path] if getattr(env, 'bezier_path', None) is not None else None,
+            'current_wp': env.current_wp,
+            'next_wp': env.next_wp,
+            'linetrace_mode': bool(getattr(env, 'linetrace_mode', False)),
+            'closest_avoid_hit': getattr(env, 'closest_avoid_hit', None),
+            'hits': hits,
+            'dt': float(getattr(env, 'dt', 0.04))
+        }
+        
+        self.parent_conn.send(req)
+        self.parent_conn.recv()
+        
+        if (w, h) == (320, 220):
+            return self.surf_panel
+        else:
+            return self.surf_full
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            if hasattr(self, 'parent_conn') and self.parent_conn:
+                self.parent_conn.send({'cmd': 'close'})
+            if hasattr(self, 'proc') and self.proc:
+                self.proc.join(timeout=0.5)
+                if self.proc.is_alive():
+                    self.proc.terminate()
+        except Exception:
+            pass
+            
+        try:
+            if hasattr(self, 'shm_panel') and self.shm_panel:
+                self.shm_panel.close()
+                self.shm_panel.unlink()
+        except Exception:
+            pass
+            
+        try:
+            if hasattr(self, 'shm_full') and self.shm_full:
+                self.shm_full.close()
+                self.shm_full.unlink()
+        except Exception:
+            pass
+
+    def __del__(self):
+        self.close()

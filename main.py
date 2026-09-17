@@ -14,6 +14,8 @@ def run():
     while True:
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
+                if hasattr(env, 'renderer') and hasattr(env.renderer, 'engine_3d') and env.renderer.engine_3d:
+                    env.renderer.engine_3d.close()
                 pygame.quit()
                 return
             elif e.type == pygame.KEYDOWN:
