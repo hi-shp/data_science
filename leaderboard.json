@@ -38,5 +38,13 @@
     "cumulative_turn_deg": 142.8,
     "date": "2026-09-17 13:10",
     "timestamp": 1789604000.0
+  },
+  {
+    "player": "Player",
+    "collisions": 1,
+    "time": 19.07,
+    "cumulative_turn_deg": 428.0,
+    "date": "2026-09-17 19:47",
+    "timestamp": 1789642025.2985737
   }
 ]

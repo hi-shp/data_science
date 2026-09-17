@@ -5,18 +5,18 @@ import datetime
 
 LEADERBOARD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "leaderboard.json")
 
-# 자율운항 알고리즘("내 알고리즘")의 평균 성능 벤치마크 기준치
+# 자율운항 GAP 알고리즘의 평균 성능 벤치마크 기준치
 # 10,000회 시뮬레이션 및 실시간 3차 베지에-순수추종 알고리즘 기반 통계치:
 # - 충돌 횟수: 평균 0.0회 (무충돌 자율운항)
 # - 도달 시간: 평균 11.8초
 # - 누적 회전 각도: 평균 52.4도
 AI_BENCHMARK = {
-    "name": "Autonomous AI (내 알고리즘)",
+    "name": "GAP 알고리즘",
     "collisions": 0,
     "time": 11.8,
     "cumulative_turn_deg": 52.4,
     "is_ai": True,
-    "date": "ALGORITHM"
+    "date": "BENCHMARK"
 }
 
 def load_leaderboard():
@@ -73,7 +73,7 @@ def get_unified_records():
     records = load_leaderboard()
     all_entries = [dict(r) for r in records]
     ai_entry = dict(AI_BENCHMARK)
-    ai_entry["player"] = "내 알고리즘 (AI)"
+    ai_entry["player"] = "GAP 알고리즘"
     all_entries.append(ai_entry)
     all_entries.sort(key=lambda r: (
         r.get("collisions", 999),
