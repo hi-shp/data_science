@@ -228,9 +228,27 @@ class BoatEnv:
             self.linetrace_queued = False
 
     def handle_click(self, pos):
-        # 3D 뷰포트 패널 클릭 시 카메라 시점 즉시 순환 (1인칭 <-> 3인칭 <-> 전술 드론)
-        if getattr(self, 'panel_3d_rect', None) and self.panel_3d_rect.collidepoint(pos):
+        # 1. 상단 좌측 3D 전체화면/2D 화면 교체 버튼 클릭
+        if getattr(self, 'view_btn_top_rect', None) and self.view_btn_top_rect.collidepoint(pos):
+            self.fullscreen_3d = not getattr(self, 'fullscreen_3d', False)
+            return
+
+        # 2. 카메라 모드 변경 버튼 클릭 (상단 버튼 또는 하단 패널 내부 버튼)
+        if getattr(self, 'cam_btn_top_rect', None) and self.cam_btn_top_rect.collidepoint(pos):
             self.cam_3d_mode = (getattr(self, 'cam_3d_mode', 1) + 1) % 3
+            return
+
+        if getattr(self, 'cam_panel_btn_rect', None) and self.cam_panel_btn_rect.collidepoint(pos):
+            self.cam_3d_mode = (getattr(self, 'cam_3d_mode', 1) + 1) % 3
+            return
+
+        # 3. 하단 제3패널(3D 또는 2D 패널) 영역 클릭 시
+        if getattr(self, 'panel_3d_rect', None) and self.panel_3d_rect.collidepoint(pos):
+            if getattr(self, 'fullscreen_3d', False):
+                # 풀화면 3D 상태에서 하단 2D 패널을 클릭하면 상/하 화면 스왑 복귀
+                self.fullscreen_3d = False
+            else:
+                self.cam_3d_mode = (getattr(self, 'cam_3d_mode', 1) + 1) % 3
             return
 
         is_mode_click = getattr(self, 'mode_btn_top_rect', None) and self.mode_btn_top_rect.collidepoint(pos)

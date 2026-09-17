@@ -442,13 +442,13 @@ class _Engine3DCore:
         self.buoy_red_vao = self.ctx.vertex_array(self.prog_mesh, [(self.buoy_red_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
 
     def _init_beacon_mesh(self):
-        # 최종 목적지 회전형 비콘 타워 (Lighthouse Beacon Tower)
+        # 최종 목적지 회전형 비콘 타워 (Lighthouse Beacon Tower - 2D 목표점과 동일한 에메랄드 녹색)
         verts = []
         segments = 16
         r_base = 0.55
         r_top = 0.28
         h_tower = 3.2
-        col_gold = [1.0, 0.85, 0.15]
+        col_green = [0.08, 0.95, 0.35]
         
         for i in range(segments):
             a1 = (i / segments) * 2 * math.pi
@@ -462,12 +462,12 @@ class _Engine3DCore:
             p3 = [c2 * r_base, 0.0, s2 * r_base]
             norm = [c1, 0.1, s1]
             
-            verts.extend(p0 + norm + col_gold)
-            verts.extend(p1 + norm + col_gold)
-            verts.extend(p2 + norm + col_gold)
-            verts.extend(p0 + norm + col_gold)
-            verts.extend(p2 + norm + col_gold)
-            verts.extend(p3 + norm + col_gold)
+            verts.extend(p0 + norm + col_green)
+            verts.extend(p1 + norm + col_green)
+            verts.extend(p2 + norm + col_green)
+            verts.extend(p0 + norm + col_green)
+            verts.extend(p2 + norm + col_green)
+            verts.extend(p3 + norm + col_green)
             
         beacon_data = np.array(verts, dtype=np.float32)
         self.beacon_vbo = self.ctx.buffer(beacon_data.tobytes())
@@ -764,6 +764,10 @@ class _Engine3DCore:
                     line_verts.extend(p1 + color_rgba)
                     line_verts.extend(p2 + color_rgba)
 
+        # 최종 목적지 녹색 홀로그램 비콘 및 발광 회전 링 (2D 녹색 타겟과 100% 색상 통일)
+        if hasattr(env, 'target') and env.target is not None:
+            add_holo_beacon(env.target, [0.08, 0.98, 0.35, 0.95], height=5.5)
+
         if getattr(env, 'current_wp', None) is not None:
             add_holo_beacon(env.current_wp["pos"], [0.0, 1.0, 0.85, 0.95]) # Cyan WP1
         if getattr(env, 'next_wp', None) is not None:
@@ -832,22 +836,8 @@ class _Engine3DCore:
         f_hint = self.large_info_font if is_large else self.micro_font
         f_info = self.large_info_font if is_large else self.micro_font
         
-        # 상단 타이틀 바
-        header_surf = pygame.Surface((w, hdr_h), pygame.SRCALPHA)
-        header_surf.fill((10, 24, 42, 220))
-        surf.blit(header_surf, (0, 0))
-        pygame.draw.line(surf, (0, 160, 230), (0, hdr_h), (w, hdr_h), 1)
-        
-        lbl_title = f_title.render(f"3D Engine ({self.cam_names[self.cam_mode]})", True, (255, 255, 255))
-        surf.blit(lbl_title, (215 if is_large else 8, 7 if is_large else 4))
-        
-        # 단축키 안내 힌트 (전체화면 모드에서는 중앙 상단에 배치하여 우상단 HUD 텔레메트리와의 겹침 완벽 방지)
-        hint_txt = "[C] Camera View  |  [V] Return to 2D Map" if is_large else "[C: Camera / V: Full 3D]"
-        lbl_hint = f_hint.render(hint_txt, True, (0, 230, 255))
-        if is_large:
-            surf.blit(lbl_hint, ((w - lbl_hint.get_width()) // 2, 7))
-        else:
-            surf.blit(lbl_hint, (w - lbl_hint.get_width() - 8, 4))
+        # 상단 타이틀 바 및 3D Engine 문구 완전 제거 (시인성 및 화면 개방감 극대화)
+        # (단축키 및 모드 전환은 상단 좌측 UI 버튼과 연동)
         
         # [3] 1인칭 조타석 뷰 전용 조타 HUD (인공 수평선 피치 사다리 및 나침반)
         if self.cam_mode == 0:
@@ -864,7 +854,7 @@ class _Engine3DCore:
             # 상단 디지털 나침반 테이프
             hdg_deg = int(math.degrees(heading)) % 360
             lbl_hdg = (self.large_font if is_large else self.micro_font).render(f"HEADING {hdg_deg:03d}°", True, (0, 255, 220))
-            surf.blit(lbl_hdg, (cx - lbl_hdg.get_width() // 2, hdr_h + 8))
+            surf.blit(lbl_hdg, (cx - lbl_hdg.get_width() // 2, 12))
             
         # [4] 하단 인포 바 (선속 및 러더 각도)
         info_y = h - info_h
