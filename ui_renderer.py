@@ -26,7 +26,7 @@ class EnvRenderer:
         self.small_font = pygame.font.SysFont(None, 18)
         self.micro_font = pygame.font.SysFont(None, 15)
         self.fps_font = pygame.font.SysFont("sans-serif", 13, bold=False)  # 실제 게임 오버레이 스타일의 얇은 폰트
-        self.engine_info_font = pygame.font.SysFont("sans-serif", 11)     # 3D 엔진 텍스트와 100% 동일한 소형 폰트
+        self.engine_info_font = pygame.font.SysFont("sans-serif", 14)     # 3D 엔진(ModernGL) 텍스트와 100% 동일한 14px 폰트
         self.curv_buffer = None
         self.curv_y_max = 0.08
         self.smooth_path_m = 0.0
@@ -141,11 +141,13 @@ class EnvRenderer:
         fps_rect = fps_lbl.get_rect(center=(env.w // 2, 16))
         env.screen.blit(fps_lbl, fps_rect)
 
-        # 8-5. 2D 메인 화면 우측 하단 엔진 인디케이터 (3D 엔진 텍스트와 동일한 11px 소형 폰트)
+        # 8-5. 2D 메인 화면 우측 하단 엔진 인디케이터 (3D 화면의 ModernGL 텍스트와 100% 동일한 14px 폰트 및 위치)
         if not is_full_3d:
-            pg_lbl = self.engine_info_font.render("Pygame 2D Engine", True, (190, 220, 245))
+            pg_lbl = self.engine_info_font.render("Pygame 2D Engine", True, (225, 242, 255))
+            pg_sh = self.engine_info_font.render("Pygame 2D Engine", True, (10, 15, 25))
             rx = env.w - pg_lbl.get_width() - 16
-            ry = env.sim_h - 22
+            ry = env.sim_h - 24
+            env.screen.blit(pg_sh, (rx + 1, ry + 1))
             env.screen.blit(pg_lbl, (rx, ry))
 
         # 9. 미니맵 오버레이 (맵이 확장된 경우 주행화면 우측 하단에 표시, 3D 풀화면 모드에서는 가림)
@@ -1131,7 +1133,7 @@ class EnvRenderer:
                     panel_surf.blit(mini_2d, (map_x, map_y))
                     pygame.draw.rect(panel_surf, (0, 140, 210), (map_x - 1, map_y - 1, mini_w + 2, mini_h + 2), 1)
                     
-                    # 하단 엔진 정보 텍스트 (3D 엔진 텍스트와 동일한 11px 소형 폰트)
+                    # 하단 엔진 정보 텍스트 (3D 엔진 텍스트와 동일한 14px 폰트)
                     lbl_eng = self.engine_info_font.render("Pygame 2D Engine", True, (0, 210, 255))
                     panel_surf.blit(lbl_eng, lbl_eng.get_rect(center=(160, 178)))
                     
