@@ -9,7 +9,11 @@ class EnvRenderer:
         self.pov_surf = pygame.Surface((320, 220), pygame.SRCALPHA)
         self.cam_surf = pygame.Surface((320, 220), pygame.SRCALPHA)
         self.real_cam_surf = pygame.Surface((320, 220), pygame.SRCALPHA)
-        self.engine_3d = Engine3D(320, 220)
+        try:
+            self.engine_3d = Engine3D(320, 220)
+        except Exception as e:
+            print(f"[Warning] ModernGL Engine3D init failed: {e}")
+            self.engine_3d = None
         self.safety_surf = pygame.Surface((120, 120), pygame.SRCALPHA)
         self.hud_surf = pygame.Surface((210, 110), pygame.SRCALPHA)
         self.bezier_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
@@ -1025,13 +1029,17 @@ class EnvRenderer:
         env.screen.blit(self.cam_surf, (700, env.sim_h + 35))
 
         # --- 3. 실시간 하드웨어 가속 ModernGL 3D 엔진 뷰포트 (Real 3D Engine Viewport) ---
-        surf_3d = self.engine_3d.render(env, hits, 320, 220)
-        env.screen.blit(surf_3d, (1050, env.sim_h + 35))
-        
-        # 만약 전체화면 3D 모드(fullscreen_3d) 활성화 시 상단 메인 시뮬레이션 영역(1800x630)에 고해상도 3D 투사
-        if getattr(env, 'fullscreen_3d', False):
-            main_3d = self.engine_3d.render(env, hits, env.w, env.sim_h)
-            env.screen.blit(main_3d, (0, 0))
+        if getattr(self, 'engine_3d', None) is not None:
+            try:
+                surf_3d = self.engine_3d.render(env, hits, 320, 220)
+                env.screen.blit(surf_3d, (1050, env.sim_h + 35))
+                
+                # 만약 전체화면 3D 모드(fullscreen_3d) 활성화 시 상단 메인 시뮬레이션 영역(1800x630)에 고해상도 3D 투사
+                if getattr(env, 'fullscreen_3d', False):
+                    main_3d = self.engine_3d.render(env, hits, env.w, env.sim_h)
+                    env.screen.blit(main_3d, (0, 0))
+            except Exception as e:
+                print(f"[Warning] 3D render failed: {e}")
 
         # --- 4. 실시간 베지어 곡선 & 곡률 프로파일 그래프 & 5. 가중치 패널 (라인트레이싱 모드에서는 완전 제외) ---
         if not getattr(env, 'linetrace_mode', False):

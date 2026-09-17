@@ -13,8 +13,22 @@ class Engine3D:
         self.width = width
         self.height = height
         
-        # 1. ModernGL 독립형 컨텍스트 초기화 (Hardware GPU Acceleration)
-        self.ctx = moderngl.create_context(standalone=True)
+        # 1. ModernGL 독립형 컨텍스트 초기화 (Wayland/Xwayland 환경 안정성을 위해 하드웨어 EGL 백엔드 우선 사용)
+        self.ctx = None
+        for backend_name in ['egl', None]:
+            try:
+                if backend_name:
+                    self.ctx = moderngl.create_context(standalone=True, backend=backend_name)
+                else:
+                    self.ctx = moderngl.create_context(standalone=True)
+                if self.ctx is not None:
+                    break
+            except Exception:
+                continue
+                
+        if self.ctx is None:
+            raise RuntimeError("ModernGL context creation failed across all backends.")
+            
         self.ctx.enable(moderngl.DEPTH_TEST | moderngl.BLEND)
         self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
         
