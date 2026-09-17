@@ -25,7 +25,7 @@ class EnvRenderer:
         self.bold_font = pygame.font.SysFont(None, 26, bold=True)
         self.small_font = pygame.font.SysFont(None, 18)
         self.micro_font = pygame.font.SysFont(None, 15)
-        self.fps_font = pygame.font.SysFont("sans-serif", 13, bold=False)  # 실제 게임 오버레이 스타일의 얇은 폰트
+        self.fps_font = pygame.font.SysFont("sans-serif", 18, bold=False)  # 슬림하면서도 가독성을 확보한 게임 오버레이 18px 폰트
         self.engine_info_font = pygame.font.SysFont("sans-serif", 14)     # 3D 엔진(ModernGL) 텍스트와 100% 동일한 14px 폰트
         self.curv_buffer = None
         self.curv_y_max = 0.08
@@ -135,10 +135,12 @@ class EnvRenderer:
         c_surf.blit(c_lbl, c_lbl.get_rect(center=(cam_btn.w // 2, cam_btn.h // 2)))
         env.screen.blit(c_surf, (cam_btn.x, cam_btn.y))
 
-        # 8-4. 화면 중앙 최상단 상시 FPS 인디케이터 (실제 게임처럼 얇고 깔끔한 비볼드 폰트)
+        # 8-4. 화면 중앙 최상단 상시 FPS 인디케이터 (슬림 게임 오버레이 스타일, 가독성 높은 18px 폰트 및 드롭 섀도우)
         fps_val = int(env.clock.get_fps()) if hasattr(env, 'clock') else 60
         fps_lbl = self.fps_font.render(f"{fps_val} FPS", True, (230, 235, 245))
-        fps_rect = fps_lbl.get_rect(center=(env.w // 2, 16))
+        fps_sh = self.fps_font.render(f"{fps_val} FPS", True, (10, 15, 25))
+        fps_rect = fps_lbl.get_rect(center=(env.w // 2, 18))
+        env.screen.blit(fps_sh, (fps_rect.x + 1, fps_rect.y + 1))
         env.screen.blit(fps_lbl, fps_rect)
 
         # 8-5. 2D 메인 화면 우측 하단 엔진 인디케이터 (3D 화면의 ModernGL 텍스트와 100% 동일한 14px 폰트 및 위치)
