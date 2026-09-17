@@ -25,6 +25,8 @@ def run():
                     env.cam_3d_mode = (getattr(env, 'cam_3d_mode', 1) + 1) % 3
                 elif e.key == pygame.K_v:
                     env.fullscreen_3d = not getattr(env, 'fullscreen_3d', False)
+                elif e.key == pygame.K_m:
+                    env.toggle_manual_mode()
                 elif e.key == pygame.K_F11:
                     env.toggle_fullscreen()
                 elif e.key == pygame.K_ESCAPE:
@@ -102,7 +104,40 @@ def run():
                     env.all_gaps = gui_all_gaps
                     env.total_gaps_count = len(gui_all_gaps)
 
-            if getattr(env, 'linetrace_mode', False):
+            if getattr(env, 'manual_mode', False):
+                keys = pygame.key.get_pressed()
+                target_thr = 0.0
+                target_str = 0.0
+                if keys[pygame.K_w] or keys[pygame.K_UP]:
+                    target_thr += 1.0
+                if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+                    target_thr -= 0.6  # 후진 및 급제동
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                    target_str -= 1.0  # 좌현(Port) 선회
+                if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                    target_str += 1.0  # 우현(Starboard) 선회
+
+                # 실시간 조종 응답 필터링
+                env.manual_throttle = getattr(env, 'manual_throttle', 0.0) * 0.75 + target_thr * 0.25
+                env.manual_steer = getattr(env, 'manual_steer', 0.0) * 0.70 + target_str * 0.30
+
+                base_pwm = 1500
+                diff = env.manual_steer * 270.0
+                L = int(np.clip(base_pwm - diff, 1100, 1900))
+                R = int(np.clip(base_pwm + diff, 1100, 1900))
+
+                steer = env.manual_steer
+                env.prev_steer = steer
+                env.heading_target = env.boat_heading + steer * 0.45
+                env.current_wp = None
+                env.next_wp = None
+                env.candidate_wps = []
+                env.bezier_path = None
+                env.next_bezier_path = None
+                env.pursuit_target = None
+                env.all_gaps = []
+                env.total_gaps_count = 0
+            elif getattr(env, 'linetrace_mode', False):
                 steer, h_target, min_front, c_hit = line_trace_steering(
                     env.boat_pos, env.boat_heading, env.target,
                     dists, env.rel_angles,
@@ -300,19 +335,31 @@ def run():
 
                 steer = env.update_steering(dists)
 
-            if steer is None:
-                steer = 0
+            if not getattr(env, 'manual_mode', False):
+                if steer is None:
+                    steer = 0
+                L, R = env.get_pwm(steer)
 
-            L, R = env.get_pwm(steer)
             env.step(L, R)
             env.update_camera()
 
-            if not getattr(env, 'linetrace_mode', False):
+            if not getattr(env, 'linetrace_mode', False) and not getattr(env, 'manual_mode', False):
                 env.validate_wp_grid()
                 env.validate_wp_obstacle_5x5()
 
             dist_tgt_end = math.hypot(env.target[0] - env.boat_pos[0], env.target[1] - env.boat_pos[1])
             if env.collide() or dist_tgt_end < 70:
+                if getattr(env, 'manual_mode', False):
+                    # 수동 조종 모드 중 장애물 충돌 또는 목표 도달 시:
+                    # 조종 모드를 강제 종료하지 않고 선체 위치를 출발점으로 안전 리스폰하여 계속 주행 지원
+                    env.boat_pos = np.array([65, env.sim_h / 2], dtype=np.float32)
+                    env.boat_vel = np.zeros(2)
+                    env.boat_ang_vel = 0
+                    env.boat_heading = 0.0
+                    env.trail.fill((0, 0, 0, 0))
+                    env.wakes = []
+                    continue
+
                 is_success = (dist_tgt_end < 70 and not env.collide())
                 tag = "SUCCESS" if is_success else "FAIL"
                 subfolder = "success" if is_success else "fail"

@@ -160,6 +160,13 @@ class BoatEnv:
         self.layout = get_dashboard_layout(self.w, self.sim_h)
         self.panel_3d_rect = pygame.Rect(self.layout['p3_x'], self.sim_h + 35, 320, 220)
         
+        # 사용자 직접 수동 조종(RC) 모드 변수
+        self.manual_mode = False
+        self.manual_throttle = 0.0
+        self.manual_steer = 0.0
+        self.saved_manual_state = None
+        self.rc_btn_rect = None
+        
         self.renderer = EnvRenderer(self)
         self.reset()
 
@@ -234,6 +241,11 @@ class BoatEnv:
             self.linetrace_queued = False
 
     def handle_click(self, pos):
+        # 0. RC 조종기 모드 토글 버튼 클릭 (우측 상단 텔레메트리 HUD 하단)
+        if getattr(self, 'rc_btn_rect', None) and self.rc_btn_rect.collidepoint(pos):
+            self.toggle_manual_mode()
+            return
+
         # 1. 3D 전체화면/2D 화면 교체 버튼 클릭 (메인 화면 좌측 하단)
         view_rect = getattr(self, 'view_btn_rect', getattr(self, 'view_btn_top_rect', None))
         if view_rect and view_rect.collidepoint(pos):
@@ -310,6 +322,46 @@ class BoatEnv:
         flags = pygame.FULLSCREEN if self.is_fullscreen_window else 0
         self.screen = pygame.display.set_mode((self.w, self.h), flags)
 
+    def toggle_manual_mode(self):
+        """RC 조종기 모드 토글: 3D 전체화면 즉시 전환 및 WASD 수동 조종 활성화, 복귀 시 이전 세팅 복원 및 새 에피소드 시작"""
+        if not getattr(self, 'manual_mode', False):
+            # 1. 수동 조종 모드 진입: 현재 세팅 저장 후 3D 전체화면 전환
+            self.saved_manual_state = {
+                'fullscreen_3d': getattr(self, 'fullscreen_3d', False),
+                'cam_3d_mode': getattr(self, 'cam_3d_mode', 1),
+                'sim_speed': getattr(self, 'sim_speed', 1),
+                'show_paths': getattr(self, 'show_paths', True),
+                'show_1st_path': getattr(self, 'show_1st_path', True),
+                'show_2nd_path': getattr(self, 'show_2nd_path', True),
+                'show_candidates': getattr(self, 'show_candidates', True),
+                'show_lidar': getattr(self, 'show_lidar', False),
+                'show_lidar_range': getattr(self, 'show_lidar_range', True),
+                'show_all_gaps': getattr(self, 'show_all_gaps', False),
+                'linetrace_mode': getattr(self, 'linetrace_mode', False),
+            }
+            self.manual_mode = True
+            self.fullscreen_3d = True  # 즉시 3D View 전체화면 전환 (2D는 하단 패널로 자동 스왑)
+            self.sim_speed = 1
+            self.manual_throttle = 0.0
+            self.manual_steer = 0.0
+        else:
+            # 2. 수동 조종 모드 종료: 조종 모드 이전 세팅 완벽 복원 후 새 에피소드 리셋
+            self.manual_mode = False
+            saved = getattr(self, 'saved_manual_state', None)
+            if saved:
+                self.fullscreen_3d = saved.get('fullscreen_3d', False)
+                self.cam_3d_mode = saved.get('cam_3d_mode', 1)
+                self.sim_speed = saved.get('sim_speed', 1)
+                self.show_paths = saved.get('show_paths', True)
+                self.show_1st_path = saved.get('show_1st_path', True)
+                self.show_2nd_path = saved.get('show_2nd_path', True)
+                self.show_candidates = saved.get('show_candidates', True)
+                self.show_lidar = saved.get('show_lidar', False)
+                self.show_lidar_range = saved.get('show_lidar_range', True)
+                self.show_all_gaps = saved.get('show_all_gaps', False)
+                self.linetrace_mode = saved.get('linetrace_mode', False)
+            self.reset()
+
     def update_dynamic_obstacles(self):
         ox = self.obstacles[:, 0]
         oy = self.obstacles[:, 1]
@@ -331,19 +383,26 @@ class BoatEnv:
     def step(self, L, R):
         tL = self.pwm_to_thrust(L)
         tR = self.pwm_to_thrust(R)
-        # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어 (장애물 근접 시 최소 속도를 더욱 낮추어 서행)
-        em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-        speed_factor = (math.tanh(em_dist / 100.0)) ** 1.35
-        # 라인트레이싱 모드에서는 갭 내비 대비 살짝 느린 속도 (85%)로 주행하여 반응형 회피에 여유 확보
-        if getattr(self, 'linetrace_mode', False):
-            speed_factor *= 0.85
-        target_fwd = ((tL + tR) / 6.0) * speed_factor
+
+        if getattr(self, 'manual_mode', False):
+            # 수동 조종 모드: W/S 키 입력에 따른 직접 추진력 제어
+            m_thr = getattr(self, 'manual_throttle', 0.0)
+            target_fwd = m_thr * 5500.0
+            mom = (tR - tL) * self.params['mom_coeff']
+        else:
+            # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어 (장애물 근접 시 최소 속도를 더욱 낮추어 서행)
+            em_dist = float(getattr(self, 'min_wide_dist', 999.0))
+            speed_factor = (math.tanh(em_dist / 100.0)) ** 1.35
+            # 라인트레이싱 모드에서는 갭 내비 대비 살짝 느린 속도 (85%)로 주행하여 반응형 회피에 여유 확보
+            if getattr(self, 'linetrace_mode', False):
+                speed_factor *= 0.85
+            target_fwd = ((tL + tR) / 6.0) * speed_factor
+            mom = (tR - tL) * self.params['mom_coeff']
             
         if not hasattr(self, 'current_fwd'):
             self.current_fwd = 0.0
             
         self.current_fwd = self.current_fwd * 0.90 + target_fwd * 0.10
-        mom = (tR - tL) * self.params['mom_coeff']
         hv = np.array([math.cos(self.boat_heading), math.sin(self.boat_heading)])
         
         acc = self.current_fwd / self.mass
@@ -360,6 +419,10 @@ class BoatEnv:
         prev = self.boat_pos.copy()
         self.boat_vel += (acc * hv + drag) * self.dt
         self.boat_pos += self.boat_vel * self.dt
+        
+        if getattr(self, 'manual_mode', False):
+            self.boat_pos[0] = np.clip(self.boat_pos[0], 25, self.map_w - 25)
+            self.boat_pos[1] = np.clip(self.boat_pos[1], 25, self.sim_h - 25)
         
         if self.frame % 7 == 0:
             pygame.draw.line(self.trail, (255, 255, 255, 60),

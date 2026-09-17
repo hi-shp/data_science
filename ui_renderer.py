@@ -1379,6 +1379,8 @@ class EnvRenderer:
         has_wp = env.current_wp is not None
         if is_paused:
             mode_txt = self.bold_font.render("PAUSED", True, (255, 140, 20))
+        elif getattr(env, 'manual_mode', False):
+            mode_txt = self.bold_font.render("MANUAL RC", True, (255, 200, 30))
         elif is_lt:
             mode_txt = self.bold_font.render("LINE-TRACE", True, (255, 40, 195))
         elif em:
@@ -1421,3 +1423,75 @@ class EnvRenderer:
         hud_surf.blit(d2t_txt, (10, 92))
         
         env.screen.blit(hud_surf, (hud_x, hud_y))
+
+        # --- 우측 상단 텔레메트리 HUD 하단: RC 조종기 모양 아이콘 버튼 ---
+        btn_x = hud_x
+        btn_y = hud_y + hud_h + 8
+        btn_w = hud_w
+        btn_h = 38
+        rc_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+        env.rc_btn_rect = rc_rect
+
+        mpos = pygame.mouse.get_pos()
+        is_hover = rc_rect.collidepoint(mpos)
+        is_manual = getattr(env, 'manual_mode', False)
+
+        rc_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
+
+        if is_manual:
+            # 활성화(RC ON) 상태: 앰버/골드 네온 글로우 스타일
+            bg_col = (48, 30, 10, 235) if is_hover else (36, 22, 8, 220)
+            border_col = (255, 190, 30) if is_hover else (240, 160, 20)
+            border_w = 2
+            txt_main_col = (255, 220, 80)
+            txt_sub_col = (255, 180, 120)
+            status_led_col = (255, 200, 30)
+            icon_accent = (255, 210, 50)
+            main_label = "RC ACTIVE [WASD]"
+            sub_label = "Click: Reset & Exit"
+        else:
+            # 비활성화(AUTO NAV) 상태: 사이언/다크 네이비 글래스모피즘
+            bg_col = (16, 38, 62, 235) if is_hover else (10, 25, 45, 210)
+            border_col = (0, 230, 255) if is_hover else (0, 150, 210)
+            border_w = 1 if not is_hover else 2
+            txt_main_col = (225, 245, 255)
+            txt_sub_col = (130, 190, 225)
+            status_led_col = (0, 240, 160)
+            icon_accent = (0, 210, 255)
+            main_label = "RC MANUAL DRIVE"
+            sub_label = "WASD / Arrow Keys"
+
+        pygame.draw.rect(rc_surf, bg_col, (0, 0, btn_w, btn_h), border_radius=5)
+        pygame.draw.rect(rc_surf, border_col, (0, 0, btn_w, btn_h), border_w, border_radius=5)
+
+        # 조종기 (Remote Controller / Gamepad) 정밀 벡터 아이콘 렌더링
+        ix, iy = 8, 8
+        # 안테나
+        pygame.draw.line(rc_surf, icon_accent, (ix + 15, iy), (ix + 15, iy + 4), 2)
+        pygame.draw.circle(rc_surf, status_led_col, (ix + 15, iy - 1), 2)
+
+        # 조종기 본체
+        pygame.draw.rect(rc_surf, (22, 44, 70), (ix + 2, iy + 4, 26, 17), border_radius=4)
+        pygame.draw.rect(rc_surf, icon_accent, (ix + 2, iy + 4, 26, 17), 1, border_radius=4)
+
+        # 좌측 D-패드 (WASD 십자키 형상)
+        pygame.draw.line(rc_surf, (255, 255, 255), (ix + 5, iy + 12), (ix + 11, iy + 12), 2)
+        pygame.draw.line(rc_surf, (255, 255, 255), (ix + 8, iy + 9), (ix + 8, iy + 15), 2)
+
+        # 우측 액션 버튼
+        pygame.draw.circle(rc_surf, status_led_col, (ix + 20, iy + 10), 2)
+        pygame.draw.circle(rc_surf, icon_accent, (ix + 24, iy + 14), 2)
+
+        # 중앙 트윈 조이스틱 노브
+        pygame.draw.circle(rc_surf, (15, 25, 40), (ix + 12, iy + 17), 3)
+        pygame.draw.circle(rc_surf, (200, 225, 255), (ix + 12, iy + 17), 1)
+        pygame.draw.circle(rc_surf, (15, 25, 40), (ix + 18, iy + 17), 3)
+        pygame.draw.circle(rc_surf, (200, 225, 255), (ix + 18, iy + 17), 1)
+
+        # 텍스트 레이블 (메인 제목 + 보조 설명)
+        t_main = self.font.render(main_label, True, txt_main_col)
+        t_sub = self.micro_font.render(sub_label, True, txt_sub_col)
+        rc_surf.blit(t_main, (44, 4))
+        rc_surf.blit(t_sub, (46, 21))
+
+        env.screen.blit(rc_surf, (btn_x, btn_y))

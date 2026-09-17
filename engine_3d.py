@@ -863,7 +863,8 @@ class _Engine3DCore:
         
         if is_large:
             # 전체화면 3D 모드: 화면을 가리는 하단 검은색 바를 추가하지 않고 3D 화면을 100% 꽉 채우며, 우측 하단 텍스트는 그대로 유지
-            txt_str = f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | HDG: {hdg_deg:03d}° | RUDDER: {steer_deg:+.1f}° | ModernGL 3.3 Core Profile"
+            rc_tag = " | RC MANUAL [WASD]" if getattr(env, 'manual_mode', False) else " | ModernGL 3.3 Core Profile"
+            txt_str = f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | HDG: {hdg_deg:03d}° | RUDDER: {steer_deg:+.1f}°{rc_tag}"
             lbl_stat = f_info.render(txt_str, True, (225, 242, 255))
             lbl_stat_sh = f_info.render(txt_str, True, (10, 15, 25))
             txt_x = w - lbl_stat.get_width() - 16
@@ -931,6 +932,7 @@ def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name, full_w=1840, ful
         p_env.closest_avoid_hit = req['closest_avoid_hit']
         p_env.dt = req.get('dt', 0.04)
         p_env.paused = req.get('paused', False)
+        p_env.manual_mode = req.get('manual_mode', False)
         
         target_buf = buf_panel if (w, h) == (320, 220) else buf_full
         core.render_into_buffer(p_env, hits, w, h, target_buf)
@@ -1011,7 +1013,8 @@ class Engine3D:
             'closest_avoid_hit': getattr(env, 'closest_avoid_hit', None),
             'hits': hits,
             'dt': float(getattr(env, 'dt', 0.04)),
-            'paused': bool(getattr(env, 'paused', False))
+            'paused': bool(getattr(env, 'paused', False)),
+            'manual_mode': bool(getattr(env, 'manual_mode', False))
         }
         
         self.parent_conn.send(req)
