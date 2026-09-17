@@ -4,7 +4,7 @@ import pygame
 import numpy as np
 import math
 import random
-from config import WIDTH, HEIGHT, SIM_H, DASH_H, MAP_W, GRID, GRID_W, GRID_H
+from config import WIDTH, HEIGHT, SIM_H, DASH_H, MAP_W, GRID, GRID_W, GRID_H, get_dashboard_layout
 from utils import wrap
 from perception import init_grid
 from navigation import reactive_avoidance
@@ -157,7 +157,8 @@ class BoatEnv:
         # 실시간 3D 그래픽스 엔진 상태 변수
         self.cam_3d_mode = 1  # 0: 1인칭 조타석, 1: 3인칭 추종 체이스, 2: 전술 드론
         self.fullscreen_3d = False
-        self.panel_3d_rect = pygame.Rect(1075, self.sim_h + 35, 320, 220)
+        self.layout = get_dashboard_layout(self.w, self.sim_h)
+        self.panel_3d_rect = pygame.Rect(self.layout['p3_x'], self.sim_h + 35, 320, 220)
         
         self.renderer = EnvRenderer(self)
         self.reset()

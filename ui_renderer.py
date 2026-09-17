@@ -2,6 +2,7 @@ import pygame
 import numpy as np
 import math
 from engine_3d import Engine3D
+from config import get_dashboard_layout
 
 class EnvRenderer:
     def __init__(self, env):
@@ -608,6 +609,11 @@ class EnvRenderer:
         pygame.draw.rect(env.screen, (15, 35, 60), (0, env.sim_h, env.w, env.h - env.sim_h))
         pygame.draw.line(env.screen, (0, 180, 255), (0, env.sim_h), (env.w, env.sim_h), 3)
 
+        layout = get_dashboard_layout(env.w, env.sim_h)
+        p1_x, p2_x, p3_x, p4_x, p5_x = layout['p1_x'], layout['p2_x'], layout['p3_x'], layout['p4_x'], layout['p5_x']
+        p_y = layout['y']
+        env.panel_3d_rect = pygame.Rect(p3_x, p_y, 320, 220)
+
         # 마우스 커서 위치 확인 (호버 인터랙션)
         mpos = pygame.mouse.get_pos()
 
@@ -865,7 +871,7 @@ class EnvRenderer:
         
         txt_surf = self.font.render("LiDAR View", True, (255, 255, 255))
         self.pov_surf.blit(txt_surf, (10, pov_h - txt_surf.get_height() - 5))
-        env.screen.blit(self.pov_surf, (365, env.sim_h + 35))
+        env.screen.blit(self.pov_surf, (p1_x, p_y))
 
         # --- 2. 180도 라이다 각도 세로 게이지 뷰 (LiDAR Gauge View) ---
         cam_w, cam_h = 320, 220
@@ -971,7 +977,7 @@ class EnvRenderer:
             by_pos = 7
             badge_rect = pygame.Rect(bx_pos, by_pos, btn_w, btn_h)
             # 화면 절대 좌표로 버튼 클릭 영역 저장 (환경 handle_click 연동)
-            env.gaps_btn_rect = pygame.Rect(730 + bx_pos, env.sim_h + 35 + by_pos, btn_w, btn_h)
+            env.gaps_btn_rect = pygame.Rect(p2_x + bx_pos, p_y + by_pos, btn_w, btn_h)
 
             mpos = pygame.mouse.get_pos()
             is_hover = env.gaps_btn_rect.collidepoint(mpos)
@@ -1112,7 +1118,7 @@ class EnvRenderer:
             ltxt = self.small_font.render(txt, True, (225, 238, 255))
             self.cam_surf.blit(ltxt, (ix + 13, legend_bar_y + 5))
 
-        env.screen.blit(self.cam_surf, (730, env.sim_h + 35))
+        env.screen.blit(self.cam_surf, (p2_x, p_y))
 
         # --- 3. 실시간 하드웨어 가속 ModernGL 3D 엔진 뷰포트 & 2D 화면 스왑 슬롯 (버튼 없음) ---
         env.cam_panel_btn_rect = None
@@ -1128,7 +1134,7 @@ class EnvRenderer:
                     t_mini = self.font.render("2D MAP", True, (240, 245, 255))
                     panel_surf.blit(t_mini, (10, 8))
                     
-                    # 1840:644 고정 비율(20:7) 스케일링: 가로 316px, 세로 110px (상하 왜곡/잘림 완벽 방지)
+                    # 20:7 고정 비율 스케일링: 가로 316px, 세로 110px (상하 왜곡/잘림 완벽 방지)
                     mini_w, mini_h = 316, 110
                     mini_2d = pygame.transform.smoothscale(self.world_2d_surf, (mini_w, mini_h))
                     map_x, map_y = 2, 34
@@ -1139,24 +1145,26 @@ class EnvRenderer:
                     lbl_eng = self.engine_info_font.render("Pygame 2D Engine", True, (0, 210, 255))
                     panel_surf.blit(lbl_eng, lbl_eng.get_rect(center=(160, 178)))
                     
-                    env.screen.blit(panel_surf, (1075, env.sim_h + 35))
+                    env.screen.blit(panel_surf, (p3_x, p_y))
                 else:
                     # 기본 2D 모드: 하단 슬롯에 320x220 3D 뷰포트 표출 (패널 상에 어떤 버튼도 배치하지 않음)
                     surf_3d = self.engine_3d.render(env, hits, 320, 220)
-                    env.screen.blit(surf_3d, (1075, env.sim_h + 35))
+                    env.screen.blit(surf_3d, (p3_x, p_y))
             except Exception as e:
                 print(f"[Warning] 3D render failed: {e}")
 
         # --- 4. 실시간 베지어 곡선 & 곡률 프로파일 그래프 & 5. 가중치 패널 (라인트레이싱 모드에서는 완전 제외) ---
         if not getattr(env, 'linetrace_mode', False):
-            self._draw_bezier_profile()
-            self._draw_weight_breakdown()
+            self._draw_bezier_profile(p4_x, p_y)
+            self._draw_weight_breakdown(p5_x, p_y)
 
-    def _draw_bezier_profile(self):
+    def _draw_bezier_profile(self, x=None, y=None):
         """우측 하단: 실시간 3차 베지어 곡선(Cubic S-Curve) 2D 궤적 그래프 (X: 전진거리, Y: 좌우편차 - 상하반전 및 3차 수식 표기)"""
         env = self.env
         bw, bh = 190, 220
         surf = self.bezier_surf
+        dest_x = x if x is not None else 1420
+        dest_y = y if y is not None else (env.sim_h + 35)
         surf.fill((10, 22, 38, 240))
         pygame.draw.rect(surf, (0, 180, 255), (0, 0, bw, bh), 2)
         
@@ -1276,13 +1284,15 @@ class EnvRenderer:
         # 하단 실시간 궤적 수치
         surf.blit(self.small_font.render(f"Len: {path_len_m:.1f}m | Lat Dev: {end_ym:+.1f}m", True, (220, 235, 255)), (8, 188))
         
-        env.screen.blit(surf, (1420, env.sim_h + 35))
+        env.screen.blit(surf, (dest_x, dest_y))
 
-    def _draw_weight_breakdown(self):
+    def _draw_weight_breakdown(self, x=None, y=None):
         """우측 하단: 웨이포인트 우선순위 가중치 비율 분포 막대 게이지"""
         env = self.env
         ww, wh = 190, 220
         surf = self.weights_surf
+        dest_x = x if x is not None else 1630
+        dest_y = y if y is not None else (env.sim_h + 35)
         surf.fill((10, 22, 38, 240))
         pygame.draw.rect(surf, (0, 180, 255), (0, 0, ww, wh), 2)
         
@@ -1349,7 +1359,7 @@ class EnvRenderer:
                 txt_pct = self.small_font.render("--%", True, (90, 120, 150))
                 surf.blit(txt_pct, (bar_x + bar_w + 6, y_pos - 2))
             
-        env.screen.blit(surf, (1630, env.sim_h + 35))
+        env.screen.blit(surf, (dest_x, dest_y))
 
     def _draw_telemetry(self):
         """우상단 실시간 텔레메트리 HUD"""
