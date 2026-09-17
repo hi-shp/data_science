@@ -303,7 +303,7 @@ class EnvRenderer:
             pygame.draw.circle(target_surf, (255, 255, 255), (int(tgx), int(tgy)), 5)
             itgx, itgy = int(tgx), int(tgy)
             pygame.draw.line(target_surf, (255, 255, 255, 180), (itgx - 16, itgy), (itgx + 16, itgy), 1)
-            pygame.draw.line(target_surf, (255, 255, 255, 180), (itgx, itgy - 16), (itgx + 16, itgy), 1)
+            pygame.draw.line(target_surf, (255, 255, 255, 180), (itgx, itgy - 16), (itgx, itgy + 16), 1)
         
         # 5. 실시간 동적 추종 궤적 (베지어 곡선 및 웨이포인트)
         is_lt = getattr(env, 'linetrace_mode', False)
