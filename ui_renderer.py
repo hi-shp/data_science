@@ -416,56 +416,76 @@ class EnvRenderer:
             pygame.draw.circle(target_surf, (0, 220, 255), (int(sbx), int(sby)), r_lidar, 2)
             pygame.draw.circle(target_surf, (0, 160, 255, 80), (int(sbx), int(sby)), r_lidar + 1, 1)
             
-            # (3) 원 테두리 상에 도착 지점(Target) 방향 및 거리 지시 표식 렌더링
+            # (3) 원 테두리 상에 목적지 방향 안내 지시계(Navigation Direction Chevron) 렌더링
+            # 사용자 요청: 실제 목적지(녹색 타겟)와 혼동되지 않도록 고유한 앰버-골드 항법 화살표(Chevron) 및 방위 가이드로 차별화
             dx_t = env.target[0] - env.boat_pos[0]
             dy_t = env.target[1] - env.boat_pos[1]
             dist_t = math.hypot(dx_t, dy_t)
             ang_t = math.atan2(dy_t, dx_t)
             
-            # 원 테두리 상의 목표점 교차 좌표
+            # 원 테두리 상의 목표 방향 교차 좌표
             rim_x = sbx + math.cos(ang_t) * r_lidar
             rim_y = sby + math.sin(ang_t) * r_lidar
+            cos_a = math.cos(ang_t)
+            sin_a = math.sin(ang_t)
             
-            # 펄스 헤일로 및 네온 그린 비콘 마커
-            pulse = math.sin(env.frame * 0.15) * 3.0
-            pygame.draw.circle(target_surf, (0, 255, 120, 90), (int(rim_x), int(rim_y)), int(14 + pulse), 2)
+            # 1) 원 테두리 호(Arc) 상의 목표 방위 브래킷 강조 (반경 320px 호 하이라이트)
+            arc_span = 0.15
+            highlight_pts = []
+            for a_step in np.linspace(ang_t - arc_span, ang_t + arc_span, 16):
+                highlight_pts.append((int(sbx + math.cos(a_step) * r_lidar), int(sby + math.sin(a_step) * r_lidar)))
+            if len(highlight_pts) > 1:
+                pygame.draw.lines(target_surf, (255, 205, 40), False, highlight_pts, 4)
             
-            # 다이아몬드 마커
-            dm_r = 7
-            irx, iry = int(rim_x), int(rim_y)
-            diamond_pts = [
-                (irx, iry - dm_r),
-                (irx + dm_r, iry),
-                (irx, iry + dm_r),
-                (irx - dm_r, iry)
+            # 2) 바깥 암전 방향으로 뻗어 나가는 방향 가이드 점선 (Directional Ray Dots)
+            for d_step in [16, 28, 42, 58]:
+                gx = int(rim_x + cos_a * d_step)
+                gy = int(rim_y + sin_a * d_step)
+                pygame.draw.circle(target_surf, (255, 215, 60), (gx, gy), 2)
+
+            # 3) 암전 원 테두리에 밀착된 항법 지향 셰브론 화살표 (Chevron Arrow)
+            # 실제 목적지(원형 녹색 타겟)와 형태 및 색상이 완전히 구분되는 황금색/앰버 네비게이션 쐐기 화살표
+            tip_x = rim_x + cos_a * 15
+            tip_y = rim_y + sin_a * 15
+            
+            w_cos = math.cos(ang_t + math.pi / 2)
+            w_sin = math.sin(ang_t + math.pi / 2)
+            wing_len = 11
+            notch_x = rim_x + cos_a * 4
+            notch_y = rim_y + sin_a * 4
+            
+            left_x = rim_x - cos_a * 3 + w_cos * wing_len
+            left_y = rim_y - sin_a * 3 + w_sin * wing_len
+            right_x = rim_x - cos_a * 3 - w_cos * wing_len
+            right_y = rim_y - sin_a * 3 - w_sin * wing_len
+            
+            chevron_pts = [
+                (int(tip_x), int(tip_y)),
+                (int(left_x), int(left_y)),
+                (int(notch_x), int(notch_y)),
+                (int(right_x), int(right_y))
             ]
-            pygame.draw.polygon(target_surf, (40, 255, 110), diamond_pts)
-            pygame.draw.polygon(target_surf, (255, 255, 255), diamond_pts, 1)
+            pygame.draw.polygon(target_surf, (255, 195, 30), chevron_pts)
+            pygame.draw.polygon(target_surf, (255, 245, 180), chevron_pts, 2)
             
-            # 목표 방향 화살표 지시선 (원 테두리 바깥 방향)
-            arr_len = 16
-            ax = irx + int(math.cos(ang_t) * arr_len)
-            ay = iry + int(math.sin(ang_t) * arr_len)
-            pygame.draw.line(target_surf, (80, 255, 140), (irx, iry), (ax, ay), 3)
-            
-            # 도착 지점 거리 정보 배지 (예: "GOAL 24.5m")
+            # 4) 목적지 방향 안내 배지 ("TARGET DIR -> 33.5m") - 앰버/골드 항법 컬러
             dist_m = dist_t / 50.0
-            badge_txt = f"GOAL {dist_m:.1f}m"
-            lbl_badge = self.bold_font.render(badge_txt, True, (80, 255, 150))
-            badge_w = lbl_badge.get_width() + 10
+            badge_txt = f"TARGET DIR -> {dist_m:.1f}m"
+            lbl_badge = self.bold_font.render(badge_txt, True, (255, 220, 80))
+            badge_w = lbl_badge.get_width() + 12
             badge_h = lbl_badge.get_height() + 4
             
-            # 배지 위치: 테두리 안쪽으로 약간 오프셋하여 화면 및 마스크 내 가독성 확보
-            tag_offset = 32
-            bx_tag = rim_x - math.cos(ang_t) * tag_offset - badge_w / 2
-            by_tag = rim_y - math.sin(ang_t) * tag_offset - badge_h / 2
+            # 배지 위치: 테두리 안쪽으로 오프셋
+            tag_offset = 36
+            bx_tag = rim_x - cos_a * tag_offset - badge_w / 2
+            by_tag = rim_y - sin_a * tag_offset - badge_h / 2
             bx_tag = max(8, min(surf_w - badge_w - 8, bx_tag))
             by_tag = max(8, min(surf_h - badge_h - 8, by_tag))
             
             tag_surf = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
-            tag_surf.fill((10, 30, 20, 210))
-            pygame.draw.rect(tag_surf, (40, 255, 120), (0, 0, badge_w, badge_h), 1, border_radius=3)
-            tag_surf.blit(lbl_badge, (5, 2))
+            tag_surf.fill((28, 22, 10, 225))
+            pygame.draw.rect(tag_surf, (255, 190, 30), (0, 0, badge_w, badge_h), 1, border_radius=3)
+            tag_surf.blit(lbl_badge, (6, 2))
             target_surf.blit(tag_surf, (int(bx_tag), int(by_tag)))
 
     def _draw_minimap(self):
@@ -1499,10 +1519,10 @@ class EnvRenderer:
         env.screen.blit(hud_surf, (hud_x, hud_y))
 
         # --- 우측 상단 텔레메트리 HUD 하단: 간략화된 조이스틱 아이콘 버튼 & 눈 깜빡임(블라인드 모드) 버튼 ---
-        # 사용자 요청: 게임기 말고 조이스틱 아이콘만 글자 없이 간략한 버튼으로 수정, RC 모드 진입 시 그 옆에 눈 깜빡임 버튼 표시
+        # 사용자 요청: 조이스틱 버튼 우측으로 밀착 (HUD 우측 끝 정렬), RC 모드 진입 시 그 좌측에 눈 깜빡임 버튼 표시
         btn_y = hud_y + hud_h + 8
         rc_btn_w, rc_btn_h = 42, 38
-        rc_x = hud_x
+        rc_x = hud_x + hud_w - rc_btn_w  # 우측 끝으로 밀착 정렬
         rc_rect = pygame.Rect(rc_x, btn_y, rc_btn_w, rc_btn_h)
         env.rc_btn_rect = rc_rect
 
@@ -1549,10 +1569,10 @@ class EnvRenderer:
 
         env.screen.blit(rc_surf, (rc_x, btn_y))
 
-        # --- RC 모드 진입 시에만 그 옆에 나타나는 눈 깜빡임(블라인드 시연 모드) 토글 버튼 ---
+        # --- RC 모드 진입 시에만 그 옆(좌측)에 나타나는 눈 깜빡임(블라인드 시연 모드) 토글 버튼 ---
         if is_manual:
             eye_btn_w, eye_btn_h = 42, 38
-            eye_x = rc_x + 48
+            eye_x = rc_x - eye_btn_w - 6  # 조이스틱 버튼 좌측에 밀착 배치
             eye_rect = pygame.Rect(eye_x, btn_y, eye_btn_w, eye_btn_h)
             env.blind_btn_rect = eye_rect
 

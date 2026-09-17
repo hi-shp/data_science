@@ -745,20 +745,11 @@ class _Engine3DCore:
         tgt_dx = tgt_x - boat_x
         tgt_dz = tgt_z - boat_z
         tgt_dist = math.hypot(tgt_dx, tgt_dz)
+        rim_ang = math.atan2(tgt_dz, tgt_dx)
 
-        if is_blind:
-            # 블라인드 모드: 라이다 유효 반경(6.4m) 테두리 원 상에 도착 지점(Target) 비콘 표출
-            rim_ang = math.atan2(tgt_dz, tgt_dx)
-            rim_3d_x = boat_x + math.cos(rim_ang) * 6.4
-            rim_3d_z = boat_z + math.sin(rim_ang) * 6.4
-            rim_3d_y = self._wave_height(rim_3d_x, rim_3d_z, self.time)
-
-            M_rim_tgt = self._matrix_model(rim_3d_x, rim_3d_y, rim_3d_z, self.time * 0.8)
-            MVP_rim_tgt = VP @ M_rim_tgt
-            self.prog_mesh['u_model'].write(M_rim_tgt.T.tobytes())
-            self.prog_mesh['u_mvp'].write(MVP_rim_tgt.T.tobytes())
-            self.beacon_vao.render()
-        else:
+        # 실제 목적지 비콘 타워는 가시 반경(6.4m) 내에 있거나 블라인드 모드가 아닐 때만 실제 위치에 표출
+        # (원 테두리에 가짜 비콘 타워를 세우지 않고 수면 위 앰버 셰브론 항법 인디케이터로 차별화)
+        if not is_blind or tgt_dist <= 6.4:
             tgt_y = self._wave_height(tgt_x, tgt_z, self.time)
             M_tgt = self._matrix_model(tgt_x, tgt_y, tgt_z, self.time * 0.5)
             MVP_tgt = VP @ M_tgt
@@ -826,28 +817,97 @@ class _Engine3DCore:
 
         # 최종 목적지 녹색 홀로그램 비콘 및 발광 회전 링 (2D 녹색 타겟과 100% 색상 통일)
         if hasattr(env, 'target') and env.target is not None:
-            if is_blind:
-                # 블라인드 모드: 라이다 유효 반경(6.4m) 테두리 원 상의 목표 방향 지점에 홀로그램 비콘 생성
-                rim_pos = [rim_3d_x * 50.0, rim_3d_z * 50.0]
-                add_holo_beacon(rim_pos, [0.08, 0.98, 0.35, 0.95], height=4.5)
-            else:
+            if not is_blind or tgt_dist <= 6.4:
                 add_holo_beacon(env.target, [0.08, 0.98, 0.35, 0.95], height=5.5)
 
-        # 블라인드 모드 시 3D 수면 상에 라이다 시야 테두리 발광 원(반경 6.4m) 렌더링
+        # 블라인드 모드 시 3D 수면 상에 라이다 시야 테두리 발광 원(반경 6.4m) 및 목표 방향 셰브론 가이드 렌더링
         if is_blind:
-            n_segs = 64
+            n_segs = 72
             rim_pts = []
             for s_idx in range(n_segs + 1):
                 th = (s_idx / n_segs) * 2.0 * math.pi
                 rx = boat_x + math.cos(th) * 6.4
                 rz = boat_z + math.sin(th) * 6.4
                 ry = self._wave_height(rx, rz, self.time) + 0.05
-                rim_pts.append((rx, ry, rz))
+                rim_pts.append((rx, ry, rz, th))
+                
             for s_idx in range(n_segs):
-                p1, p2 = rim_pts[s_idx], rim_pts[s_idx + 1]
-                c_rim = [0.0, 0.90, 1.0, 0.85]
+                p1_info, p2_info = rim_pts[s_idx], rim_pts[s_idx + 1]
+                p1, p2 = p1_info[:3], p2_info[:3]
+                mid_th = 0.5 * (p1_info[3] + p2_info[3])
+                # 목표 방위각 근처(±0.25 rad)는 골드/앰버 호(Arc)로 강조
+                d_th = abs((mid_th - rim_ang + math.pi) % (2.0 * math.pi) - math.pi)
+                if tgt_dist > 6.4 and d_th < 0.26:
+                    c_rim = [1.0, 0.82, 0.15, 0.98] # Golden Compass Arc
+                else:
+                    c_rim = [0.0, 0.85, 1.0, 0.75] # Cyan Rim
                 line_verts.extend(list(p1) + c_rim)
                 line_verts.extend(list(p2) + c_rim)
+
+            # 라이다 반경(6.4m) 너머에 목표가 있을 때:
+            # 실제 목적지 비콘과 완전히 차별화된 3D 수면 앰버 셰브론 항법 포인터(Chevron Pointer) 표출
+            if tgt_dist > 6.4:
+                ux = math.cos(rim_ang)
+                uz = math.sin(rim_ang)
+                px = -uz
+                pz = ux
+                
+                rim_x = boat_x + ux * 6.4
+                rim_z = boat_z + uz * 6.4
+                
+                # 수면 위 앰버 셰브론 쐐기 화살표 기하 생성
+                tip_x = rim_x + ux * 0.90
+                tip_z = rim_z + uz * 0.90
+                tip_y = self._wave_height(tip_x, tip_z, self.time) + 0.12
+                
+                notch_x = rim_x + ux * 0.15
+                notch_z = rim_z + uz * 0.15
+                notch_y = self._wave_height(notch_x, notch_z, self.time) + 0.12
+                
+                wing_len = 0.55
+                back_offset = 0.35
+                left_x = rim_x - ux * back_offset + px * wing_len
+                left_z = rim_z - uz * back_offset + pz * wing_len
+                left_y = self._wave_height(left_x, left_z, self.time) + 0.12
+                
+                right_x = rim_x - ux * back_offset - px * wing_len
+                right_z = rim_z - uz * back_offset - pz * wing_len
+                right_y = self._wave_height(right_x, right_z, self.time) + 0.12
+                
+                col_nav_tri = [1.0, 0.76, 0.12, 0.92]   # Amber Fill
+                col_nav_line = [1.0, 0.95, 0.50, 0.98]  # Gold Highlight Outline
+                
+                # 셰브론 2개 삼각형 (tip-left-notch, tip-notch-right)
+                v_tip = [tip_x, tip_y, tip_z]
+                v_notch = [notch_x, notch_y, notch_z]
+                v_left = [left_x, left_y, left_z]
+                v_right = [right_x, right_y, right_z]
+                
+                tri_verts.extend(v_tip + col_nav_tri)
+                tri_verts.extend(v_left + col_nav_tri)
+                tri_verts.extend(v_notch + col_nav_tri)
+                
+                tri_verts.extend(v_tip + col_nav_tri)
+                tri_verts.extend(v_notch + col_nav_tri)
+                tri_verts.extend(v_right + col_nav_tri)
+                
+                # 셰브론 테두리 발광 선
+                line_verts.extend(v_tip + col_nav_line); line_verts.extend(v_left + col_nav_line)
+                line_verts.extend(v_left + col_nav_line); line_verts.extend(v_notch + col_nav_line)
+                line_verts.extend(v_notch + col_nav_line); line_verts.extend(v_right + col_nav_line)
+                line_verts.extend(v_right + col_nav_line); line_verts.extend(v_tip + col_nav_line)
+                
+                # 바깥 어둠 속으로 뻗어 나가는 원거리 항법 방향 지시선 (Directional Ray Beam)
+                col_ray = [1.0, 0.82, 0.20, 0.85]
+                for r_dist in [1.5, 3.2, 5.0]:
+                    rs_x = rim_x + ux * (r_dist - 0.4)
+                    rs_z = rim_z + uz * (r_dist - 0.4)
+                    rs_y = self._wave_height(rs_x, rs_z, self.time) + 0.10
+                    re_x = rim_x + ux * r_dist
+                    re_z = rim_z + uz * r_dist
+                    re_y = self._wave_height(re_x, re_z, self.time) + 0.10
+                    line_verts.extend([rs_x, rs_y, rs_z] + col_ray)
+                    line_verts.extend([re_x, re_y, re_z] + col_ray)
 
         if getattr(env, 'current_wp', None) is not None:
             add_holo_beacon(env.current_wp["pos"], [0.0, 1.0, 0.85, 0.95]) # Cyan WP1
@@ -951,7 +1011,7 @@ class _Engine3DCore:
             surf.blit(lbl_stat_sh, (txt_x + 1, txt_y + 1))
             surf.blit(lbl_stat, (txt_x, txt_y))
 
-            # 블라인드 모드 상단 중앙 목표 방위/거리 HUD (이모지, 별표 없는 정밀 공학 표기)
+            # 블라인드 모드 상단 중앙 목표 방향 및 방위각 가이드 HUD (앰버-골드 항법 컬러)
             if is_blind and hasattr(env, 'target') and env.target is not None:
                 tgt_dx = (env.target[0] / 50.0) - (env.boat_pos[0] / 50.0)
                 tgt_dz = (env.target[1] / 50.0) - (env.boat_pos[1] / 50.0)
@@ -960,16 +1020,16 @@ class _Engine3DCore:
                 rel_bearing = (t_bearing - hdg_deg) % 360
                 if rel_bearing > 180: rel_bearing -= 360
 
-                b_str = f"BLIND VISION [LiDAR 6.4m] | GOAL: {tgt_dist:.1f}m (BEARING {t_bearing:03d}°, REL {rel_bearing:+d}°)"
-                lbl_b = f_info.render(b_str, True, (80, 255, 140))
-                badge_pad_x, badge_pad_y = 12, 4
+                b_str = f"TARGET DIR -> {tgt_dist:.1f}m | BEARING: {t_bearing:03d}° (REL {rel_bearing:+d}°)"
+                lbl_b = f_info.render(b_str, True, (255, 220, 80))
+                badge_pad_x, badge_pad_y = 14, 5
                 badge_w = lbl_b.get_width() + badge_pad_x * 2
                 badge_h = lbl_b.get_height() + badge_pad_y * 2
                 bx_hud = (w - badge_w) // 2
                 by_hud = 36
                 badge_surf = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
-                badge_surf.fill((10, 24, 18, 215))
-                pygame.draw.rect(badge_surf, (40, 220, 120), (0, 0, badge_w, badge_h), 1, border_radius=4)
+                badge_surf.fill((28, 20, 8, 225))
+                pygame.draw.rect(badge_surf, (255, 190, 30), (0, 0, badge_w, badge_h), 1, border_radius=4)
                 badge_surf.blit(lbl_b, (badge_pad_x, badge_pad_y))
                 surf.blit(badge_surf, (bx_hud, by_hud))
         else:
