@@ -19,7 +19,7 @@ class EnvRenderer:
             print(f"[Warning] ModernGL Engine3D init failed: {e}")
             self.engine_3d = None
         self.safety_surf = pygame.Surface((120, 120), pygame.SRCALPHA)
-        self.hud_surf = pygame.Surface((210, 140), pygame.SRCALPHA)
+        self.hud_surf = pygame.Surface((210, 110), pygame.SRCALPHA)
         self.bezier_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
         self.weights_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
         self._cand_surf = pygame.Surface((env.w, env.h), pygame.SRCALPHA)
@@ -1465,8 +1465,7 @@ class EnvRenderer:
         """우상단 실시간 텔레메트리 HUD"""
         env = self.env
         is_manual = getattr(env, 'manual_mode', False)
-        hud_w = 210
-        hud_h = 126 if is_manual else 110
+        hud_w, hud_h = 210, 110
         hud_x = env.w - hud_w - 15
         hud_y = 12
         
@@ -1512,23 +1511,18 @@ class EnvRenderer:
         d2t_m = d2t / 50.0
 
         if is_manual:
-            # 수동 조종 모드 전용 텔레메트리 (도달시간, 충돌횟수, 누적회전각)
+            # 수동 조종 모드 전용 텔레메트리 (도달시간, 누적회전각, 목표거리 - 영문 표기)
             elapsed_sec = time.time() - getattr(env, 'manual_start_time', time.time())
-            c_cnt = getattr(env, 'manual_collisions', 0)
             c_turn = getattr(env, 'manual_cum_turn', 0.0)
 
-            time_txt = self.ko_font.render(f"시간: {elapsed_sec:.1f}s", True, (220, 235, 255))
+            time_txt = self.small_font.render(f"Time: {elapsed_sec:.1f} s", True, (220, 235, 255))
             hud_surf.blit(time_txt, (10, 60))
 
-            c_color = (100, 245, 140) if c_cnt == 0 else (255, 90, 80)
-            c_txt = self.ko_font.render(f"충돌: {c_cnt}회", True, c_color)
-            hud_surf.blit(c_txt, (10, 76))
+            trn_txt = self.small_font.render(f"Turn: {int(c_turn)}\u00b0", True, (220, 235, 255))
+            hud_surf.blit(trn_txt, (10, 76))
 
-            trn_txt = self.ko_font.render(f"회전각: {int(c_turn)}\u00b0", True, (220, 235, 255))
-            hud_surf.blit(trn_txt, (10, 92))
-
-            d2t_txt = self.ko_font.render(f"목표: {d2t_m:.1f}m", True, (50, 230, 120))
-            hud_surf.blit(d2t_txt, (10, 108))
+            d2t_txt = self.small_font.render(f"Target: {d2t_m:.1f} m", True, (50, 230, 120))
+            hud_surf.blit(d2t_txt, (10, 92))
         else:
             # 자율운항 모드 전용 텔레메트리 (조타각, 실시간 헤딩, 목표 거리)
             steer_val = getattr(env, 'prev_steer', 0)
@@ -1545,21 +1539,20 @@ class EnvRenderer:
         
         env.screen.blit(hud_surf, (hud_x, hud_y))
 
-        # 충돌 발생 시 화면 중앙 상단에 실시간 충돌 횟수 경고 배너 표출 ("충돌몇회라고 화면에 뜨도록")
+        # 충돌 발생 시 화면 중앙 상단에 실시간 충돌 횟수 경고 배너 표출
         if is_manual and getattr(env, 'manual_collision_flash', 0) > 0:
             c_count = getattr(env, 'manual_collisions', 0)
-            alert_w, alert_h = 320, 46
+            alert_w, alert_h = 320, 44
             alert_x = (env.w - alert_w) // 2
             alert_y = 52
             alert_surf = pygame.Surface((alert_w, alert_h), pygame.SRCALPHA)
             pygame.draw.rect(alert_surf, (85, 14, 22, 235), (0, 0, alert_w, alert_h), border_radius=8)
             pygame.draw.rect(alert_surf, (255, 65, 75, 245), (0, 0, alert_w, alert_h), 2, border_radius=8)
-            txt_surf = self.ko_alert_font.render(f"충돌 발생! (현재 누적 {c_count}회)", True, (255, 240, 240))
+            txt_surf = self.bold_font.render(f"COLLISION DETECTED (#{c_count})", True, (255, 240, 240))
             alert_surf.blit(txt_surf, txt_surf.get_rect(center=(alert_w // 2, alert_h // 2)))
             env.screen.blit(alert_surf, (alert_x, alert_y))
 
-        # --- 우측 상단 텔레메트리 HUD 하단: 간략화된 조이스틱 아이콘 버튼 & 눈 깜빡임(블라인드 모드) 버튼 ---
-        # 사용자 요청: 조이스틱 버튼 우측으로 밀착 (HUD 우측 끝 정렬), RC 모드 진입 시 그 좌측에 눈 깜빡임 버튼 표시
+        # --- 우측 상단 텔레메트리 HUD 하단: 조이스틱 버튼 / 눈 깜빡임 버튼 / 새 에피소드 재시작 버튼 ---
         btn_y = hud_y + hud_h + 8
         rc_btn_w, rc_btn_h = 42, 38
         rc_x = hud_x + hud_w - rc_btn_w  # 우측 끝으로 밀착 정렬
@@ -1568,20 +1561,17 @@ class EnvRenderer:
 
         mpos = pygame.mouse.get_pos()
         is_hover = rc_rect.collidepoint(mpos)
-        is_manual = getattr(env, 'manual_mode', False)
 
         rc_surf = pygame.Surface((rc_btn_w, rc_btn_h), pygame.SRCALPHA)
 
-        # 사용자 요청: 밝은 색 배제, 눈에 덜 띄도록 은은한 다크 슬레이트 / 저채도 미니멀 스타일 적용
+        # 조이스틱 버튼 스타일 (저채도 미니멀 다크 슬레이트)
         if is_manual:
-            # RC 조종 활성화 상태 (은은한 차콜 슬레이트)
             bg_col = (25, 33, 44, 190) if is_hover else (18, 25, 34, 160)
             border_col = (75, 95, 120, 200) if is_hover else (50, 68, 88, 160)
             border_w = 1
             ball_col = (110, 130, 150)
             accent_col = (70, 92, 115)
         else:
-            # 기본 자율운항 상태 (눈에 띄지 않는 반투명 다크 그레이)
             bg_col = (22, 28, 38, 170) if is_hover else (14, 20, 28, 140)
             border_col = (60, 78, 100, 180) if is_hover else (38, 50, 66, 130)
             border_w = 1
@@ -1591,28 +1581,25 @@ class EnvRenderer:
         pygame.draw.rect(rc_surf, bg_col, (0, 0, rc_btn_w, rc_btn_h), border_radius=6)
         pygame.draw.rect(rc_surf, border_col, (0, 0, rc_btn_w, rc_btn_h), border_w, border_radius=6)
 
-        # 조이스틱(Joystick) 정밀 벡터 아이콘 렌더링 (저채도 슬레이트 톤)
+        # 조이스틱 정밀 벡터 아이콘
         cx, cy = 21, 19
-        # 1) 조이스틱 원형 베이스 플레이트
         pygame.draw.ellipse(rc_surf, (15, 20, 28), (cx - 10, cy + 4, 20, 9))
         pygame.draw.ellipse(rc_surf, accent_col, (cx - 10, cy + 4, 20, 9), 1)
         pygame.draw.ellipse(rc_surf, (10, 14, 20), (cx - 5, cy + 5, 10, 5))
-        # 2) 메탈 샤프트 (차분한 그레이)
         pygame.draw.line(rc_surf, (110, 125, 140), (cx, cy + 5), (cx - 2, cy - 4), 2)
-        # 3) 조이스틱 볼 노브 (저채도 볼 + 미세 하이라이트)
         pygame.draw.circle(rc_surf, ball_col, (cx - 2, cy - 6), 5)
         pygame.draw.circle(rc_surf, (160, 180, 200), (cx - 3, cy - 7), 1)
 
-        # 활성화 시 미세한 저채도 점등 (은은한 인디케이터)
         if is_manual:
             pygame.draw.circle(rc_surf, (120, 150, 180), (rc_btn_w - 6, 6), 2)
 
         env.screen.blit(rc_surf, (rc_x, btn_y))
 
-        # --- RC 모드 진입 시에만 그 옆(좌측)에 나타나는 눈 깜빡임(블라인드 시연 모드) 토글 버튼 ---
+        # --- RC 모드 진입 시에만 그 옆(좌측)에 나타나는 눈 깜빡임 버튼 및 새 에피소드 재시작 버튼 ---
         if is_manual:
+            # [버튼 1] 눈 깜빡임(블라인드 시연 모드) 토글 버튼
             eye_btn_w, eye_btn_h = 42, 38
-            eye_x = rc_x - eye_btn_w - 6  # 조이스틱 버튼 좌측에 밀착 배치
+            eye_x = rc_x - eye_btn_w - 6  # 조이스틱 버튼 좌측
             eye_rect = pygame.Rect(eye_x, btn_y, eye_btn_w, eye_btn_h)
             env.blind_btn_rect = eye_rect
 
@@ -1622,40 +1609,60 @@ class EnvRenderer:
             eye_surf = pygame.Surface((eye_btn_w, eye_btn_h), pygame.SRCALPHA)
 
             if is_blind:
-                # 블라인드 모드 ON: 차분한 다크 슬레이트 (밝은 마젠타 배제)
                 eye_bg = (28, 30, 40, 190) if is_eye_hover else (20, 24, 32, 160)
                 eye_border = (85, 95, 115, 200) if is_eye_hover else (55, 68, 85, 160)
-                eye_border_w = 1
                 eye_accent = (110, 125, 145)
                 iris_col = (90, 105, 125)
             else:
-                # 블라인드 모드 OFF: 눈에 띄지 않는 반투명 다크 그레이 (밝은 사이언 배제)
                 eye_bg = (22, 28, 38, 170) if is_eye_hover else (14, 20, 28, 140)
                 eye_border = (60, 78, 100, 180) if is_eye_hover else (38, 50, 66, 130)
-                eye_border_w = 1
                 eye_accent = (75, 95, 115)
                 iris_col = (65, 82, 102)
 
             pygame.draw.rect(eye_surf, eye_bg, (0, 0, eye_btn_w, eye_btn_h), border_radius=6)
-            pygame.draw.rect(eye_surf, eye_border, (0, 0, eye_btn_w, eye_btn_h), eye_border_w, border_radius=6)
+            pygame.draw.rect(eye_surf, eye_border, (0, 0, eye_btn_w, eye_btn_h), 1, border_radius=6)
 
-            # 눈(Eye) 정밀 벡터 아이콘 렌더링 (차분한 슬레이트 라인)
+            # 눈(Eye) 정밀 벡터 아이콘
             ecx, ecy = 21, 19
-            # 상단 및 하단 눈꺼풀 호(Arc)
             pygame.draw.arc(eye_surf, eye_accent, (ecx - 11, ecy - 9, 22, 16), 0.18 * math.pi, 0.82 * math.pi, 1)
             pygame.draw.arc(eye_surf, eye_accent, (ecx - 11, ecy - 9, 22, 16), 1.18 * math.pi, 1.82 * math.pi, 1)
-            # 홍채 및 동공
             pygame.draw.circle(eye_surf, iris_col, (ecx, ecy), 3)
             pygame.draw.circle(eye_surf, (12, 16, 24), (ecx, ecy), 1)
 
-            # 블라인드(시야 제한) 활성화 시 은은한 대각선 및 마이크로 인디케이터
             if is_blind:
                 pygame.draw.line(eye_surf, (130, 100, 100), (ecx - 8, ecy - 6), (ecx + 8, ecy + 6), 1)
                 pygame.draw.circle(eye_surf, (130, 145, 165), (eye_btn_w - 6, 6), 2)
 
             env.screen.blit(eye_surf, (eye_x, btn_y))
+
+            # [버튼 2] 새로운 에피소드로 재시작(Restart) 버튼 (눈 깜빡임 버튼 좌측)
+            rst_btn_w, rst_btn_h = 42, 38
+            rst_x = eye_x - rst_btn_w - 6
+            rst_rect = pygame.Rect(rst_x, btn_y, rst_btn_w, rst_btn_h)
+            env.restart_btn_rect = rst_rect
+
+            is_rst_hover = rst_rect.collidepoint(mpos)
+            rst_surf = pygame.Surface((rst_btn_w, rst_btn_h), pygame.SRCALPHA)
+
+            rst_bg = (24, 30, 42, 190) if is_rst_hover else (16, 22, 32, 160)
+            rst_border = (70, 90, 115, 200) if is_rst_hover else (45, 60, 80, 160)
+            rst_accent = (155, 180, 210) if is_rst_hover else (95, 115, 138)
+
+            pygame.draw.rect(rst_surf, rst_bg, (0, 0, rst_btn_w, rst_btn_h), border_radius=6)
+            pygame.draw.rect(rst_surf, rst_border, (0, 0, rst_btn_w, rst_btn_h), 1, border_radius=6)
+
+            # 재시작(Restart / Reload) 원형 회전 화살표 정밀 벡터 아이콘
+            rcx, rcy = 21, 19
+            # 원호 (약 300도 회전 호)
+            pygame.draw.arc(rst_surf, rst_accent, (rcx - 8, rcy - 8, 16, 16), 0.25 * math.pi, 1.85 * math.pi, 2)
+            # 회전 화살표 머리 삼각형 (우상단 호 끝부분)
+            arrow_pts = [(rcx + 3, rcy - 10), (rcx + 8, rcy - 6), (rcx + 2, rcy - 4)]
+            pygame.draw.polygon(rst_surf, rst_accent, arrow_pts)
+
+            env.screen.blit(rst_surf, (rst_x, btn_y))
         else:
             env.blind_btn_rect = None
+            env.restart_btn_rect = None
 
     def _draw_leaderboard_modal(self):
         """RC 수동 조종 모드 목적지 도달 시 상위 10등 랭킹 및 AI 벤치마크 비교 모달 창 표출"""

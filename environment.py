@@ -284,6 +284,11 @@ class BoatEnv:
             self.toggle_blind_mode()
             return
 
+        # 0-2. 새 에피소드 재시작 버튼 클릭 (RC 모드 상태에서만 활성화, 눈 깜빡임 버튼 좌측)
+        if getattr(self, 'manual_mode', False) and getattr(self, 'restart_btn_rect', None) and self.restart_btn_rect.collidepoint(pos):
+            self.reset_manual_episode()
+            return
+
         # 1. 3D 전체화면/2D 화면 교체 버튼 클릭 (메인 화면 좌측 하단)
         view_rect = getattr(self, 'view_btn_rect', getattr(self, 'view_btn_top_rect', None))
         if view_rect and view_rect.collidepoint(pos):
@@ -393,6 +398,7 @@ class BoatEnv:
             self.manual_mode = False
             self.blind_mode = False
             self.blind_btn_rect = None
+            self.restart_btn_rect = None
             self.show_leaderboard = False
             self.last_manual_result = None
             saved = getattr(self, 'saved_manual_state', None)
