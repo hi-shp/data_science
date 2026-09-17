@@ -35,8 +35,8 @@ class BoatEnv:
             'avoid_normal': 0.05,
             'avoid_em': 0.7,
             'clear_margin': 10.0,
-            'em_enter': 125.0,
-            'em_exit': 160.0,
+            'em_enter': 175.0,
+            'em_exit': 220.0,
             'em_hold_frames': 18,
             'align_exp': 6.0,
             'heading_exp': 4.0,
@@ -52,8 +52,8 @@ class BoatEnv:
         self.lidar_range = 320
         self.rel_angles = np.linspace(-np.pi, np.pi, self.lidar_beams, endpoint=False)
         
-        self.mass = 10
-        self.inertia = 4.5
+        self.mass = 20
+        self.inertia = 16
         self.drag = 0.2
         self.rot_drag = 0.8
         self.boat_radius = 25
@@ -83,7 +83,7 @@ class BoatEnv:
         
         self.obs_n = int(80 * (self.map_w / self.w))   # 맵 확장에 비례하는 장애물 수 (기본 80개)
         self.obs_r = 17
-        self.min_obs = 120
+        self.min_obs = 150
         
         self.grid = init_grid()
         self.clusters = []
@@ -468,9 +468,24 @@ class BoatEnv:
             target_fwd = m_thr * 5500.0
             mom = (tR - tL) * self.params['mom_coeff']
         else:
-            # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어 (장애물 근접 시 최소 속도를 더욱 낮추어 서행)
+            # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어
             em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-            speed_factor = (math.tanh(em_dist / 100.0)) ** 1.35
+            dist_speed_factor = (math.tanh(em_dist / 170.0)) ** 1.35
+            # 전방 85px 이내 초근접 시 선속 추가 안전 제한 (관성 슬립 충돌 차단)
+            if em_dist < 85.0:
+                dist_speed_factor = min(dist_speed_factor, 0.15 + 0.15 * (em_dist / 85.0))
+            
+            # 회전해야 하는 각도(헤딩 오차 및 조향 명령 강도)가 클수록 속도를 대폭 감속 (회전 관성 16, 질량 20 대응)
+            turn_err = abs(wrap(self.heading_target - self.boat_heading))
+            steer_angle_equiv = abs(getattr(self, 'prev_steer', 0.0)) * (math.pi * 0.5)
+            effective_turn_angle = max(turn_err, steer_angle_equiv)
+            
+            # 각도가 0도일 때 1.0, 45도일 때 ~0.46, 75도 이상일 때 ~0.10으로 급격히 감속하여 제자리 선회력 확보
+            turn_cos = max(0.0, math.cos(min(math.pi * 0.5, effective_turn_angle)))
+            turn_speed_factor = max(0.10, turn_cos ** 2.2)
+            
+            speed_factor = dist_speed_factor * turn_speed_factor
+            
             # 라인트레이싱 모드에서는 갭 내비 대비 살짝 느린 속도 (85%)로 주행하여 반응형 회피에 여유 확보
             if getattr(self, 'linetrace_mode', False):
                 speed_factor *= 0.85
@@ -752,26 +767,26 @@ class BoatEnv:
         heading_error = wrap(heading_target - self.boat_heading)
 
         # 거리에 따라 연속적으로 조향 및 회피력 스케일링
-        clear_ratio = np.clip((min_front_dist - 150.0) / 50.0, 0.0, 1)
-        steer_gain = self.params['steer_gain'] + (1.0 - clear_ratio) * 0.4
-        avoid_multiplier = self.params['avoid_normal'] + (1.0 - clear_ratio) * (self.params['avoid_em'] * 0.40)
+        clear_ratio = np.clip((min_front_dist - 170.0) / 60.0, 0.0, 1)
+        steer_gain = self.params['steer_gain'] + (1.0 - clear_ratio) * 0.45
+        avoid_multiplier = self.params['avoid_normal'] + (1.0 - clear_ratio) * (self.params['avoid_em'] * 0.45)
             
-        # 각속도 댐핑을 강화하여 관성 오버슈트 및 휙휙 도는 회전 억제
-        d_term = -0.12 * getattr(self, 'boat_ang_vel', 0.0)
+        # 각속도 댐핑을 강화하여 관성 오버슈트 및 휙휙 도는 회전 억제 (관성 16 대응)
+        d_term = -0.22 * getattr(self, 'boat_ang_vel', 0.0)
         steer_raw = heading_error * steer_gain + d_term
         alpha = self.params['steer_alpha']
         steer_f = alpha * steer_raw + (1.0 - alpha) * self.prev_steer
         self.prev_steer = steer_f
         
         # [갭 내비게이션 다이렉트 모드 전용 회피]
-        # 원거리 불필요한 대우회 및 갭 사이 떨림을 방지하되, 근접 장애물(< 55px)에 대해서는 강력한 기존 회피력 완전 유지
+        # 질량 20 / 관성 16에 맞춰 회피 개시 거리를 175px로 대폭 확장
         if self.current_wp is None:
             fov_rad = 1.134464  # np.deg2rad(65)
             fwd_mask = np.abs(self.rel_angles) <= fov_rad
             fwd_indices = np.where(fwd_mask)[0]
 
-            SAFE_DIST = 100.0        # 회피 개시 거리 (원거리 불필요한 대우회 방지)
-            CRIT_DIST = 60.0        # 근접 긴급 회피 기준 거리 (선체 반경 25px + 장애물 반경 17px = 42px 충돌선)
+            SAFE_DIST = 175.0        # 회피 개시 거리 (원거리 조기 회피)
+            CRIT_DIST = 85.0        # 근접 긴급 회피 기준 거리 (선체 반경 25px + 장애물 반경 17px = 42px 충돌선 대비 여유 확보)
 
             if len(fwd_indices) > 0:
                 fwd_dists = dists[fwd_indices]
@@ -801,33 +816,33 @@ class BoatEnv:
                 push_l = max(0.0, (SAFE_DIST - d_right) / SAFE_DIST) ** 1.5  # 우측 장애물 -> 좌측 반발
                 net_dir = push_r - push_l
 
-                # 2. 근접 위험도(Urgency) 계산: 55px 이하 근접 시 기존의 강력한 반발력(0.75~1.0)으로 즉각 회피
+                # 2. 근접 위험도(Urgency) 계산
                 urgency = float(np.clip((SAFE_DIST - min_dist) / (SAFE_DIST - CRIT_DIST), 0.0, 1.0))
                 front_f = max(0.0, math.cos(closest_ang * (np.pi / 2.0 / fov_rad)))
 
                 if min_dist < CRIT_DIST:
-                    # [근접 위험 구간] 기존의 강력한 회피력 완전 유지
+                    # [근접 위험 구간] 기존의 강력한 회피력 완전 유지 및 회피 가중치 상향
                     avoid_dir = -float(np.sign(closest_ang)) if abs(closest_ang) > 0.04 else (-1.0 if d_left >= d_right else 1.0)
-                    avoid_steer = avoid_dir * (0.75 + 0.25 * urgency)
-                    if min_dist < CRIT_DIST - 5.0:  # 50px 이하 극근접 충돌 위험 시 100% 완전 회피
-                        steer_cmd = avoid_dir * 0.3
+                    avoid_steer = avoid_dir * (0.85 + 0.15 * urgency)
+                    if min_dist < CRIT_DIST - 10.0:  # 75px 이하 극근접 충돌 위험 시 100% 완전 회피
+                        steer_cmd = avoid_dir * 1.0
                     else:
-                        avoid_weight = min(0.50, urgency * front_f)
+                        avoid_weight = max(0.65, urgency * front_f)
                         steer_cmd = (1.0 - avoid_weight) * steer_f + avoid_weight * avoid_steer
                 else:
-                    # [중거리(55px ~ 95px) 접근 구간] 양측 밸런싱을 적용하여 크게 돌지 않고 틈새 중앙으로 안정적 진입
-                    avoid_steer = np.clip(net_dir * 0.35, -0.45, 0.45)
+                    # [중거리(85px ~ 175px) 접근 구간] 양측 밸런싱을 적용하여 크게 돌지 않고 틈새 중앙으로 안정적 진입
+                    avoid_steer = np.clip(net_dir * 0.40, -0.50, 0.50)
                     steer_cmd = steer_f + avoid_steer
 
-                # 측면 근접 보호(Flank Guard): 배 옆(65~95도) 42px 이내 장애물 근접 시 측면 찰과 충돌 강력 방지 (기존 반발력 0.40 유지)
+                # 측면 근접 보호(Flank Guard): 배 옆(65~95도) 52px 이내 장애물 근접 시 측면 찰과 충돌 강력 방지
                 flank_mask = (np.abs(self.rel_angles) > fov_rad) & (np.abs(self.rel_angles) <= 1.658)
                 if np.any(flank_mask):
                     f_dists = dists[flank_mask]
                     f_min = float(np.min(f_dists))
-                    if f_min < 42.0:
+                    if f_min < 52.0:
                         f_idx = np.where(flank_mask)[0][np.argmin(f_dists)]
                         f_ang = float(self.rel_angles[f_idx])
-                        f_push = -float(np.sign(f_ang)) * (42.0 - f_min) / 42.0 * 0.40
+                        f_push = -float(np.sign(f_ang)) * (52.0 - f_min) / 52.0 * 0.45
                         steer_cmd = float(np.clip(steer_cmd + f_push, -1.0, 1.0))
 
                 return float(np.clip(steer_cmd, -1.0, 1.0))
@@ -845,7 +860,20 @@ class BoatEnv:
         if np.any(rear_mask) and np.min(dists[rear_mask]) <= 45.3:
             return 0.0
 
-        return np.clip(steer_f + avoid_multiplier * avoid, -1, 1)
+        final_steer = np.clip(steer_f + avoid_multiplier * avoid, -1, 1)
+
+        # 측면 근접 보호(Flank Guard): 웨이포인트 주행 중에도 배 옆(65~95도) 52px 이내 장애물 근접 시 측면 찰과 충돌 강력 방지
+        flank_mask = (np.abs(self.rel_angles) > 1.134464) & (np.abs(self.rel_angles) <= 1.658)
+        if np.any(flank_mask):
+            f_dists = dists[flank_mask]
+            f_min = float(np.min(f_dists))
+            if f_min < 52.0:
+                f_idx = np.where(flank_mask)[0][np.argmin(f_dists)]
+                f_ang = float(self.rel_angles[f_idx])
+                f_push = -float(np.sign(f_ang)) * (52.0 - f_min) / 52.0 * 0.45
+                final_steer = float(np.clip(final_steer + f_push, -1.0, 1.0))
+
+        return final_steer
 
     def update_camera(self):
         """카메라 X 오프셋을 보트 위치에 맞춰 부드럽게 추종 (맵 경계 클램핑)"""
