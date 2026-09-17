@@ -93,9 +93,9 @@ class EnvRenderer:
         top_surf.blit(t_lbl, t_lbl.get_rect(center=(top_btn.w // 2, top_btn.h // 2)))
         env.screen.blit(top_surf, (top_btn.x, top_btn.y))
 
-        # 8-3. 메인 시뮬레이션 맵 좌측 하단 제어 패널 (화면 스왑 버튼, 카메라 모드 버튼, FPS 인디케이터)
+        # 8-3. 메인 시뮬레이션 맵 좌측 하단 제어 패널 (화면 스왑 버튼, 카메라 모드 버튼)
         # [버튼 2] 3D 전체화면 / 2D 맵 상하 화면 스왑 버튼
-        view_btn = pygame.Rect(25, env.sim_h - 88, 165, 26)
+        view_btn = pygame.Rect(25, env.sim_h - 70, 165, 26)
         env.view_btn_top_rect = view_btn
         env.view_btn_rect = view_btn
         v_hover = view_btn.collidepoint(mpos)
@@ -117,7 +117,7 @@ class EnvRenderer:
         env.screen.blit(v_surf, (view_btn.x, view_btn.y))
 
         # [버튼 3] 3D 카메라 모드 변경 버튼 (Helm 1st / Chase 3rd / Drone Top)
-        cam_btn = pygame.Rect(25, env.sim_h - 58, 165, 26)
+        cam_btn = pygame.Rect(25, env.sim_h - 38, 165, 26)
         env.cam_btn_top_rect = cam_btn
         env.cam_btn_rect = cam_btn
         c_hover = cam_btn.collidepoint(mpos)
@@ -133,15 +133,13 @@ class EnvRenderer:
         c_surf.blit(c_lbl, c_lbl.get_rect(center=(cam_btn.w // 2, cam_btn.h // 2)))
         env.screen.blit(c_surf, (cam_btn.x, cam_btn.y))
 
-        # [상시 표시 뱃지] 화면 프레임 레이트 (FPS)
+        # 8-4. 화면 중앙 최상단 상시 FPS 인디케이터 (버튼 형태 배제, 순수 텍스트만 흰색 계열로 표시)
         fps_val = int(env.clock.get_fps()) if hasattr(env, 'clock') else 60
-        fps_surf = pygame.Surface((78, 22), pygame.SRCALPHA)
-        pygame.draw.rect(fps_surf, (10, 20, 34, 210), (0, 0, 78, 22), border_radius=3)
-        pygame.draw.rect(fps_surf, (0, 190, 160, 180), (0, 0, 78, 22), 1, border_radius=3)
-        fps_col = (0, 255, 180) if fps_val >= 50 else (255, 200, 60)
-        fps_lbl = self.small_font.render(f"{fps_val} FPS", True, fps_col)
-        fps_surf.blit(fps_lbl, fps_lbl.get_rect(center=(39, 11)))
-        env.screen.blit(fps_surf, (198, env.sim_h - 56))
+        fps_lbl = self.small_font.render(f"{fps_val} FPS", True, (240, 245, 255))
+        fps_rect = fps_lbl.get_rect(center=(env.w // 2, 18))
+        shadow_lbl = self.small_font.render(f"{fps_val} FPS", True, (12, 22, 36))
+        env.screen.blit(shadow_lbl, (fps_rect.x + 1, fps_rect.y + 1))
+        env.screen.blit(fps_lbl, fps_rect)
 
         # 9. 미니맵 오버레이 (맵이 확장된 경우 주행화면 우측 하단에 표시, 3D 풀화면 모드에서는 가림)
         if env.map_w > env.w and not is_full_3d:
@@ -1105,61 +1103,56 @@ class EnvRenderer:
 
         env.screen.blit(self.cam_surf, (700, env.sim_h + 35))
 
-        # --- 3. 실시간 하드웨어 가속 ModernGL 3D 엔진 뷰포트 & 2D 화면 스왑 슬롯 ---
+        # --- 3. 실시간 하드웨어 가속 ModernGL 3D 엔진 뷰포트 & 2D 화면 스왑 슬롯 (버튼 없음) ---
+        env.cam_panel_btn_rect = None
         if getattr(self, 'engine_3d', None) is not None:
             try:
                 if getattr(env, 'fullscreen_3d', False):
-                    # 3D가 전체화면일 때: 기존 2D 화면을 이 320x220 슬롯에 스왑하여 실시간 표출!
-                    sbx = sx(env.boat_pos[0])
-                    crop_w = 916
-                    crop_x = int(max(0, min(env.w - crop_w, sbx - 180)))
-                    sub_2d = self.world_2d_surf.subsurface((crop_x, 0, crop_w, env.sim_h))
-                    mini_2d = pygame.transform.smoothscale(sub_2d, (320, 220))
+                    # 3D 전체화면 활성화 시: 하단 320x220 슬롯에 가로세로 비율(20:7)을 엄격히 고정한 2D 전체 맵 표출 (화면상 장애물 1:1 일치)
+                    panel_surf = pygame.Surface((320, 220))
+                    panel_surf.fill((8, 18, 30))
+                    pygame.draw.rect(panel_surf, (0, 180, 255), (0, 0, 320, 220), 2)
                     
-                    # 2D 테두리
-                    pygame.draw.rect(mini_2d, (0, 180, 255), (0, 0, 320, 220), 2)
+                    # 상단 라벨 (버튼이 아닌 패널 헤더 정보)
+                    t_mini = self.small_font.render("2D MAP VIEW (1800x630)", True, (0, 230, 255))
+                    panel_surf.blit(t_mini, (10, 6))
                     
-                    # 상단 라벨 뱃지
-                    badge_rect = pygame.Rect(6, 6, 115, 20)
-                    pygame.draw.rect(mini_2d, (10, 22, 40, 220), badge_rect, border_radius=3)
-                    pygame.draw.rect(mini_2d, (0, 180, 255), badge_rect, 1, border_radius=3)
-                    t_mini = self.small_font.render("2D MAP VIEW", True, (0, 230, 255))
-                    mini_2d.blit(t_mini, (10, 8))
+                    # 1800:630 고정 비율(20:7) 스케일링: 가로 316px, 세로 110px (상하 왜곡/잘림 완벽 방지)
+                    mini_w, mini_h = 316, 110
+                    mini_2d = pygame.transform.smoothscale(self.world_2d_surf, (mini_w, mini_h))
+                    map_x, map_y = 2, 28
+                    panel_surf.blit(mini_2d, (map_x, map_y))
+                    pygame.draw.rect(panel_surf, (0, 140, 210), (map_x - 1, map_y - 1, mini_w + 2, mini_h + 2), 1)
                     
-                    # 우측 상단 스왑 버튼: [CLICK TO SWAP]
-                    swap_rect = pygame.Rect(196, 6, 118, 20)
-                    mpos = pygame.mouse.get_pos()
-                    is_h_swap = pygame.Rect(1050 + 196, env.sim_h + 35 + 6, 118, 20).collidepoint(mpos)
-                    s_bg = (25, 75, 110, 230) if is_h_swap else (12, 36, 58, 210)
-                    pygame.draw.rect(mini_2d, s_bg, swap_rect, border_radius=3)
-                    pygame.draw.rect(mini_2d, (0, 255, 200), swap_rect, 1, border_radius=3)
-                    t_swap = self.micro_font.render("CLICK TO SWAP", True, (0, 255, 200))
-                    mini_2d.blit(t_swap, t_swap.get_rect(center=swap_rect.center))
+                    # 하단 여백 정보 영역 (y: 142 ~ 218)
+                    pygame.draw.line(panel_surf, (0, 90, 140), (0, 142), (320, 142), 1)
                     
-                    env.screen.blit(mini_2d, (1050, env.sim_h + 35))
+                    # 3D 엔진 백엔드 정보 (하단 슬롯 표시)
+                    lbl_eng = self.micro_font.render("ENGINE: ModernGL 3.3 Core Profile (EGL)", True, (0, 255, 200))
+                    panel_surf.blit(lbl_eng, (10, 148))
+                    
+                    # 실시간 선박 텔레메트리 요약
+                    speed_m_s = float(np.linalg.norm(env.boat_vel)) / 50.0
+                    lbl_tel = self.micro_font.render(
+                        f"POS: ({bx:.0f}, {by:.0f}) | HDG: {int(math.degrees(h))%360:03d}\u00b0 | SPD: {speed_m_s:.1f} m/s",
+                        True, (200, 225, 250)
+                    )
+                    panel_surf.blit(lbl_tel, (10, 168))
+                    
+                    # 현재 알고리즘 모드 및 전체화면 상태
+                    is_lt = getattr(env, 'linetrace_mode', False)
+                    mode_name = "LINE TRACING" if is_lt else "GAP NAVIGATION"
+                    lbl_mode = self.micro_font.render(
+                        f"NAV: {mode_name} | FULLSCREEN 3D ACTIVE",
+                        True, (255, 210, 100)
+                    )
+                    panel_surf.blit(lbl_mode, (10, 188))
+                    
+                    env.screen.blit(panel_surf, (1050, env.sim_h + 35))
                 else:
-                    # 2D가 메인 화면일 때: 하단 슬롯에 320x220 3D 뷰포트 표출
+                    # 기본 2D 모드: 하단 슬롯에 320x220 3D 뷰포트 표출 (패널 상에 어떤 버튼도 배치하지 않음)
                     surf_3d = self.engine_3d.render(env, hits, 320, 220)
                     env.screen.blit(surf_3d, (1050, env.sim_h + 35))
-                    
-                    # 패널 우상단 카메라 모드 전환 소형 버튼
-                    cam_idx = getattr(env, 'cam_3d_mode', 1)
-                    cam_names = ["Helm", "Chase", "Drone"]
-                    cam_label = f"CAM: {cam_names[cam_idx % 3]}"
-                    c_btn_rect = pygame.Rect(1050 + 208, env.sim_h + 35 + 6, 106, 20)
-                    env.cam_panel_btn_rect = c_btn_rect
-                    mpos = pygame.mouse.get_pos()
-                    is_h_cam = c_btn_rect.collidepoint(mpos)
-                    c_bg = (35, 30, 60, 230) if is_h_cam else (16, 18, 32, 210)
-                    c_border = (200, 160, 255) if is_h_cam else (130, 100, 210)
-                    c_txt_col = (245, 235, 255) if is_h_cam else (200, 180, 245)
-                    
-                    c_surf = pygame.Surface((106, 20), pygame.SRCALPHA)
-                    pygame.draw.rect(c_surf, c_bg, (0, 0, 106, 20), border_radius=3)
-                    pygame.draw.rect(c_surf, c_border, (0, 0, 106, 20), 1, border_radius=3)
-                    t_cam = self.micro_font.render(cam_label, True, c_txt_col)
-                    c_surf.blit(t_cam, t_cam.get_rect(center=(53, 10)))
-                    env.screen.blit(c_surf, (c_btn_rect.x, c_btn_rect.y))
             except Exception as e:
                 print(f"[Warning] 3D render failed: {e}")
 
