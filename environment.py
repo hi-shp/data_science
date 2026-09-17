@@ -18,8 +18,8 @@ class BoatEnv:
         self.map_w = MAP_W  # 월드 맵 가로 폭 (1920px)
         self.cam_x = 0      # 카메라 X 오프셋 (보트 추종)
         self.sim_h = SIM_H
-        self.is_fullscreen_window = False
-        self.screen = pygame.display.set_mode((self.w, self.h))
+        self.is_fullscreen_window = True
+        self.screen = pygame.display.set_mode((self.w, self.h), pygame.FULLSCREEN)
         pygame.display.set_caption("kaboat simulation")
         self.clock = pygame.time.Clock()
         self.dt = 0.04
@@ -156,7 +156,7 @@ class BoatEnv:
         # 실시간 3D 그래픽스 엔진 상태 변수
         self.cam_3d_mode = 1  # 0: 1인칭 조타석, 1: 3인칭 추종 체이스, 2: 전술 드론
         self.fullscreen_3d = False
-        self.panel_3d_rect = pygame.Rect(1090, self.sim_h + 40, 320, 220)
+        self.panel_3d_rect = pygame.Rect(1090, self.sim_h + 35, 320, 220)
         
         self.renderer = EnvRenderer(self)
         self.reset()
@@ -304,7 +304,7 @@ class BoatEnv:
                         break
 
     def toggle_fullscreen(self):
-        self.is_fullscreen_window = not getattr(self, 'is_fullscreen_window', False)
+        self.is_fullscreen_window = not getattr(self, 'is_fullscreen_window', True)
         flags = pygame.FULLSCREEN if self.is_fullscreen_window else 0
         self.screen = pygame.display.set_mode((self.w, self.h), flags)
 

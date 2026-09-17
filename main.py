@@ -27,6 +27,11 @@ def run():
                     env.fullscreen_3d = not getattr(env, 'fullscreen_3d', False)
                 elif e.key == pygame.K_F11:
                     env.toggle_fullscreen()
+                elif e.key == pygame.K_ESCAPE:
+                    if hasattr(env, 'renderer') and hasattr(env.renderer, 'engine_3d') and env.renderer.engine_3d:
+                        env.renderer.engine_3d.close()
+                    pygame.quit()
+                    return
             elif e.type == pygame.MOUSEBUTTONDOWN:
                 if e.button == 1:
                     env.handle_click(e.pos)
