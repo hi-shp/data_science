@@ -2,7 +2,9 @@ import pygame
 import numpy as np
 import math
 import datetime
+import time
 import os
+import leaderboard
 from environment import BoatEnv
 from perception import lidar_hits_np, update_grid, extract_clusters_from_grid, match_clusters
 from navigation import find_gap, target_is_clear, is_direct_target_safe, is_waypoint_switch_safe, is_front_blocked, line_trace_steering
@@ -19,6 +21,15 @@ def run():
                 pygame.quit()
                 return
             elif e.type == pygame.KEYDOWN:
+                # 랭킹 모달이 열려 있을 때 키보드 단축키
+                if getattr(env, 'show_leaderboard', False):
+                    if e.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_r]:
+                        env.reset_manual_episode()
+                        continue
+                    elif e.key in [pygame.K_ESCAPE, pygame.K_m]:
+                        env.toggle_manual_mode()
+                        continue
+
                 if e.key == pygame.K_SPACE:
                     env.paused = not env.paused
                 elif e.key == pygame.K_c:
@@ -108,28 +119,36 @@ def run():
                     env.total_gaps_count = len(gui_all_gaps)
 
             if getattr(env, 'manual_mode', False):
-                keys = pygame.key.get_pressed()
-                target_thr = 0.0
-                target_str = 0.0
-                if keys[pygame.K_w] or keys[pygame.K_UP]:
-                    target_thr += 1.0
-                if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-                    target_thr -= 0.6  # 후진 및 급제동
-                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-                    target_str -= 1.0  # 좌현(Port) 선회
-                if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-                    target_str += 1.0  # 우현(Starboard) 선회
+                if getattr(env, 'show_leaderboard', False):
+                    target_thr = 0.0
+                    target_str = 0.0
+                    env.manual_throttle = 0.0
+                    env.manual_steer = 0.0
+                    L = 1500
+                    R = 1500
+                    steer = 0.0
+                else:
+                    keys = pygame.key.get_pressed()
+                    target_thr = 0.0
+                    target_str = 0.0
+                    if keys[pygame.K_w] or keys[pygame.K_UP]:
+                        target_thr += 1.0
+                    if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+                        target_thr -= 0.6  # 후진 및 급제동
+                    if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                        target_str -= 1.0  # 좌현(Port) 선회
+                    if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                        target_str += 1.0  # 우현(Starboard) 선회
 
-                # 실시간 조종 응답 필터링
-                env.manual_throttle = getattr(env, 'manual_throttle', 0.0) * 0.75 + target_thr * 0.25
-                env.manual_steer = getattr(env, 'manual_steer', 0.0) * 0.70 + target_str * 0.30
+                    # 실시간 조종 응답 필터링
+                    env.manual_throttle = getattr(env, 'manual_throttle', 0.0) * 0.75 + target_thr * 0.25
+                    env.manual_steer = getattr(env, 'manual_steer', 0.0) * 0.70 + target_str * 0.30
 
-                base_pwm = 1500
-                diff = env.manual_steer * 270.0
-                L = int(np.clip(base_pwm - diff, 1100, 1900))
-                R = int(np.clip(base_pwm + diff, 1100, 1900))
-
-                steer = env.manual_steer
+                    base_pwm = 1500
+                    diff = env.manual_steer * 270.0
+                    L = int(np.clip(base_pwm - diff, 1100, 1900))
+                    R = int(np.clip(base_pwm + diff, 1100, 1900))
+                    steer = env.manual_steer
                 env.prev_steer = steer
                 env.heading_target = env.boat_heading + steer * 0.45
                 env.current_wp = None
@@ -351,17 +370,22 @@ def run():
                 env.validate_wp_obstacle_5x5()
 
             dist_tgt_end = math.hypot(env.target[0] - env.boat_pos[0], env.target[1] - env.boat_pos[1])
-            if env.collide() or dist_tgt_end < 70:
-                if getattr(env, 'manual_mode', False):
-                    # 수동 조종 모드 중 장애물 충돌 또는 목표 도달 시:
-                    # 조종 모드를 강제 종료하지 않고 선체 위치를 출발점으로 안전 리스폰하여 계속 주행 지원
-                    env.boat_pos = np.array([65, env.sim_h / 2], dtype=np.float32)
+            if getattr(env, 'manual_mode', False):
+                if dist_tgt_end < 70 and not getattr(env, 'show_leaderboard', False):
+                    # RC 수동 조종 모드 목적지 도달: 랭킹 기록 저장 및 리더보드 모달 표출
+                    elapsed_time = round(time.time() - getattr(env, 'manual_start_time', time.time()), 2)
+                    record = leaderboard.add_record(
+                        collisions=env.manual_collisions,
+                        arrival_time=elapsed_time,
+                        cum_turn=round(env.manual_cum_turn, 1)
+                    )
+                    env.last_manual_result = record
+                    env.show_leaderboard = True
                     env.boat_vel = np.zeros(2)
-                    env.boat_ang_vel = 0
-                    env.boat_heading = 0.0
-                    env.trail.fill((0, 0, 0, 0))
-                    env.wakes = []
-                    continue
+                    env.boat_ang_vel = 0.0
+                # 수동 조종 모드에서는 충돌 발생 시 에피소드를 종료/리스폰하지 않고 계속 주행함
+            else:
+                if env.collide() or dist_tgt_end < 70:
 
                 is_success = (dist_tgt_end < 70 and not env.collide())
                 tag = "SUCCESS" if is_success else "FAIL"

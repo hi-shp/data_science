@@ -1,0 +1,42 @@
+[
+  {
+    "player": "Commander",
+    "collisions": 0,
+    "time": 14.52,
+    "cumulative_turn_deg": 68.3,
+    "date": "2026-09-17 17:30",
+    "timestamp": 1789620000.0
+  },
+  {
+    "player": "Navigator_A",
+    "collisions": 0,
+    "time": 16.85,
+    "cumulative_turn_deg": 84.1,
+    "date": "2026-09-17 16:15",
+    "timestamp": 1789615000.0
+  },
+  {
+    "player": "Pilot_B",
+    "collisions": 1,
+    "time": 13.12,
+    "cumulative_turn_deg": 92.5,
+    "date": "2026-09-17 15:40",
+    "timestamp": 1789612000.0
+  },
+  {
+    "player": "Skipper_C",
+    "collisions": 1,
+    "time": 18.4,
+    "cumulative_turn_deg": 115.0,
+    "date": "2026-09-17 14:20",
+    "timestamp": 1789608000.0
+  },
+  {
+    "player": "Trainee_D",
+    "collisions": 2,
+    "time": 21.05,
+    "cumulative_turn_deg": 142.8,
+    "date": "2026-09-17 13:10",
+    "timestamp": 1789604000.0
+  }
+]

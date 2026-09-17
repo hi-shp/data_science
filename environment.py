@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import pygame
 import numpy as np
 import math
@@ -169,6 +170,17 @@ class BoatEnv:
         self.blind_mode = False
         self.blind_btn_rect = None
         
+        # RC 주행 메트릭스 및 랭킹 시스템
+        self.manual_start_time = time.time()
+        self.manual_collisions = 0
+        self.manual_cum_turn = 0.0
+        self.manual_collision_cooldown = 0
+        self.manual_collision_flash = 0
+        self.show_leaderboard = False
+        self.last_manual_result = None
+        self.leaderboard_retry_rect = None
+        self.leaderboard_exit_rect = None
+        
         self.renderer = EnvRenderer(self)
         self.reset()
 
@@ -242,7 +254,26 @@ class BoatEnv:
             self.linetrace_mode = True
             self.linetrace_queued = False
 
+        # RC 주행 메트릭스 리셋
+        self.manual_start_time = time.time()
+        self.manual_collisions = 0
+        self.manual_cum_turn = 0.0
+        self.manual_collision_cooldown = 0
+        self.manual_collision_flash = 0
+        self.show_leaderboard = False
+        self.last_manual_result = None
+
     def handle_click(self, pos):
+        # 0-0. 랭킹 모달 창이 열려 있을 때의 클릭 이벤트 처리
+        if getattr(self, 'show_leaderboard', False):
+            if getattr(self, 'leaderboard_retry_rect', None) and self.leaderboard_retry_rect.collidepoint(pos):
+                self.reset_manual_episode()
+                return
+            if getattr(self, 'leaderboard_exit_rect', None) and self.leaderboard_exit_rect.collidepoint(pos):
+                self.toggle_manual_mode()
+                return
+            return
+
         # 0. RC 조종기 모드 토글 버튼 클릭 (우측 상단 텔레메트리 HUD 하단)
         if getattr(self, 'rc_btn_rect', None) and self.rc_btn_rect.collidepoint(pos):
             self.toggle_manual_mode()
@@ -362,6 +393,8 @@ class BoatEnv:
             self.manual_mode = False
             self.blind_mode = False
             self.blind_btn_rect = None
+            self.show_leaderboard = False
+            self.last_manual_result = None
             saved = getattr(self, 'saved_manual_state', None)
             if saved:
                 self.fullscreen_3d = saved.get('fullscreen_3d', False)
@@ -374,8 +407,21 @@ class BoatEnv:
                 self.show_lidar = saved.get('show_lidar', False)
                 self.show_lidar_range = saved.get('show_lidar_range', True)
                 self.show_all_gaps = saved.get('show_all_gaps', False)
-                self.linetrace_mode = saved.get('linetrace_mode', False)
             self.reset()
+
+    def reset_manual_episode(self):
+        """RC 수동 조종 모드 상태를 유지하면서 새 에피소드로 리셋"""
+        self.manual_mode = True
+        self.show_leaderboard = False
+        self.last_manual_result = None
+        self.manual_start_time = time.time()
+        self.manual_collisions = 0
+        self.manual_cum_turn = 0.0
+        self.manual_collision_cooldown = 0
+        self.manual_collision_flash = 0
+        self.manual_throttle = 0.0
+        self.manual_steer = 0.0
+        self.reset()
 
     def update_dynamic_obstacles(self):
         ox = self.obstacles[:, 0]
@@ -450,6 +496,20 @@ class BoatEnv:
         
         d_head = self.boat_ang_vel * self.dt
         self.boat_heading += d_head
+        
+        # RC 수동 조종 모드 시 누적 회전 각도 및 비단절 충돌 카운트 추적
+        if getattr(self, 'manual_mode', False):
+            self.manual_cum_turn = getattr(self, 'manual_cum_turn', 0.0) + math.degrees(abs(d_head))
+            if getattr(self, 'manual_collision_flash', 0) > 0:
+                self.manual_collision_flash -= 1
+            if getattr(self, 'manual_collision_cooldown', 0) > 0:
+                self.manual_collision_cooldown -= 1
+            if self.collide():
+                if self.manual_collision_cooldown <= 0:
+                    self.manual_collisions = getattr(self, 'manual_collisions', 0) + 1
+                    self.manual_collision_cooldown = 45 # 0.75초간 중복 카운트 방지
+                    self.manual_collision_flash = 35    # 화면 충돌 알림 플래시 지속 시간
+                    self.boat_vel = -self.boat_vel * 0.35 # 부표 충돌 반발 감속
         
         # 선미 추진 선박의 후방 회전축(L_pivot = 4.0px)에 따른 자연스러운 선회 궤적
         L_pivot = 4.0

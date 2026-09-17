@@ -1,6 +1,9 @@
 import pygame
 import numpy as np
 import math
+import time
+import os
+import leaderboard
 from engine_3d import Engine3D
 from config import get_dashboard_layout
 
@@ -16,7 +19,7 @@ class EnvRenderer:
             print(f"[Warning] ModernGL Engine3D init failed: {e}")
             self.engine_3d = None
         self.safety_surf = pygame.Surface((120, 120), pygame.SRCALPHA)
-        self.hud_surf = pygame.Surface((210, 110), pygame.SRCALPHA)
+        self.hud_surf = pygame.Surface((210, 140), pygame.SRCALPHA)
         self.bezier_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
         self.weights_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
         self._cand_surf = pygame.Surface((env.w, env.h), pygame.SRCALPHA)
@@ -28,6 +31,25 @@ class EnvRenderer:
         self.micro_font = pygame.font.SysFont(None, 15)
         self.fps_font = pygame.font.SysFont("sans-serif", 18, bold=False)  # 슬림하면서도 가독성을 확보한 게임 오버레이 18px 폰트
         self.engine_info_font = pygame.font.SysFont("sans-serif", 14)     # 3D 엔진(ModernGL) 텍스트와 100% 동일한 14px 폰트
+
+        # 한글 폰트 로드 (NotoSansCJK 시스템 폰트 연동, 부재 시 SysFont 대체)
+        korean_regular = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+        korean_bold = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
+        if os.path.exists(korean_regular):
+            self.ko_title_font = pygame.font.Font(korean_bold, 22)
+            self.ko_header_font = pygame.font.Font(korean_bold, 15)
+            self.ko_font = pygame.font.Font(korean_regular, 14)
+            self.ko_bold_font = pygame.font.Font(korean_bold, 14)
+            self.ko_small_font = pygame.font.Font(korean_regular, 12)
+            self.ko_alert_font = pygame.font.Font(korean_bold, 20)
+        else:
+            self.ko_title_font = pygame.font.SysFont(None, 24, bold=True)
+            self.ko_header_font = pygame.font.SysFont(None, 16, bold=True)
+            self.ko_font = pygame.font.SysFont(None, 15)
+            self.ko_bold_font = pygame.font.SysFont(None, 15, bold=True)
+            self.ko_small_font = pygame.font.SysFont(None, 13)
+            self.ko_alert_font = pygame.font.SysFont(None, 22, bold=True)
+
         self.curv_buffer = None
         self.curv_y_max = 0.08
         self.smooth_path_m = 0.0
@@ -156,6 +178,10 @@ class EnvRenderer:
         # 9. 미니맵 오버레이 (맵이 확장된 경우 주행화면 우측 하단에 표시, 3D 풀화면 모드에서는 가림)
         if env.map_w > env.w and not is_full_3d:
             self._draw_minimap()
+
+        # 10. RC 수동 조종 모드 리더보드 모달 (목적지 도달 시 상위 10등 랭킹 및 알고리즘 벤치마크 표출)
+        if getattr(env, 'show_leaderboard', False):
+            self._draw_leaderboard_modal()
 
         pygame.display.flip()
 
@@ -1438,7 +1464,9 @@ class EnvRenderer:
     def _draw_telemetry(self):
         """우상단 실시간 텔레메트리 HUD"""
         env = self.env
-        hud_w, hud_h = 210, 110
+        is_manual = getattr(env, 'manual_mode', False)
+        hud_w = 210
+        hud_h = 126 if is_manual else 110
         hud_x = env.w - hud_w - 15
         hud_y = 12
         
@@ -1453,7 +1481,7 @@ class EnvRenderer:
         has_wp = env.current_wp is not None
         if is_paused:
             mode_txt = self.bold_font.render("PAUSED", True, (255, 140, 20))
-        elif getattr(env, 'manual_mode', False):
+        elif is_manual:
             mode_txt = self.bold_font.render("MANUAL RC", True, (255, 200, 30))
         elif is_lt:
             mode_txt = self.bold_font.render("LINE-TRACE", True, (255, 40, 195))
@@ -1478,25 +1506,57 @@ class EnvRenderer:
         fill_w = int(speed_ratio * bar_w)
         bar_color = (255, 80, 60) if em else (0, 200, 100)
         pygame.draw.rect(hud_surf, bar_color, (10, 48, fill_w, 7))
-        
-        # 조타각
-        steer_val = getattr(env, 'prev_steer', 0)
-        steer_txt = self.small_font.render(f"Steer: {steer_val:+.2f}", True, (220, 235, 255))
-        hud_surf.blit(steer_txt, (10, 60))
-        
-        # Heading (선박이 매 프레임 실시간 목표로 하는 각도, 라이다 좌표계: 북쪽 0도, 전방 90도, 남쪽 180도)
-        tgt_h = getattr(env, 'heading_target', env.boat_heading)
-        hdg_deg = (math.degrees(tgt_h) + 90) % 360
-        hdg_txt = self.small_font.render(f"Heading: {hdg_deg:.0f}\u00b0", True, (220, 235, 255))
-        hud_surf.blit(hdg_txt, (10, 76))
-        
+
         # 목표 거리 (50px = 1m 기준 미터 단위 변환)
         d2t = float(np.linalg.norm(env.target - env.boat_pos))
         d2t_m = d2t / 50.0
-        d2t_txt = self.small_font.render(f"Target: {d2t_m:.1f} m", True, (50, 230, 120))
-        hud_surf.blit(d2t_txt, (10, 92))
+
+        if is_manual:
+            # 수동 조종 모드 전용 텔레메트리 (도달시간, 충돌횟수, 누적회전각)
+            elapsed_sec = time.time() - getattr(env, 'manual_start_time', time.time())
+            c_cnt = getattr(env, 'manual_collisions', 0)
+            c_turn = getattr(env, 'manual_cum_turn', 0.0)
+
+            time_txt = self.ko_font.render(f"시간: {elapsed_sec:.1f}s", True, (220, 235, 255))
+            hud_surf.blit(time_txt, (10, 60))
+
+            c_color = (100, 245, 140) if c_cnt == 0 else (255, 90, 80)
+            c_txt = self.ko_font.render(f"충돌: {c_cnt}회", True, c_color)
+            hud_surf.blit(c_txt, (10, 76))
+
+            trn_txt = self.ko_font.render(f"회전각: {int(c_turn)}\u00b0", True, (220, 235, 255))
+            hud_surf.blit(trn_txt, (10, 92))
+
+            d2t_txt = self.ko_font.render(f"목표: {d2t_m:.1f}m", True, (50, 230, 120))
+            hud_surf.blit(d2t_txt, (10, 108))
+        else:
+            # 자율운항 모드 전용 텔레메트리 (조타각, 실시간 헤딩, 목표 거리)
+            steer_val = getattr(env, 'prev_steer', 0)
+            steer_txt = self.small_font.render(f"Steer: {steer_val:+.2f}", True, (220, 235, 255))
+            hud_surf.blit(steer_txt, (10, 60))
+
+            tgt_h = getattr(env, 'heading_target', env.boat_heading)
+            hdg_deg = (math.degrees(tgt_h) + 90) % 360
+            hdg_txt = self.small_font.render(f"Heading: {hdg_deg:.0f}\u00b0", True, (220, 235, 255))
+            hud_surf.blit(hdg_txt, (10, 76))
+
+            d2t_txt = self.small_font.render(f"Target: {d2t_m:.1f} m", True, (50, 230, 120))
+            hud_surf.blit(d2t_txt, (10, 92))
         
         env.screen.blit(hud_surf, (hud_x, hud_y))
+
+        # 충돌 발생 시 화면 중앙 상단에 실시간 충돌 횟수 경고 배너 표출 ("충돌몇회라고 화면에 뜨도록")
+        if is_manual and getattr(env, 'manual_collision_flash', 0) > 0:
+            c_count = getattr(env, 'manual_collisions', 0)
+            alert_w, alert_h = 320, 46
+            alert_x = (env.w - alert_w) // 2
+            alert_y = 52
+            alert_surf = pygame.Surface((alert_w, alert_h), pygame.SRCALPHA)
+            pygame.draw.rect(alert_surf, (85, 14, 22, 235), (0, 0, alert_w, alert_h), border_radius=8)
+            pygame.draw.rect(alert_surf, (255, 65, 75, 245), (0, 0, alert_w, alert_h), 2, border_radius=8)
+            txt_surf = self.ko_alert_font.render(f"충돌 발생! (현재 누적 {c_count}회)", True, (255, 240, 240))
+            alert_surf.blit(txt_surf, txt_surf.get_rect(center=(alert_w // 2, alert_h // 2)))
+            env.screen.blit(alert_surf, (alert_x, alert_y))
 
         # --- 우측 상단 텔레메트리 HUD 하단: 간략화된 조이스틱 아이콘 버튼 & 눈 깜빡임(블라인드 모드) 버튼 ---
         # 사용자 요청: 조이스틱 버튼 우측으로 밀착 (HUD 우측 끝 정렬), RC 모드 진입 시 그 좌측에 눈 깜빡임 버튼 표시
@@ -1596,3 +1656,262 @@ class EnvRenderer:
             env.screen.blit(eye_surf, (eye_x, btn_y))
         else:
             env.blind_btn_rect = None
+
+    def _draw_leaderboard_modal(self):
+        """RC 수동 조종 모드 목적지 도달 시 상위 10등 랭킹 및 AI 벤치마크 비교 모달 창 표출"""
+        env = self.env
+        mpos = pygame.mouse.get_pos()
+
+        # 1. 전체 화면 어둡게 디밍 (Scrim)
+        scrim = pygame.Surface((env.w, env.h), pygame.SRCALPHA)
+        scrim.fill((6, 12, 22, 215))
+        env.screen.blit(scrim, (0, 0))
+
+        # 2. 모달 컨테이너 (880 x 590 px)
+        mw, mh = 880, 590
+        mx = (env.w - mw) // 2
+        my = max(15, (env.h - mh) // 2)
+
+        modal_surf = pygame.Surface((mw, mh), pygame.SRCALPHA)
+        # 딥 네이비 슬레이트 배경 + 사이언 네온 테두리
+        pygame.draw.rect(modal_surf, (12, 18, 28, 250), (0, 0, mw, mh), border_radius=12)
+        pygame.draw.rect(modal_surf, (0, 180, 240, 220), (0, 0, mw, mh), 2, border_radius=12)
+
+        # 3. 타이틀 헤더
+        title_surf = self.ko_title_font.render("MISSION ACCOMPLISHED - RC LEADERBOARD", True, (230, 245, 255))
+        modal_surf.blit(title_surf, title_surf.get_rect(center=(mw // 2, 30)))
+
+        sub_txt = "목적지 도달 성공 | 1순위: 충돌 횟수(최소) > 2순위: 도달 시간(최단) > 3순위: 누적 회전각(최소)"
+        sub_surf = self.ko_small_font.render(sub_txt, True, (135, 165, 195))
+        modal_surf.blit(sub_surf, sub_surf.get_rect(center=(mw // 2, 56)))
+
+        pygame.draw.line(modal_surf, (35, 55, 80), (30, 72), (mw - 30, 72), 1)
+
+        # 4. 데이터 로드 및 랭킹 계산
+        last_rec = getattr(env, 'last_manual_result', None)
+        if last_rec is None:
+            cur_coll = getattr(env, 'manual_collisions', 0)
+            cur_time = round(time.time() - getattr(env, 'manual_start_time', time.time()), 2)
+            cur_turn = round(getattr(env, 'manual_cum_turn', 0.0), 1)
+            last_rec = {"collisions": cur_coll, "time": cur_time, "cumulative_turn_deg": cur_turn, "date": "NOW", "timestamp": time.time()}
+        else:
+            cur_coll = last_rec.get("collisions", 0)
+            cur_time = last_rec.get("time", 0.0)
+            cur_turn = last_rec.get("cumulative_turn_deg", 0.0)
+
+        player_rank = leaderboard.get_player_rank(last_rec)
+        ai_rank = leaderboard.get_ai_benchmark_rank()
+
+        # 5. 상단 비교 요약 카드 2개 (플레이어 기록 vs AI 벤치마크)
+        card_w, card_h = 400, 105
+        card_y = 82
+
+        # 좌측 카드: 이번 주행 기록
+        c1_x = 30
+        pygame.draw.rect(modal_surf, (20, 32, 48, 230), (c1_x, card_y, card_w, card_h), border_radius=8)
+        pygame.draw.rect(modal_surf, (255, 190, 40, 190), (c1_x, card_y, card_w, card_h), 1, border_radius=8)
+
+        p_hdr = self.ko_bold_font.render("YOUR ATTEMPT (플레이어)", True, (255, 205, 70))
+        modal_surf.blit(p_hdr, (c1_x + 14, card_y + 10))
+
+        p_rank_str = f"순위: #{player_rank}위" if player_rank else "순위: -"
+        p_rank_surf = self.ko_bold_font.render(p_rank_str, True, (255, 230, 150))
+        modal_surf.blit(p_rank_surf, (c1_x + card_w - p_rank_surf.get_width() - 14, card_y + 10))
+
+        m1_str = f"충돌 횟수: {cur_coll}회 (1순위)"
+        m1_col = (100, 240, 130) if cur_coll == 0 else (255, 110, 100)
+        m1_surf = self.ko_font.render(m1_str, True, m1_col)
+        modal_surf.blit(m1_surf, (c1_x + 14, card_y + 38))
+
+        m2_str = f"도달 시간: {cur_time:.2f}s (2순위)"
+        m2_surf = self.ko_font.render(m2_str, True, (215, 235, 255))
+        modal_surf.blit(m2_surf, (c1_x + 210, card_y + 38))
+
+        m3_str = f"누적 회전각: {cur_turn:.1f}\u00b0 (3순위)"
+        m3_surf = self.ko_font.render(m3_str, True, (215, 235, 255))
+        modal_surf.blit(m3_surf, (c1_x + 14, card_y + 64))
+
+        # 우측 카드: 내 알고리즘(AI) 벤치마크
+        c2_x = mw - 30 - card_w
+        pygame.draw.rect(modal_surf, (14, 36, 48, 230), (c2_x, card_y, card_w, card_h), border_radius=8)
+        pygame.draw.rect(modal_surf, (0, 220, 240, 200), (c2_x, card_y, card_w, card_h), 1, border_radius=8)
+
+        ai_hdr = self.ko_bold_font.render("AI BENCHMARK (내 알고리즘)", True, (0, 235, 255))
+        modal_surf.blit(ai_hdr, (c2_x + 14, card_y + 10))
+
+        ai_rank_str = f"기준: #{ai_rank}위"
+        ai_rank_surf = self.ko_bold_font.render(ai_rank_str, True, (150, 250, 255))
+        modal_surf.blit(ai_rank_surf, (c2_x + card_w - ai_rank_surf.get_width() - 14, card_y + 10))
+
+        ai_b = leaderboard.AI_BENCHMARK
+        ai1_str = f"충돌 횟수: {ai_b['collisions']}회 (무충돌 완전회피)"
+        ai1_surf = self.ko_font.render(ai1_str, True, (100, 245, 140))
+        modal_surf.blit(ai1_surf, (c2_x + 14, card_y + 38))
+
+        ai2_str = f"도달 시간: {ai_b['time']:.1f}s (최적 추종)"
+        ai2_surf = self.ko_font.render(ai2_str, True, (190, 235, 255))
+        modal_surf.blit(ai2_surf, (c2_x + 215, card_y + 38))
+
+        ai3_str = f"누적 회전각: {ai_b['cumulative_turn_deg']:.1f}\u00b0 (최소 조타각 유지)"
+        ai3_surf = self.ko_font.render(ai3_str, True, (190, 235, 255))
+        modal_surf.blit(ai3_surf, (c2_x + 14, card_y + 64))
+
+        # 6. 상위 10등 랭킹 테이블 (TOP 10 LEADERBOARD)
+        tbl_y = 202
+        tbl_w = mw - 60
+        tbl_h = 295
+        pygame.draw.rect(modal_surf, (15, 22, 34, 210), (30, tbl_y, tbl_w, tbl_h), border_radius=6)
+        pygame.draw.rect(modal_surf, (35, 55, 80), (30, tbl_y, tbl_w, tbl_h), 1, border_radius=6)
+
+        # 테이블 헤더 행
+        th_h = 28
+        pygame.draw.rect(modal_surf, (22, 34, 52), (30, tbl_y, tbl_w, th_h), border_top_left_radius=6, border_top_right_radius=6)
+
+        cols = [
+            ("순위", 50),
+            ("구분 / 기록명", 170),
+            ("충돌 횟수 (1순위)", 135),
+            ("도달 시간 (2순위)", 135),
+            ("누적 회전각 (3순위)", 140),
+            ("주행 일시", 140)
+        ]
+        col_x = 42
+        for name, w in cols:
+            lbl = self.ko_bold_font.render(name, True, (170, 200, 230))
+            modal_surf.blit(lbl, (col_x, tbl_y + 5))
+            col_x += w
+
+        # 전체 목록 로드 및 AI 벤치마크 항목 결합 정렬
+        records = leaderboard.load_leaderboard()
+        all_entries = [dict(r) for r in records]
+        # AI 벤치마크를 정렬 목록에 삽입
+        ai_entry = dict(leaderboard.AI_BENCHMARK)
+        ai_entry["player"] = "내 알고리즘 (AI)"
+        all_entries.append(ai_entry)
+
+        # 정렬: 1순위 충돌, 2순위 시간, 3순위 누적회전각
+        all_entries.sort(key=lambda r: (
+            r.get("collisions", 999),
+            r.get("time", 9999.0),
+            r.get("cumulative_turn_deg", 99999.0)
+        ))
+
+        top_10 = all_entries[:10]
+        row_y = tbl_y + th_h + 3
+        row_h = 25
+
+        for idx, entry in enumerate(top_10):
+            rank_num = idx + 1
+            is_ai = entry.get("is_ai", False)
+            is_cur_attempt = (
+                not is_ai and
+                last_rec and
+                abs(entry.get("timestamp", 0) - last_rec.get("timestamp", -999)) < 0.05
+            )
+
+            # 행 배경 및 테두리 스타일
+            if is_ai:
+                row_bg = (12, 45, 62, 230)
+                row_border = (0, 200, 235)
+                t_col = (0, 240, 255)
+            elif is_cur_attempt:
+                row_bg = (50, 40, 16, 230)
+                row_border = (255, 190, 40)
+                t_col = (255, 220, 110)
+            else:
+                row_bg = (18, 27, 40, 160) if rank_num % 2 == 1 else (14, 21, 32, 160)
+                row_border = None
+                t_col = (215, 230, 245)
+
+            pygame.draw.rect(modal_surf, row_bg, (32, row_y, tbl_w - 4, row_h - 2), border_radius=4)
+            if row_border:
+                pygame.draw.rect(modal_surf, row_border, (32, row_y, tbl_w - 4, row_h - 2), 1, border_radius=4)
+
+            # 순위 텍스트
+            col_x = 42
+            rank_str = f"#{rank_num}"
+            r_surf = self.ko_bold_font.render(rank_str, True, t_col)
+            modal_surf.blit(r_surf, (col_x + 4, row_y + 3))
+            col_x += 50
+
+            # 구분 / 플레이어명
+            p_name = entry.get("player", "Player")
+            if is_ai:
+                tag_surf = self.ko_bold_font.render(f"[AI] {p_name}", True, (0, 245, 255))
+            elif is_cur_attempt:
+                tag_surf = self.ko_bold_font.render(f"[YOU] {p_name}", True, (255, 215, 70))
+            else:
+                tag_surf = self.ko_font.render(p_name, True, t_col)
+            modal_surf.blit(tag_surf, (col_x, row_y + 3))
+            col_x += 170
+
+            # 충돌 횟수
+            c_val = entry.get("collisions", 0)
+            c_str = f"{c_val}회"
+            c_col = (100, 245, 140) if c_val == 0 else (255, 120, 110)
+            c_surf = self.ko_font.render(c_str, True, c_col)
+            modal_surf.blit(c_surf, (col_x + 10, row_y + 3))
+            col_x += 135
+
+            # 도달 시간
+            tm_val = entry.get("time", 0.0)
+            tm_str = f"{tm_val:.2f}s"
+            tm_surf = self.ko_font.render(tm_str, True, t_col)
+            modal_surf.blit(tm_surf, (col_x + 10, row_y + 3))
+            col_x += 135
+
+            # 누적 회전각
+            trn_val = entry.get("cumulative_turn_deg", 0.0)
+            trn_str = f"{trn_val:.1f}\u00b0"
+            trn_surf = self.ko_font.render(trn_str, True, t_col)
+            modal_surf.blit(trn_surf, (col_x + 10, row_y + 3))
+            col_x += 140
+
+            # 주행 일시
+            dt_str = entry.get("date", "-")
+            dt_surf = self.ko_small_font.render(dt_str, True, (140, 165, 195))
+            modal_surf.blit(dt_surf, (col_x, row_y + 4))
+
+            row_y += row_h
+
+        # 7. 하단 조작 버튼 (RETRY / EXIT)
+        btn_w, btn_h = 200, 38
+        btn_y = 512
+
+        # [다시 도전] 버튼
+        r_x = mw // 2 - btn_w - 18
+        r_rect_global = pygame.Rect(mx + r_x, my + btn_y, btn_w, btn_h)
+        env.leaderboard_retry_rect = r_rect_global
+        r_hover = r_rect_global.collidepoint(mpos)
+
+        r_bg = (24, 52, 42, 230) if r_hover else (16, 38, 30, 200)
+        r_bd = (40, 240, 140) if r_hover else (25, 180, 105)
+        r_txt_col = (200, 255, 220) if r_hover else (150, 235, 180)
+
+        pygame.draw.rect(modal_surf, r_bg, (r_x, btn_y, btn_w, btn_h), border_radius=6)
+        pygame.draw.rect(modal_surf, r_bd, (r_x, btn_y, btn_w, btn_h), 1, border_radius=6)
+        r_lbl = self.ko_bold_font.render("RETRY (다시 도전)", True, r_txt_col)
+        modal_surf.blit(r_lbl, r_lbl.get_rect(center=(r_x + btn_w // 2, btn_y + btn_h // 2)))
+
+        # [자율운항 복귀] 버튼
+        e_x = mw // 2 + 18
+        e_rect_global = pygame.Rect(mx + e_x, my + btn_y, btn_w, btn_h)
+        env.leaderboard_exit_rect = e_rect_global
+        e_hover = e_rect_global.collidepoint(mpos)
+
+        e_bg = (42, 28, 48, 230) if e_hover else (30, 20, 36, 200)
+        e_bd = (220, 100, 240) if e_hover else (170, 70, 190)
+        e_txt_col = (250, 215, 255) if e_hover else (210, 175, 230)
+
+        pygame.draw.rect(modal_surf, e_bg, (e_x, btn_y, btn_w, btn_h), border_radius=6)
+        pygame.draw.rect(modal_surf, e_bd, (e_x, btn_y, btn_w, btn_h), 1, border_radius=6)
+        e_lbl = self.ko_bold_font.render("EXIT (자율운항 복귀)", True, e_txt_col)
+        modal_surf.blit(e_lbl, e_lbl.get_rect(center=(e_x + btn_w // 2, btn_y + btn_h // 2)))
+
+        # 하단 단축키 가이드
+        guide_str = "키보드 단축키: [SPACE / ENTER] 다시 도전  |  [ESC / M] 자율운항 모드 복귀"
+        g_surf = self.ko_small_font.render(guide_str, True, (130, 155, 185))
+        modal_surf.blit(g_surf, g_surf.get_rect(center=(mw // 2, 564)))
+
+        # 화면에 모달 최종 표출
+        env.screen.blit(modal_surf, (mx, my))
