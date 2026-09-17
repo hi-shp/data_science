@@ -386,26 +386,25 @@ def run():
                 # 수동 조종 모드에서는 충돌 발생 시 에피소드를 종료/리스폰하지 않고 계속 주행함
             else:
                 if env.collide() or dist_tgt_end < 70:
-
-                is_success = (dist_tgt_end < 70 and not env.collide())
-                tag = "SUCCESS" if is_success else "FAIL"
-                subfolder = "success" if is_success else "fail"
-                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                outdir = os.path.join("screenshot", subfolder)
-                if not os.path.exists(outdir):
+                    is_success = (dist_tgt_end < 70 and not env.collide())
+                    tag = "SUCCESS" if is_success else "FAIL"
+                    subfolder = "success" if is_success else "fail"
+                    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    outdir = os.path.join("screenshot", subfolder)
+                    if not os.path.exists(outdir):
+                        try:
+                            os.makedirs(outdir, exist_ok=True)
+                        except:
+                            pass
+                    p = os.path.join(outdir, f"{ts}_{tag}.png")
                     try:
-                        os.makedirs(outdir, exist_ok=True)
+                        if hits is not None:
+                            env.render(hits)
+                        pygame.image.save(env.screen, p)
                     except:
                         pass
-                p = os.path.join(outdir, f"{ts}_{tag}.png")
-                try:
-                    if hits is not None:
-                        env.render(hits)
-                    pygame.image.save(env.screen, p)
-                except:
-                    pass
-                env.reset()
-                break
+                    env.reset()
+                    break
 
         if hits is not None:
             env.render(hits)
