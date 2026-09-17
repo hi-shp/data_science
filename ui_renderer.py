@@ -68,11 +68,11 @@ class EnvRenderer:
         # 8. 실시간 텔레메트리 HUD
         self._draw_telemetry()
 
-        # 8-2. 메인 시뮬레이션 맵 좌측 상단 통합 제어 패널
+        # 8-2. 메인 시뮬레이션 맵 좌측 상단 컨트롤러 (GAP NAVIGATION 버튼만 단독 배치)
         mpos = pygame.mouse.get_pos()
 
-        # [버튼 1] 주행 알고리즘 모드 토글 (GAP NAVIGATION / LINE TRACING)
-        top_btn = getattr(env, 'mode_btn_top_rect', pygame.Rect(25, 14, 165, 26))
+        # [버튼 1] 주행 알고리즘 모드 토글 (GAP NAVIGATION / LINE TRACING) - 좌측 상단 단독 유지
+        top_btn = getattr(env, 'mode_btn_top_rect', pygame.Rect(25, 16, 165, 28))
         env.mode_btn_top_rect = top_btn
         top_hover = top_btn.collidepoint(mpos)
         is_lt_active = getattr(env, 'linetrace_mode', False)
@@ -93,9 +93,11 @@ class EnvRenderer:
         top_surf.blit(t_lbl, t_lbl.get_rect(center=(top_btn.w // 2, top_btn.h // 2)))
         env.screen.blit(top_surf, (top_btn.x, top_btn.y))
 
-        # [버튼 2] 3D 전체화면 / 2D 맵 상하 화면 스왑 버튼 (GAP NAVIGATION 버튼 바로 아래)
-        view_btn = getattr(env, 'view_btn_top_rect', pygame.Rect(25, 44, 165, 26))
+        # 8-3. 메인 시뮬레이션 맵 좌측 하단 제어 패널 (화면 스왑 버튼, 카메라 모드 버튼, FPS 인디케이터)
+        # [버튼 2] 3D 전체화면 / 2D 맵 상하 화면 스왑 버튼
+        view_btn = pygame.Rect(25, env.sim_h - 88, 165, 26)
         env.view_btn_top_rect = view_btn
+        env.view_btn_rect = view_btn
         v_hover = view_btn.collidepoint(mpos)
         if is_full_3d:
             v_str = "VIEW: 2D MAP"
@@ -115,8 +117,9 @@ class EnvRenderer:
         env.screen.blit(v_surf, (view_btn.x, view_btn.y))
 
         # [버튼 3] 3D 카메라 모드 변경 버튼 (Helm 1st / Chase 3rd / Drone Top)
-        cam_btn = getattr(env, 'cam_btn_top_rect', pygame.Rect(25, 74, 165, 26))
+        cam_btn = pygame.Rect(25, env.sim_h - 58, 165, 26)
         env.cam_btn_top_rect = cam_btn
+        env.cam_btn_rect = cam_btn
         c_hover = cam_btn.collidepoint(mpos)
         cam_idx = getattr(env, 'cam_3d_mode', 1)
         cam_short = ["CAM: Helm (1st)", "CAM: Chase (3rd)", "CAM: Drone (Top)"][cam_idx % 3]
@@ -138,7 +141,7 @@ class EnvRenderer:
         fps_col = (0, 255, 180) if fps_val >= 50 else (255, 200, 60)
         fps_lbl = self.small_font.render(f"{fps_val} FPS", True, fps_col)
         fps_surf.blit(fps_lbl, fps_lbl.get_rect(center=(39, 11)))
-        env.screen.blit(fps_surf, (25, 104))
+        env.screen.blit(fps_surf, (198, env.sim_h - 56))
 
         # 9. 미니맵 오버레이 (맵이 확장된 경우 주행화면 우측 하단에 표시, 3D 풀화면 모드에서는 가림)
         if env.map_w > env.w and not is_full_3d:

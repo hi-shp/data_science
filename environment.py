@@ -228,13 +228,15 @@ class BoatEnv:
             self.linetrace_queued = False
 
     def handle_click(self, pos):
-        # 1. 상단 좌측 3D 전체화면/2D 화면 교체 버튼 클릭
-        if getattr(self, 'view_btn_top_rect', None) and self.view_btn_top_rect.collidepoint(pos):
+        # 1. 3D 전체화면/2D 화면 교체 버튼 클릭 (메인 화면 좌측 하단)
+        view_rect = getattr(self, 'view_btn_rect', getattr(self, 'view_btn_top_rect', None))
+        if view_rect and view_rect.collidepoint(pos):
             self.fullscreen_3d = not getattr(self, 'fullscreen_3d', False)
             return
 
-        # 2. 카메라 모드 변경 버튼 클릭 (상단 버튼 또는 하단 패널 내부 버튼)
-        if getattr(self, 'cam_btn_top_rect', None) and self.cam_btn_top_rect.collidepoint(pos):
+        # 2. 카메라 모드 변경 버튼 클릭 (메인 화면 좌측 하단 버튼 또는 하단 패널 내부 버튼)
+        cam_rect = getattr(self, 'cam_btn_rect', getattr(self, 'cam_btn_top_rect', None))
+        if cam_rect and cam_rect.collidepoint(pos):
             self.cam_3d_mode = (getattr(self, 'cam_3d_mode', 1) + 1) % 3
             return
 

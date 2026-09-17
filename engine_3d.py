@@ -864,10 +864,13 @@ class _Engine3DCore:
         steer_deg = math.degrees(steer)
         knots = speed * 1.94384
         lbl_stat = f_info.render(
-            f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | RUDDER: {steer_deg:+.1f}° | BACKEND: ModernGL 3.3 Core Profile",
+            f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | RUDDER: {steer_deg:+.1f}°",
             True, (225, 242, 255)
         )
-        surf.blit(lbl_stat, (12 if is_large else 8, info_y + (5 if is_large else 3)))
+        if is_large:
+            surf.blit(lbl_stat, (w - lbl_stat.get_width() - 16, info_y + 5))
+        else:
+            surf.blit(lbl_stat, (8, info_y + 3))
 
 
 def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name):
