@@ -835,17 +835,17 @@ class _Engine3DCore:
                 p1_info, p2_info = rim_pts[s_idx], rim_pts[s_idx + 1]
                 p1, p2 = p1_info[:3], p2_info[:3]
                 mid_th = 0.5 * (p1_info[3] + p2_info[3])
-                # 목표 방위각 근처(±0.25 rad)는 골드/앰버 호(Arc)로 강조
+                # 목표 방위각 근처(±0.25 rad)는 초록색 호(Arc)로 강조
                 d_th = abs((mid_th - rim_ang + math.pi) % (2.0 * math.pi) - math.pi)
                 if tgt_dist > 6.4 and d_th < 0.26:
-                    c_rim = [1.0, 0.82, 0.15, 0.98] # Golden Compass Arc
+                    c_rim = [0.10, 0.98, 0.40, 0.98] # Green Compass Arc
                 else:
                     c_rim = [0.0, 0.85, 1.0, 0.75] # Cyan Rim
                 line_verts.extend(list(p1) + c_rim)
                 line_verts.extend(list(p2) + c_rim)
 
             # 라이다 반경(6.4m) 너머에 목표가 있을 때:
-            # 실제 목적지 비콘과 완전히 차별화된 3D 수면 앰버 셰브론 항법 포인터(Chevron Pointer) 표출
+            # 3D 수면 녹색 셰브론 항법 포인터(Green Chevron Pointer) 표출
             if tgt_dist > 6.4:
                 ux = math.cos(rim_ang)
                 uz = math.sin(rim_ang)
@@ -855,7 +855,7 @@ class _Engine3DCore:
                 rim_x = boat_x + ux * 6.4
                 rim_z = boat_z + uz * 6.4
                 
-                # 수면 위 앰버 셰브론 쐐기 화살표 기하 생성
+                # 수면 위 녹색 셰브론 쐐기 화살표 기하 생성
                 tip_x = rim_x + ux * 0.90
                 tip_z = rim_z + uz * 0.90
                 tip_y = self._wave_height(tip_x, tip_z, self.time) + 0.12
@@ -874,8 +874,8 @@ class _Engine3DCore:
                 right_z = rim_z - uz * back_offset - pz * wing_len
                 right_y = self._wave_height(right_x, right_z, self.time) + 0.12
                 
-                col_nav_tri = [1.0, 0.76, 0.12, 0.92]   # Amber Fill
-                col_nav_line = [1.0, 0.95, 0.50, 0.98]  # Gold Highlight Outline
+                col_nav_tri = [0.08, 0.95, 0.35, 0.92]   # Green Fill
+                col_nav_line = [0.40, 1.0, 0.65, 0.98]  # Bright Green Highlight Outline
                 
                 # 셰브론 2개 삼각형 (tip-left-notch, tip-notch-right)
                 v_tip = [tip_x, tip_y, tip_z]
@@ -897,8 +897,8 @@ class _Engine3DCore:
                 line_verts.extend(v_notch + col_nav_line); line_verts.extend(v_right + col_nav_line)
                 line_verts.extend(v_right + col_nav_line); line_verts.extend(v_tip + col_nav_line)
                 
-                # 바깥 어둠 속으로 뻗어 나가는 원거리 항법 방향 지시선 (Directional Ray Beam)
-                col_ray = [1.0, 0.82, 0.20, 0.85]
+                # 바깥 어둠 속으로 뻗어 나가는 원거리 항법 방향 지시선 (Green Directional Ray Beam)
+                col_ray = [0.12, 0.98, 0.42, 0.88]
                 for r_dist in [1.5, 3.2, 5.0]:
                     rs_x = rim_x + ux * (r_dist - 0.4)
                     rs_z = rim_z + uz * (r_dist - 0.4)
@@ -1021,15 +1021,15 @@ class _Engine3DCore:
                 if rel_bearing > 180: rel_bearing -= 360
 
                 b_str = f"TARGET DIR -> {tgt_dist:.1f}m | BEARING: {t_bearing:03d}° (REL {rel_bearing:+d}°)"
-                lbl_b = f_info.render(b_str, True, (255, 220, 80))
+                lbl_b = f_info.render(b_str, True, (70, 255, 140))
                 badge_pad_x, badge_pad_y = 14, 5
                 badge_w = lbl_b.get_width() + badge_pad_x * 2
                 badge_h = lbl_b.get_height() + badge_pad_y * 2
                 bx_hud = (w - badge_w) // 2
                 by_hud = 36
                 badge_surf = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
-                badge_surf.fill((28, 20, 8, 225))
-                pygame.draw.rect(badge_surf, (255, 190, 30), (0, 0, badge_w, badge_h), 1, border_radius=4)
+                badge_surf.fill((8, 26, 16, 220))
+                pygame.draw.rect(badge_surf, (35, 210, 110), (0, 0, badge_w, badge_h), 1, border_radius=4)
                 badge_surf.blit(lbl_b, (badge_pad_x, badge_pad_y))
                 surf.blit(badge_surf, (bx_hud, by_hud))
         else:
