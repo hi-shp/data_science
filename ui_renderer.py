@@ -44,6 +44,64 @@ class EnvRenderer:
         # 헬퍼: 월드좌표 → 스크린좌표 변환
         def sx(world_x):
             return world_x - cam_x
+
+        is_full_3d = getattr(env, 'fullscreen_3d', False)
+        
+        if is_full_3d and getattr(self, 'engine_3d', None) is not None:
+            # 전체화면 3D 모드 활성화 시: 기존 2D 시뮬레이션 레이어(2D 장애물/항적/선체 등)를 완전히 배제하고
+            # 고해상도 하드웨어 가속 ModernGL 3D 엔진 버퍼를 메인 뷰포트(0, 0)에 직접 렌더링
+            try:
+                main_3d = self.engine_3d.render(env, hits, env.w, env.sim_h)
+                env.screen.blit(main_3d, (0, 0))
+            except Exception as e:
+                print(f"[Warning] Fullscreen 3D render failed: {e}")
+                self._draw_2d_world(hits, sx, cam_x)
+        else:
+            # 2D 시뮬레이션 월드 렌더링
+            self._draw_2d_world(hits, sx, cam_x)
+
+        # 7. 하단 대시보드 UI
+        self._draw_dashboard(hits)
+
+        # 8. 실시간 텔레메트리 HUD
+        self._draw_telemetry()
+
+        # 8-2. 메인 시뮬레이션 맵 좌측 상단 모드 토글 버튼 (LINE TRACING / GAP NAVIGATION)
+        mpos = pygame.mouse.get_pos()
+        top_btn = getattr(env, 'mode_btn_top_rect', pygame.Rect(25, 16, 165, 28))
+        env.mode_btn_top_rect = top_btn
+        top_hover = top_btn.collidepoint(mpos)
+        is_lt_active = getattr(env, 'linetrace_mode', False)
+        if is_lt_active:
+            t_str = "LINE TRACING"
+            t_bg = (45, 12, 36, 210) if top_hover else (32, 8, 25, 185)
+            t_border = (255, 40, 195) if top_hover else (220, 20, 170)
+            t_col = (255, 160, 230) if top_hover else (255, 50, 200)
+        else:
+            t_str = "GAP NAVIGATION"
+            t_bg = (18, 36, 58, 210) if top_hover else (12, 26, 42, 185)
+            t_border = (0, 190, 240) if top_hover else (0, 125, 175)
+            t_col = (200, 235, 255) if top_hover else (150, 195, 225)
+        top_surf = pygame.Surface((top_btn.w, top_btn.h), pygame.SRCALPHA)
+        pygame.draw.rect(top_surf, t_bg, (0, 0, top_btn.w, top_btn.h), border_radius=4)
+        pygame.draw.rect(top_surf, t_border, (0, 0, top_btn.w, top_btn.h), 1, border_radius=4)
+        t_lbl = self.font.render(t_str, True, t_col)
+        top_surf.blit(t_lbl, t_lbl.get_rect(center=(top_btn.w // 2, top_btn.h // 2)))
+        env.screen.blit(top_surf, (top_btn.x, top_btn.y))
+
+        # 9. 미니맵 오버레이 (맵이 확장된 경우 주행화면 우측 하단에 표시, 3D 풀화면 모드에서는 가림)
+        if env.map_w > env.w and not is_full_3d:
+            self._draw_minimap()
+
+        pygame.display.flip()
+
+    def _draw_2d_world(self, hits, sx, cam_x):
+        env = self.env
+        bx, by = env.boat_pos
+        h = env.boat_heading
+        ch, sh = math.cos(h), math.sin(h)
+        sbx = sx(bx)
+        sby = by
         
         # 1. 밝고 맑은 마린 오션 수면 배경 (Brighter Clean Ocean)
         env.screen.fill((40, 118, 178))
@@ -61,12 +119,6 @@ class EnvRenderer:
                 if (i + j) % 160 == 0:
                     pygame.draw.circle(env.screen, (210, 235, 255), (int(wx + w_len * 0.5), int(wy - 1)), 1)
 
-        bx, by = env.boat_pos
-        h = env.boat_heading
-        ch, sh = math.cos(h), math.sin(h)
-        sbx = sx(bx)
-        sby = by
-        
         # 2. 360도 라이다 범위
         if env.show_lidar_range:
             pygame.draw.circle(env.screen, (80, 175, 140), (int(sbx), int(sby)), int(env.lidar_range), 1)
@@ -279,41 +331,6 @@ class EnvRenderer:
 
         # 선박 형상 정밀 렌더링 (스크린 좌표)
         self._draw_boat_hull(sbx, sby, ch, sh)
-
-        # 7. 하단 대시보드 UI
-        self._draw_dashboard(hits)
-
-        # 8. 실시간 텔레메트리 HUD
-        self._draw_telemetry()
-
-        # 8-2. 메인 시뮬레이션 맵 좌측 상단 모드 토글 버튼 (LINE TRACING / GAP NAVIGATION)
-        mpos = pygame.mouse.get_pos()
-        top_btn = getattr(env, 'mode_btn_top_rect', pygame.Rect(25, 16, 165, 28))
-        env.mode_btn_top_rect = top_btn
-        top_hover = top_btn.collidepoint(mpos)
-        is_lt_active = getattr(env, 'linetrace_mode', False)
-        if is_lt_active:
-            t_str = "LINE TRACING"
-            t_bg = (45, 12, 36, 210) if top_hover else (32, 8, 25, 185)
-            t_border = (255, 40, 195) if top_hover else (220, 20, 170)
-            t_col = (255, 160, 230) if top_hover else (255, 50, 200)
-        else:
-            t_str = "GAP NAVIGATION"
-            t_bg = (18, 36, 58, 210) if top_hover else (12, 26, 42, 185)
-            t_border = (0, 190, 240) if top_hover else (0, 125, 175)
-            t_col = (200, 235, 255) if top_hover else (150, 195, 225)
-        top_surf = pygame.Surface((top_btn.w, top_btn.h), pygame.SRCALPHA)
-        pygame.draw.rect(top_surf, t_bg, (0, 0, top_btn.w, top_btn.h), border_radius=4)
-        pygame.draw.rect(top_surf, t_border, (0, 0, top_btn.w, top_btn.h), 1, border_radius=4)
-        t_lbl = self.font.render(t_str, True, t_col)
-        top_surf.blit(t_lbl, t_lbl.get_rect(center=(top_btn.w // 2, top_btn.h // 2)))
-        env.screen.blit(top_surf, (top_btn.x, top_btn.y))
-
-        # 9. 미니맵 오버레이 (맵이 확장된 경우 주행화면 우측 하단에 표시)
-        if env.map_w > env.w:
-            self._draw_minimap()
-
-        pygame.display.flip()
 
     def _draw_minimap(self):
         """전체 맵에서 현재 위치를 표시하는 미니맵 오버레이 (주행화면 우측 하단)"""
@@ -1031,13 +1048,38 @@ class EnvRenderer:
         # --- 3. 실시간 하드웨어 가속 ModernGL 3D 엔진 뷰포트 (Real 3D Engine Viewport) ---
         if getattr(self, 'engine_3d', None) is not None:
             try:
-                surf_3d = self.engine_3d.render(env, hits, 320, 220)
-                env.screen.blit(surf_3d, (1050, env.sim_h + 35))
-                
-                # 만약 전체화면 3D 모드(fullscreen_3d) 활성화 시 상단 메인 시뮬레이션 영역(1800x630)에 고해상도 3D 투사
                 if getattr(env, 'fullscreen_3d', False):
-                    main_3d = self.engine_3d.render(env, hits, env.w, env.sim_h)
-                    env.screen.blit(main_3d, (0, 0))
+                    # 풀화면 3D 모드 활성화 시: 중복 렌더링을 방지하고 상태 정보 패널 표출
+                    panel_surf = pygame.Surface((320, 220))
+                    panel_surf.fill((10, 22, 38))
+                    pygame.draw.rect(panel_surf, (0, 180, 255), (0, 0, 320, 220), 2)
+                    
+                    t_title = self.bold_font.render("3D VIEWPORT", True, (255, 255, 255))
+                    panel_surf.blit(t_title, (16, 16))
+                    
+                    # 활성화 뱃지
+                    badge_rect = pygame.Rect(16, 50, 185, 26)
+                    pygame.draw.rect(panel_surf, (0, 60, 45), badge_rect, border_radius=4)
+                    pygame.draw.rect(panel_surf, (0, 255, 180), badge_rect, 1, border_radius=4)
+                    badge_txt = self.small_font.render("FULLSCREEN ACTIVE", True, (0, 255, 200))
+                    panel_surf.blit(badge_txt, badge_txt.get_rect(center=badge_rect.center))
+                    
+                    # 조작 안내 단축키
+                    info1 = self.small_font.render("[V] Return to 2D Map", True, (180, 215, 245))
+                    info2 = self.small_font.render("[C] Change Camera Mode", True, (180, 215, 245))
+                    cam_idx = getattr(env, 'cam_3d_mode', 1)
+                    cam_names = ["Helm (1st POV)", "Chase (3rd)", "Tactical Top-Down"]
+                    cam_str = cam_names[cam_idx % 3] if cam_idx < len(cam_names) else f"Mode {cam_idx}"
+                    info3 = self.small_font.render(f"Camera: {cam_str}", True, (255, 220, 100))
+                    
+                    panel_surf.blit(info1, (16, 96))
+                    panel_surf.blit(info2, (16, 126))
+                    panel_surf.blit(info3, (16, 156))
+                    
+                    env.screen.blit(panel_surf, (1050, env.sim_h + 35))
+                else:
+                    surf_3d = self.engine_3d.render(env, hits, 320, 220)
+                    env.screen.blit(surf_3d, (1050, env.sim_h + 35))
             except Exception as e:
                 print(f"[Warning] 3D render failed: {e}")
 

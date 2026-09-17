@@ -221,7 +221,7 @@ class _Engine3DCore:
                 float fog = clamp((dist - 18.0) / 80.0, 0.0, 0.90);
                 water_color = mix(water_color, u_fog_color, fog);
                 
-                fragColor = vec4(water_color, 0.96);
+                fragColor = vec4(water_color, 1.0);
             }
             '''
         )
@@ -356,66 +356,90 @@ class _Engine3DCore:
         self.rudder_vao = self.ctx.vertex_array(self.prog_mesh, [(self.rudder_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
 
     def _init_buoy_meshes(self):
-        # 3D 원통/원뿔 항로 표지 부표 메쉬 (홍색 좌현표지 / 녹색 우현표지)
-        def create_buoy_data(base_color, top_cone=False):
+        # 3D 원통/원뿔 항로 표지 부표 메쉬
+        # 기본은 백색(White)이며, 선박과의 거리에 따라 안전(백색) -> 주의(황색) -> 경고(주황색) -> 위험(적색)으로 동적 표출
+        def create_buoy_data(main_color, stripe_color=[1.0, 1.0, 1.0]):
             verts = []
-            segments = 14
+            segments = 16
             r_body = 0.35
-            h_body = 0.95
             y_base = -0.25
+            h_base = 0.12
+            h_mid = 0.85
+            y_top = y_base + h_base + h_mid
+            h_cone = 0.60
+            ballast_col = [0.15, 0.20, 0.28]
             
-            # 1. 하단 부력 원통체 (Cylindrical Float Body)
             for i in range(segments):
                 a1 = (i / segments) * 2 * math.pi
                 a2 = ((i + 1) / segments) * 2 * math.pi
                 c1, s1 = math.cos(a1), math.sin(a1)
                 c2, s2 = math.cos(a2), math.sin(a2)
-                
-                # Side Quad
-                p0 = [c1 * r_body, y_base, s1 * r_body]
-                p1 = [c1 * r_body, y_base + h_body, s1 * r_body]
-                p2 = [c2 * r_body, y_base + h_body, s2 * r_body]
-                p3 = [c2 * r_body, y_base, s2 * r_body]
                 n1 = [c1, 0.0, s1]
                 n2 = [c2, 0.0, s2]
                 
-                verts.extend(p0 + n1 + base_color)
-                verts.extend(p1 + n1 + base_color)
-                verts.extend(p2 + n2 + base_color)
-                verts.extend(p0 + n1 + base_color)
-                verts.extend(p2 + n2 + base_color)
-                verts.extend(p3 + n2 + base_color)
+                # 1. 하단 무게중심 밸러스트 링 (Ballast Ring)
+                p0 = [c1 * r_body, y_base, s1 * r_body]
+                p1 = [c1 * r_body, y_base + h_base, s1 * r_body]
+                p2 = [c2 * r_body, y_base + h_base, s2 * r_body]
+                p3 = [c2 * r_body, y_base, s2 * r_body]
+                verts.extend(p0 + n1 + ballast_col + p1 + n1 + ballast_col + p2 + n2 + ballast_col)
+                verts.extend(p0 + n1 + ballast_col + p2 + n2 + ballast_col + p3 + n2 + ballast_col)
                 
-            # 2. 상부 톱마크 원뿔 (Top Cone Mark)
-            h_top = 0.65
-            y_top = y_base + h_body
-            tip = [0.0, y_top + h_top, 0.0]
-            for i in range(segments):
-                a1 = (i / segments) * 2 * math.pi
-                a2 = ((i + 1) / segments) * 2 * math.pi
-                c1, s1 = math.cos(a1), math.sin(a1)
-                c2, s2 = math.cos(a2), math.sin(a2)
+                # 2. 하부 부력 원통체 (Lower Float Body - main_color)
+                y1 = y_base + h_base
+                y2 = y1 + 0.32
+                p0 = [c1 * r_body, y1, s1 * r_body]
+                p1 = [c1 * r_body, y2, s1 * r_body]
+                p2 = [c2 * r_body, y2, s2 * r_body]
+                p3 = [c2 * r_body, y1, s2 * r_body]
+                verts.extend(p0 + n1 + main_color + p1 + n1 + main_color + p2 + n2 + main_color)
+                verts.extend(p0 + n1 + main_color + p2 + n2 + main_color + p3 + n2 + main_color)
                 
-                p_b1 = [c1 * (r_body * 0.7), y_top, s1 * (r_body * 0.7)]
-                p_b2 = [c2 * (r_body * 0.7), y_top, s2 * (r_body * 0.7)]
+                # 3. 중간 고반사 안전 띠 (Reflective Stripe Band - stripe_color)
+                y3 = y2 + 0.20
+                p0 = [c1 * (r_body * 1.02), y2, s1 * (r_body * 1.02)]
+                p1 = [c1 * (r_body * 1.02), y3, s1 * (r_body * 1.02)]
+                p2 = [c2 * (r_body * 1.02), y3, s2 * (r_body * 1.02)]
+                p3 = [c2 * (r_body * 1.02), y2, s2 * (r_body * 1.02)]
+                verts.extend(p0 + n1 + stripe_color + p1 + n1 + stripe_color + p2 + n2 + stripe_color)
+                verts.extend(p0 + n1 + stripe_color + p2 + n2 + stripe_color + p3 + n2 + stripe_color)
+                
+                # 4. 상부 부력 원통체 (Upper Float Body - main_color)
+                p0 = [c1 * r_body, y3, s1 * r_body]
+                p1 = [c1 * r_body, y_top, s1 * r_body]
+                p2 = [c2 * r_body, y_top, s2 * r_body]
+                p3 = [c2 * r_body, y3, s2 * r_body]
+                verts.extend(p0 + n1 + main_color + p1 + n1 + main_color + p2 + n2 + main_color)
+                verts.extend(p0 + n1 + main_color + p2 + n2 + main_color + p3 + n2 + main_color)
+                
+                # 5. 상단 원추형 톱마크 (Top Cone Mark - main_color)
+                tip = [0.0, y_top + h_cone, 0.0]
+                p_b1 = [c1 * (r_body * 0.72), y_top, s1 * (r_body * 0.72)]
+                p_b2 = [c2 * (r_body * 0.72), y_top, s2 * (r_body * 0.72)]
                 norm = [c1 * 0.7, 0.7, s1 * 0.7]
-                
-                top_col = [1.0, 0.95, 0.2] if top_cone else base_color
-                verts.extend(p_b1 + norm + top_col)
-                verts.extend(tip + norm + top_col)
-                verts.extend(p_b2 + norm + top_col)
-                
+                verts.extend(p_b1 + norm + main_color + tip + norm + main_color + p_b2 + norm + main_color)
+
             return np.array(verts, dtype=np.float32)
 
-        # 홍색 부표 (Red Port Buoy)
-        red_data = create_buoy_data([0.92, 0.16, 0.18], top_cone=False)
+        # 1. 기본 백색 부표 (White Default Buoy - 안전 / 거리 >= 4.4m / 220px)
+        white_data = create_buoy_data([0.94, 0.95, 0.98], stripe_color=[0.82, 0.88, 0.95])
+        self.buoy_white_vbo = self.ctx.buffer(white_data.tobytes())
+        self.buoy_white_vao = self.ctx.vertex_array(self.prog_mesh, [(self.buoy_white_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
+
+        # 2. 황색 주의 부표 (Yellow Caution Buoy - 주의 / 거리 < 4.4m / 220px)
+        yellow_data = create_buoy_data([0.96, 0.88, 0.16], stripe_color=[1.0, 1.0, 1.0])
+        self.buoy_yellow_vbo = self.ctx.buffer(yellow_data.tobytes())
+        self.buoy_yellow_vao = self.ctx.vertex_array(self.prog_mesh, [(self.buoy_yellow_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
+
+        # 3. 주황색 경고 부표 (Orange Warning Buoy - 경고 / 거리 < 2.8m / 140px)
+        orange_data = create_buoy_data([0.96, 0.54, 0.10], stripe_color=[1.0, 1.0, 1.0])
+        self.buoy_orange_vbo = self.ctx.buffer(orange_data.tobytes())
+        self.buoy_orange_vao = self.ctx.vertex_array(self.prog_mesh, [(self.buoy_orange_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
+
+        # 4. 적색 위험 부표 (Red Danger Buoy - 위험 / 거리 < 1.4m / 70px)
+        red_data = create_buoy_data([0.94, 0.18, 0.18], stripe_color=[1.0, 1.0, 1.0])
         self.buoy_red_vbo = self.ctx.buffer(red_data.tobytes())
         self.buoy_red_vao = self.ctx.vertex_array(self.prog_mesh, [(self.buoy_red_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
-
-        # 녹색 부표 (Green Starboard Buoy)
-        green_data = create_buoy_data([0.15, 0.82, 0.35], top_cone=True)
-        self.buoy_green_vbo = self.ctx.buffer(green_data.tobytes())
-        self.buoy_green_vao = self.ctx.vertex_array(self.prog_mesh, [(self.buoy_green_vbo, '3f 3f 3f', 'in_position', 'in_normal', 'in_color')])
 
     def _init_beacon_mesh(self):
         # 최종 목적지 회전형 비콘 타워 (Lighthouse Beacon Tower)
@@ -641,11 +665,17 @@ class _Engine3DCore:
             self.prog_mesh['u_model'].write(M_buoy.T.tobytes())
             self.prog_mesh['u_mvp'].write(MVP_buoy.T.tobytes())
             
-            # 짝수/홀수 인덱스에 따라 홍색/녹색 부표 분기
-            if idx % 2 == 0:
+            # 거리 기반 동적 위험도 색상 표출 (기본: 백색, 접근 시 황색 -> 주황색 -> 적색)
+            # 1m = 50px (d_px < 70 -> 1.4m, d_px < 140 -> 2.8m, d_px < 220 -> 4.4m)
+            dist_m = max(0.0, math.sqrt(dx * dx + dz * dz) - (r / 50.0))
+            if dist_m < 1.4:
                 self.buoy_red_vao.render()
+            elif dist_m < 2.8:
+                self.buoy_orange_vao.render()
+            elif dist_m < 4.4:
+                self.buoy_yellow_vao.render()
             else:
-                self.buoy_green_vao.render()
+                self.buoy_white_vao.render()
                 
         # 7. [선체 렌더링] KABOAT 쌍동선 및 조타 연동 러더 표출
         M_boat = self._matrix_model(boat_x, boat_wave_y, boat_z, -heading, pitch=boat_pitch, roll=boat_roll)
@@ -811,9 +841,13 @@ class _Engine3DCore:
         lbl_title = f_title.render(f"3D Engine ({self.cam_names[self.cam_mode]})", True, (255, 255, 255))
         surf.blit(lbl_title, (215 if is_large else 8, 7 if is_large else 4))
         
-        # 단축키 안내 힌트
-        lbl_hint = f_hint.render("[C: Camera View / V: Toggle Full 3D]", True, (0, 230, 255))
-        surf.blit(lbl_hint, (w - lbl_hint.get_width() - (12 if is_large else 8), 8 if is_large else 6))
+        # 단축키 안내 힌트 (전체화면 모드에서는 중앙 상단에 배치하여 우상단 HUD 텔레메트리와의 겹침 완벽 방지)
+        hint_txt = "[C] Camera View  |  [V] Return to 2D Map" if is_large else "[C: Camera / V: Full 3D]"
+        lbl_hint = f_hint.render(hint_txt, True, (0, 230, 255))
+        if is_large:
+            surf.blit(lbl_hint, ((w - lbl_hint.get_width()) // 2, 7))
+        else:
+            surf.blit(lbl_hint, (w - lbl_hint.get_width() - 8, 4))
         
         # [3] 1인칭 조타석 뷰 전용 조타 HUD (인공 수평선 피치 사다리 및 나침반)
         if self.cam_mode == 0:
