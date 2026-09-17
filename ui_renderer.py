@@ -1694,18 +1694,18 @@ class EnvRenderer:
         my = max(15, (env.h - mh) // 2)
 
         modal_surf = pygame.Surface((mw, mh), pygame.SRCALPHA)
-        # 딥 네이비 슬레이트 배경 + 사이언 네온 테두리
-        pygame.draw.rect(modal_surf, (12, 18, 28, 250), (0, 0, mw, mh), border_radius=12)
-        pygame.draw.rect(modal_surf, (0, 180, 240, 210), (0, 0, mw, mh), 2, border_radius=12)
+        # 세련된 무광 딥 슬레이트 배경 + 절제된 서브틀 테두리
+        pygame.draw.rect(modal_surf, (16, 20, 26, 252), (0, 0, mw, mh), border_radius=10)
+        pygame.draw.rect(modal_surf, (48, 58, 72), (0, 0, mw, mh), 1, border_radius=10)
 
         # 3. 타이틀 헤더
-        title_surf = self.ko_title_font.render("LEADERBOARD", True, (230, 245, 255))
+        title_surf = self.ko_title_font.render("LEADERBOARD", True, (215, 222, 232))
         modal_surf.blit(title_surf, title_surf.get_rect(center=(mw // 2, 28)))
 
-        sub_surf = self.ko_small_font.render("TOP 10 RANKINGS", True, (135, 165, 195))
+        sub_surf = self.ko_small_font.render("TOP 10 RANKINGS", True, (115, 130, 148))
         modal_surf.blit(sub_surf, sub_surf.get_rect(center=(mw // 2, 50)))
 
-        pygame.draw.line(modal_surf, (30, 50, 75), (30, 66), (mw - 30, 66), 1)
+        pygame.draw.line(modal_surf, (32, 40, 52), (30, 66), (mw - 30, 66), 1)
 
         # 4. 데이터 로드 및 랭킹 계산
         last_rec = getattr(env, 'last_manual_result', None)
@@ -1728,58 +1728,58 @@ class EnvRenderer:
 
         # 좌측 카드: 플레이어 이번 주행 기록
         c1_x = 30
-        pygame.draw.rect(modal_surf, (20, 32, 48, 230), (c1_x, card_y, card_w, card_h), border_radius=8)
-        pygame.draw.rect(modal_surf, (255, 190, 40, 190), (c1_x, card_y, card_w, card_h), 1, border_radius=8)
+        pygame.draw.rect(modal_surf, (22, 27, 35, 230), (c1_x, card_y, card_w, card_h), border_radius=6)
+        pygame.draw.rect(modal_surf, (48, 58, 72), (c1_x, card_y, card_w, card_h), 1, border_radius=6)
 
-        p_hdr = self.ko_bold_font.render("YOUR ATTEMPT", True, (255, 205, 70))
+        p_hdr = self.ko_bold_font.render("YOUR ATTEMPT", True, (190, 205, 220))
         modal_surf.blit(p_hdr, (c1_x + 14, card_y + 10))
 
         p_rank_str = f"#{player_rank}위" if player_rank else "-"
-        p_rank_surf = self.ko_bold_font.render(p_rank_str, True, (255, 230, 150))
+        p_rank_surf = self.ko_bold_font.render(p_rank_str, True, (140, 160, 185))
         modal_surf.blit(p_rank_surf, (c1_x + card_w - p_rank_surf.get_width() - 14, card_y + 10))
 
-        m1_col = (100, 240, 130) if cur_coll == 0 else (255, 110, 100)
+        m1_col = (110, 190, 135) if cur_coll == 0 else (205, 95, 95)
         m1_surf = self.ko_font.render(f"충돌: {cur_coll}회", True, m1_col)
         modal_surf.blit(m1_surf, (c1_x + 14, card_y + 42))
 
-        m2_surf = self.ko_font.render(f"시간: {cur_time:.2f}s", True, (215, 235, 255))
+        m2_surf = self.ko_font.render(f"시간: {cur_time:.2f}s", True, (190, 200, 212))
         modal_surf.blit(m2_surf, (c1_x + 130, card_y + 42))
 
-        m3_surf = self.ko_font.render(f"누적 회전: {cur_turn:.1f}\u00b0", True, (215, 235, 255))
+        m3_surf = self.ko_font.render(f"누적 회전: {cur_turn:.1f}\u00b0", True, (190, 200, 212))
         modal_surf.blit(m3_surf, (c1_x + 242, card_y + 42))
 
         # 우측 카드: GAP 알고리즘 벤치마크
         c2_x = mw - 30 - card_w
-        pygame.draw.rect(modal_surf, (14, 36, 48, 230), (c2_x, card_y, card_w, card_h), border_radius=8)
-        pygame.draw.rect(modal_surf, (0, 220, 240, 200), (c2_x, card_y, card_w, card_h), 1, border_radius=8)
+        pygame.draw.rect(modal_surf, (22, 27, 35, 230), (c2_x, card_y, card_w, card_h), border_radius=6)
+        pygame.draw.rect(modal_surf, (48, 58, 72), (c2_x, card_y, card_w, card_h), 1, border_radius=6)
 
-        ai_hdr = self.ko_bold_font.render("GAP 알고리즘", True, (0, 235, 255))
+        ai_hdr = self.ko_bold_font.render("GAP 알고리즘", True, (160, 195, 225))
         modal_surf.blit(ai_hdr, (c2_x + 14, card_y + 10))
 
         ai_rank_str = f"BENCHMARK (#{ai_rank}위)"
-        ai_rank_surf = self.ko_bold_font.render(ai_rank_str, True, (150, 250, 255))
+        ai_rank_surf = self.ko_bold_font.render(ai_rank_str, True, (130, 155, 180))
         modal_surf.blit(ai_rank_surf, (c2_x + card_w - ai_rank_surf.get_width() - 14, card_y + 10))
 
         ai_b = leaderboard.AI_BENCHMARK
-        ai1_surf = self.ko_font.render(f"충돌: {ai_b['collisions']}회", True, (100, 245, 140))
+        ai1_surf = self.ko_font.render(f"충돌: {ai_b['collisions']}회", True, (110, 190, 135))
         modal_surf.blit(ai1_surf, (c2_x + 14, card_y + 42))
 
-        ai2_surf = self.ko_font.render(f"시간: {ai_b['time']:.1f}s", True, (190, 235, 255))
+        ai2_surf = self.ko_font.render(f"시간: {ai_b['time']:.1f}s", True, (190, 200, 212))
         modal_surf.blit(ai2_surf, (c2_x + 130, card_y + 42))
 
-        ai3_surf = self.ko_font.render(f"누적 회전: {ai_b['cumulative_turn_deg']:.1f}\u00b0", True, (190, 235, 255))
+        ai3_surf = self.ko_font.render(f"누적 회전: {ai_b['cumulative_turn_deg']:.1f}\u00b0", True, (190, 200, 212))
         modal_surf.blit(ai3_surf, (c2_x + 242, card_y + 42))
 
         # 6. 상위 10등 랭킹 테이블 (TOP 10 LEADERBOARD)
         tbl_y = 166
         tbl_w = mw - 60
         tbl_h = 295
-        pygame.draw.rect(modal_surf, (15, 22, 34, 210), (30, tbl_y, tbl_w, tbl_h), border_radius=6)
-        pygame.draw.rect(modal_surf, (35, 55, 80), (30, tbl_y, tbl_w, tbl_h), 1, border_radius=6)
+        pygame.draw.rect(modal_surf, (18, 23, 30, 210), (30, tbl_y, tbl_w, tbl_h), border_radius=6)
+        pygame.draw.rect(modal_surf, (36, 45, 58), (30, tbl_y, tbl_w, tbl_h), 1, border_radius=6)
 
         # 테이블 헤더 행
         th_h = 28
-        pygame.draw.rect(modal_surf, (22, 34, 52), (30, tbl_y, tbl_w, th_h), border_top_left_radius=6, border_top_right_radius=6)
+        pygame.draw.rect(modal_surf, (25, 32, 42), (30, tbl_y, tbl_w, th_h), border_top_left_radius=6, border_top_right_radius=6)
 
         cols = [
             ("순위", 60),
@@ -1791,7 +1791,7 @@ class EnvRenderer:
         ]
         col_x = 44
         for name, w in cols:
-            lbl = self.ko_bold_font.render(name, True, (170, 200, 230))
+            lbl = self.ko_bold_font.render(name, True, (135, 150, 170))
             modal_surf.blit(lbl, (col_x, tbl_y + 5))
             col_x += w
 
@@ -1824,17 +1824,17 @@ class EnvRenderer:
 
             # 행 배경 및 테두리 스타일
             if is_ai:
-                row_bg = (12, 45, 62, 230)
-                row_border = (0, 200, 235)
-                t_col = (0, 240, 255)
+                row_bg = (24, 34, 46, 230)
+                row_border = (50, 75, 105)
+                t_col = (175, 205, 235)
             elif is_cur_attempt:
-                row_bg = (50, 40, 16, 230)
-                row_border = (255, 190, 40)
-                t_col = (255, 220, 110)
+                row_bg = (34, 32, 26, 230)
+                row_border = (95, 85, 55)
+                t_col = (215, 200, 165)
             else:
-                row_bg = (18, 27, 40, 160) if rank_num % 2 == 1 else (14, 21, 32, 160)
+                row_bg = (20, 25, 33, 160) if rank_num % 2 == 1 else (16, 21, 28, 160)
                 row_border = None
-                t_col = (215, 230, 245)
+                t_col = (185, 195, 208)
 
             pygame.draw.rect(modal_surf, row_bg, (32, row_y, tbl_w - 4, row_h - 2), border_radius=4)
             if row_border:
@@ -1850,9 +1850,9 @@ class EnvRenderer:
             # 구분 / 기록명
             p_name = entry.get("player", "Player")
             if is_ai:
-                tag_surf = self.ko_bold_font.render(p_name, True, (0, 245, 255))
+                tag_surf = self.ko_bold_font.render(p_name, True, (175, 205, 235))
             elif is_cur_attempt:
-                tag_surf = self.ko_bold_font.render(f"[YOU] {p_name}", True, (255, 215, 70))
+                tag_surf = self.ko_bold_font.render(f"[YOU] {p_name}", True, (215, 200, 165))
             else:
                 tag_surf = self.ko_font.render(p_name, True, t_col)
             modal_surf.blit(tag_surf, (col_x, row_y + 3))
@@ -1861,7 +1861,7 @@ class EnvRenderer:
             # 충돌 횟수
             c_val = entry.get("collisions", 0)
             c_str = f"{c_val}회"
-            c_col = (100, 245, 140) if c_val == 0 else (255, 120, 110)
+            c_col = (110, 190, 135) if c_val == 0 else (205, 95, 95)
             c_surf = self.ko_font.render(c_str, True, c_col)
             modal_surf.blit(c_surf, (col_x + 6, row_y + 3))
             col_x += 110
@@ -1882,39 +1882,39 @@ class EnvRenderer:
 
             # 일시
             dt_str = entry.get("date", "-")
-            dt_surf = self.ko_small_font.render(dt_str, True, (140, 165, 195))
+            dt_surf = self.ko_small_font.render(dt_str, True, (115, 130, 148))
             modal_surf.blit(dt_surf, (col_x, row_y + 4))
 
             row_y += row_h
 
-        # 7. 하단 조작 버튼 (RETRY / EXIT)
-        btn_w, btn_h = 170, 36
+        # 7. 하단 조작 버튼 (RETRY / EXIT) - 절제된 차분한 다크 슬레이트 스타일
+        btn_w, btn_h = 160, 36
         btn_y = 476
 
-        # [다시 도전] RETRY 버튼
-        r_x = mw // 2 - btn_w - 14
+        # [RETRY] 버튼
+        r_x = mw // 2 - btn_w - 12
         r_rect_global = pygame.Rect(mx + r_x, my + btn_y, btn_w, btn_h)
         env.leaderboard_retry_rect = r_rect_global
         r_hover = r_rect_global.collidepoint(mpos)
 
-        r_bg = (24, 52, 42, 230) if r_hover else (16, 38, 30, 200)
-        r_bd = (40, 240, 140) if r_hover else (25, 180, 105)
-        r_txt_col = (200, 255, 220) if r_hover else (150, 235, 180)
+        r_bg = (34, 42, 54, 230) if r_hover else (24, 30, 38, 200)
+        r_bd = (70, 85, 105) if r_hover else (48, 60, 75)
+        r_txt_col = (215, 228, 245) if r_hover else (170, 185, 205)
 
         pygame.draw.rect(modal_surf, r_bg, (r_x, btn_y, btn_w, btn_h), border_radius=6)
         pygame.draw.rect(modal_surf, r_bd, (r_x, btn_y, btn_w, btn_h), 1, border_radius=6)
         r_lbl = self.ko_bold_font.render("RETRY", True, r_txt_col)
         modal_surf.blit(r_lbl, r_lbl.get_rect(center=(r_x + btn_w // 2, btn_y + btn_h // 2)))
 
-        # [복귀] EXIT 버튼
-        e_x = mw // 2 + 14
+        # [EXIT] 버튼
+        e_x = mw // 2 + 12
         e_rect_global = pygame.Rect(mx + e_x, my + btn_y, btn_w, btn_h)
         env.leaderboard_exit_rect = e_rect_global
         e_hover = e_rect_global.collidepoint(mpos)
 
-        e_bg = (42, 28, 48, 230) if e_hover else (30, 20, 36, 200)
-        e_bd = (220, 100, 240) if e_hover else (170, 70, 190)
-        e_txt_col = (250, 215, 255) if e_hover else (210, 175, 230)
+        e_bg = (34, 42, 54, 230) if e_hover else (24, 30, 38, 200)
+        e_bd = (70, 85, 105) if e_hover else (48, 60, 75)
+        e_txt_col = (215, 228, 245) if e_hover else (170, 185, 205)
 
         pygame.draw.rect(modal_surf, e_bg, (e_x, btn_y, btn_w, btn_h), border_radius=6)
         pygame.draw.rect(modal_surf, e_bd, (e_x, btn_y, btn_w, btn_h), 1, border_radius=6)
@@ -1923,7 +1923,7 @@ class EnvRenderer:
 
         # 하단 단축키 가이드: 스페이스(RETRY)와 esc(EXIT)만 간결하게 표시
         guide_str = "[SPACE] RETRY   |   [ESC] EXIT"
-        g_surf = self.ko_small_font.render(guide_str, True, (130, 155, 185))
+        g_surf = self.ko_small_font.render(guide_str, True, (100, 115, 132))
         modal_surf.blit(g_surf, g_surf.get_rect(center=(mw // 2, 528)))
 
         # 화면에 모달 최종 표출
