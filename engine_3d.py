@@ -68,6 +68,7 @@ class _Engine3DCore:
         # 텍스트 렌더용 폰트 (워커 프로세스 내부 렌더링)
         pygame.font.init()
         self.font = pygame.font.SysFont("sans-serif", 13, bold=True)
+        self.panel_title_font = pygame.font.SysFont(None, 24)  # 2D MAP 패널 타이틀과 100% 동일한 폰트 및 크기
         self.micro_font = pygame.font.SysFont("sans-serif", 11)
         self.large_font = pygame.font.SysFont("sans-serif", 18, bold=True)
         self.large_info_font = pygame.font.SysFont("sans-serif", 14)
@@ -303,21 +304,21 @@ class _Engine3DCore:
                 for pt in [p0, p1, p2, p0, p2, p3]:
                     verts.extend(pt + norm + [r, g, b])
 
-        # 좌현 선체 (Left Hull) - 짙은 네이비/메탈릭
-        add_box([0.0, 0.05, -0.38], [1.65, 0.32, 0.28], [0.18, 0.26, 0.36])
-        # 선수 경사부 (Left Bow Slope)
-        add_box([0.75, 0.08, -0.38], [0.45, 0.26, 0.22], [0.88, 0.30, 0.12]) # 선수 고시인성 오렌지
+        # 좌현 선체 (Left Hull) - 짙은 메탈릭 네이비 (x: -0.80 ~ +0.50)
+        add_box([-0.15, 0.05, -0.38], [1.30, 0.32, 0.28], [0.18, 0.26, 0.36])
+        # 좌현 선수부 (Left Bow Nose) - 고시인성 레드 (x: +0.50 ~ +0.92, 테이퍼링 단차로 Z-fighting 100% 박멸)
+        add_box([0.71, 0.05, -0.38], [0.42, 0.30, 0.26], [0.92, 0.22, 0.15])
         
-        # 우현 선체 (Right Hull)
-        add_box([0.0, 0.05, 0.38], [1.65, 0.32, 0.28], [0.18, 0.26, 0.36])
-        # 선수 경사부 (Right Bow Slope)
-        add_box([0.75, 0.08, 0.38], [0.45, 0.26, 0.22], [0.88, 0.30, 0.12])
+        # 우현 선체 (Right Hull) - 짙은 메탈릭 네이비 (x: -0.80 ~ +0.50)
+        add_box([-0.15, 0.05, 0.38], [1.30, 0.32, 0.28], [0.18, 0.26, 0.36])
+        # 우현 선수부 (Right Bow Nose) - 고시인성 레드 (x: +0.50 ~ +0.92, 테이퍼링 단차로 Z-fighting 100% 박멸)
+        add_box([0.71, 0.05, 0.38], [0.42, 0.30, 0.26], [0.92, 0.22, 0.15])
         
         # 중앙 연결 브릿지 데크 (Center Connecting Deck)
-        add_box([0.0, 0.16, 0.0], [1.10, 0.12, 0.62], [0.75, 0.82, 0.90])
+        add_box([0.0, 0.16, 0.0], [1.00, 0.12, 0.50], [0.75, 0.82, 0.90])
         
         # 상부 항법 제어 캐빈 (Avionics Cabin Pod)
-        add_box([0.05, 0.29, 0.0], [0.65, 0.18, 0.44], [0.12, 0.18, 0.26])
+        add_box([0.05, 0.28, 0.0], [0.60, 0.16, 0.38], [0.12, 0.18, 0.26])
         
         # 라이다 센서 마운트 타워 (LiDAR Tower)
         add_box([0.18, 0.44, 0.0], [0.12, 0.16, 0.12], [0.25, 0.25, 0.30])
@@ -556,8 +557,10 @@ class _Engine3DCore:
         fbo, col_tex, depth_rb = self._get_fbo(w, h)
             
         dt = getattr(env, 'dt', 0.04)
-        self.time += dt
-        self.lidar_rot += 0.25
+        is_paused = getattr(env, 'paused', False)
+        if not is_paused:
+            self.time += dt
+            self.lidar_rot += 0.25
         
         # 1. 시뮬레이션 상태 벡터를 3차원 월드 미터 단위로 변환 (50px = 1.0m)
         bx, by = env.boat_pos
@@ -833,14 +836,11 @@ class _Engine3DCore:
         f_title = self.large_font if is_large else self.font
         f_info = self.large_info_font if is_large else self.micro_font
         
-        # [3] 패널 이름 (좌측 상단 간략 표기: "3D VIEW")
-        title_txt = "3D VIEW"
-        lbl_title = f_title.render(title_txt, True, (240, 245, 255))
-        lbl_shadow = f_title.render(title_txt, True, (10, 20, 35))
-        t_x = 205 if is_large else 10
-        t_y = 18 if is_large else 8
-        surf.blit(lbl_shadow, (t_x + 1, t_y + 1))
-        surf.blit(lbl_title, (t_x, t_y))
+        # [3] 패널 이름 (작은 3D 패널일 때만 2D MAP과 동일한 크기/양식으로 좌측 상단에 표출, 전체화면일 땐 미표출)
+        if not is_large:
+            title_txt = "3D VIEW"
+            lbl_title = self.panel_title_font.render(title_txt, True, (240, 245, 255))
+            surf.blit(lbl_title, (10, 8))
         
         # [4] 1인칭 조타석 뷰 전용 조타 HUD (십자선만 유지, 상단 중앙 파란색 헤딩 텍스트는 제거)
         if self.cam_mode == 0:
@@ -929,6 +929,7 @@ def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name):
         p_env.linetrace_mode = req['linetrace_mode']
         p_env.closest_avoid_hit = req['closest_avoid_hit']
         p_env.dt = req.get('dt', 0.04)
+        p_env.paused = req.get('paused', False)
         
         target_buf = buf_panel if (w, h) == (320, 220) else buf_full
         core.render_into_buffer(p_env, hits, w, h, target_buf)
@@ -1003,7 +1004,8 @@ class Engine3D:
             'linetrace_mode': bool(getattr(env, 'linetrace_mode', False)),
             'closest_avoid_hit': getattr(env, 'closest_avoid_hit', None),
             'hits': hits,
-            'dt': float(getattr(env, 'dt', 0.04))
+            'dt': float(getattr(env, 'dt', 0.04)),
+            'paused': bool(getattr(env, 'paused', False))
         }
         
         self.parent_conn.send(req)

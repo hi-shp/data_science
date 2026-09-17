@@ -25,6 +25,8 @@ class EnvRenderer:
         self.bold_font = pygame.font.SysFont(None, 26, bold=True)
         self.small_font = pygame.font.SysFont(None, 18)
         self.micro_font = pygame.font.SysFont(None, 15)
+        self.fps_font = pygame.font.SysFont("sans-serif", 13, bold=False)  # 실제 게임 오버레이 스타일의 얇은 폰트
+        self.engine_info_font = pygame.font.SysFont("sans-serif", 11)     # 3D 엔진 텍스트와 100% 동일한 소형 폰트
         self.curv_buffer = None
         self.curv_y_max = 0.08
         self.smooth_path_m = 0.0
@@ -133,13 +135,18 @@ class EnvRenderer:
         c_surf.blit(c_lbl, c_lbl.get_rect(center=(cam_btn.w // 2, cam_btn.h // 2)))
         env.screen.blit(c_surf, (cam_btn.x, cam_btn.y))
 
-        # 8-4. 화면 중앙 최상단 상시 FPS 인디케이터 (버튼 형태 배제, 순수 텍스트만 흰색 계열로 표시)
+        # 8-4. 화면 중앙 최상단 상시 FPS 인디케이터 (실제 게임처럼 얇고 깔끔한 비볼드 폰트)
         fps_val = int(env.clock.get_fps()) if hasattr(env, 'clock') else 60
-        fps_lbl = self.small_font.render(f"{fps_val} FPS", True, (240, 245, 255))
-        fps_rect = fps_lbl.get_rect(center=(env.w // 2, 18))
-        shadow_lbl = self.small_font.render(f"{fps_val} FPS", True, (12, 22, 36))
-        env.screen.blit(shadow_lbl, (fps_rect.x + 1, fps_rect.y + 1))
+        fps_lbl = self.fps_font.render(f"{fps_val} FPS", True, (230, 235, 245))
+        fps_rect = fps_lbl.get_rect(center=(env.w // 2, 16))
         env.screen.blit(fps_lbl, fps_rect)
+
+        # 8-5. 2D 메인 화면 우측 하단 엔진 인디케이터 (3D 엔진 텍스트와 동일한 11px 소형 폰트)
+        if not is_full_3d:
+            pg_lbl = self.engine_info_font.render("Pygame 2D Engine", True, (190, 220, 245))
+            rx = env.w - pg_lbl.get_width() - 16
+            ry = env.sim_h - 22
+            env.screen.blit(pg_lbl, (rx, ry))
 
         # 9. 미니맵 오버레이 (맵이 확장된 경우 주행화면 우측 하단에 표시, 3D 풀화면 모드에서는 가림)
         if env.map_w > env.w and not is_full_3d:
@@ -1124,8 +1131,8 @@ class EnvRenderer:
                     panel_surf.blit(mini_2d, (map_x, map_y))
                     pygame.draw.rect(panel_surf, (0, 140, 210), (map_x - 1, map_y - 1, mini_w + 2, mini_h + 2), 1)
                     
-                    # 하단 엔진 정보 텍스트 (화면 크기, 현재 nav 상태 등 불필요한 정보 완전 배제하고 엔진 정보만 간략 표출)
-                    lbl_eng = self.small_font.render("ModernGL 3.3 Core Profile", True, (0, 210, 255))
+                    # 하단 엔진 정보 텍스트 (3D 엔진 텍스트와 동일한 11px 소형 폰트)
+                    lbl_eng = self.engine_info_font.render("Pygame 2D Engine", True, (0, 210, 255))
                     panel_surf.blit(lbl_eng, lbl_eng.get_rect(center=(160, 178)))
                     
                     env.screen.blit(panel_surf, (1050, env.sim_h + 35))
