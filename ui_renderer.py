@@ -1,6 +1,7 @@
 import pygame
 import numpy as np
 import math
+from engine_3d import Engine3D
 
 class EnvRenderer:
     def __init__(self, env):
@@ -8,6 +9,7 @@ class EnvRenderer:
         self.pov_surf = pygame.Surface((320, 220), pygame.SRCALPHA)
         self.cam_surf = pygame.Surface((320, 220), pygame.SRCALPHA)
         self.real_cam_surf = pygame.Surface((320, 220), pygame.SRCALPHA)
+        self.engine_3d = Engine3D(320, 220)
         self.safety_surf = pygame.Surface((120, 120), pygame.SRCALPHA)
         self.hud_surf = pygame.Surface((210, 110), pygame.SRCALPHA)
         self.bezier_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
@@ -1022,129 +1024,14 @@ class EnvRenderer:
 
         env.screen.blit(self.cam_surf, (700, env.sim_h + 35))
 
-        # --- 3. LiDAR Depth 1st-Person View (하단 렌더링: 해수면 배경 처리) ---
-        real_w, real_h = 320, 220
-        self.real_cam_surf.fill((10, 20, 35, 240))
+        # --- 3. 실시간 하드웨어 가속 ModernGL 3D 엔진 뷰포트 (Real 3D Engine Viewport) ---
+        surf_3d = self.engine_3d.render(env, hits, 320, 220)
+        env.screen.blit(surf_3d, (1050, env.sim_h + 35))
         
-        horizon_y = real_h // 2 + 10
-        pygame.draw.rect(self.real_cam_surf, (15, 30, 55), (0, 0, real_w, horizon_y))
-        
-        # 하단 절반(수평선 아래) 기본 해수면 그라데이션 및 물결 패턴
-        for y in range(horizon_y, real_h):
-            ratio = (y - horizon_y) / float(real_h - horizon_y)
-            r_sea = int(12 - ratio * 5)
-            g_sea = int(45 + ratio * 35)
-            b_sea = int(95 + ratio * 45)
-            pygame.draw.line(self.real_cam_surf, (r_sea, g_sea, b_sea), (0, y), (real_w, y))
-
-        for wy_off in [12, 28, 50, 78]:
-            y_p = horizon_y + wy_off
-            if y_p < real_h:
-                pygame.draw.line(self.real_cam_surf, (25, 95, 155, 90), (0, y_p), (real_w, y_p), 1)
-
-        pygame.draw.line(self.real_cam_surf, (0, 160, 220), (0, horizon_y), (real_w, horizon_y), 1)
-
-        # 전방 180도를 180개 슬라이스로 분할하여 각 라이다 거리 막대 렌더링
-        for i in range(n_slices):
-            ang = slice_angles[i]
-            idx = int((ang + np.pi) / (2 * np.pi) * len(env.rel_angles)) % len(env.rel_angles)
-            hp = hits[idx] if idx < len(hits) else None
-            
-            if hp is not None:
-                hdx = hp[0] - bx
-                hdy = hp[1] - by
-                d = math.hypot(hdx, hdy)
-            else:
-                d = env.lidar_range
-
-            if d < env.lidar_range:
-                bar_h = min(real_h - 10, int(11000.0 / max(d, 12.0)))
-                x1 = int(i * real_w / n_slices)
-                x2 = int((i + 1) * real_w / n_slices)
-                w_s = max(1, x2 - x1)
-                
-                y_top = horizon_y - bar_h // 2
-                
-                if d < 70:
-                    color = (230, 60, 50)
-                elif d < 140:
-                    color = (240, 160, 40)
-                elif d < 220:
-                    color = (210, 210, 50)
-                else:
-                    color = (40, 170, 160)
-                
-                pygame.draw.rect(self.real_cam_surf, color, (x1, y_top, w_s, bar_h))
-
-        # 라이다 거릿값 막대 위에 오버레이되는 웨이포인트 및 최종 목표 지점 핀 마커
-        overlay_objs = []
-        show_1st = getattr(env, 'show_1st_path', getattr(env, 'show_paths', True))
-        show_2nd = getattr(env, 'show_2nd_path', getattr(env, 'show_paths', True))
-        if show_1st and env.current_wp is not None:
-            dx_w = env.current_wp["pos"][0] - bx; dy_w = env.current_wp["pos"][1] - by
-            lf_w = dx_w * f_vec[0] + dy_w * f_vec[1]; lr_w = dx_w * r_vec[0] + dy_w * r_vec[1]
-            if lf_w > 2.0: overlay_objs.append(('wp1', lf_w, lr_w))
-
-        if show_2nd and env.next_wp is not None:
-            dx_w2 = env.next_wp["pos"][0] - bx; dy_w2 = env.next_wp["pos"][1] - by
-            lf_w2 = dx_w2 * f_vec[0] + dy_w2 * f_vec[1]; lr_w2 = dx_w2 * r_vec[0] + dy_w2 * r_vec[1]
-            if lf_w2 > 2.0: overlay_objs.append(('wp2', lf_w2, lr_w2))
-
-        if getattr(env, 'linetrace_mode', False) and getattr(env, 'show_closest_obstacle', True):
-            c_hit = getattr(env, 'closest_avoid_hit', None)
-            if c_hit is not None:
-                dx_c = c_hit[0] - bx; dy_c = c_hit[1] - by
-                lf_c = dx_c * f_vec[0] + dy_c * f_vec[1]; lr_c = dx_c * r_vec[0] + dy_c * r_vec[1]
-                if lf_c > 2.0: overlay_objs.append(('avoid', lf_c, lr_c))
-
-        if lf_t > 2.0:
-            overlay_objs.append(('target', lf_t, lr_t))
-
-        overlay_objs.sort(key=lambda item: item[1], reverse=True)
-
-        for obj_type, lf, lr in overlay_objs:
-            angle = math.atan2(lr, lf)
-            if abs(angle) <= math.pi / 2:
-                sx = int(real_w / 2 + (angle / (math.pi / 2)) * (real_w / 2))
-                sy_base = int(horizon_y + (160.0 / max(lf, 10.0)) * 12)
-                sy_base = min(sy_base, real_h - 10)
-                
-                scale_factor = 200.0 / max(lf, 10.0)
-                pole_h = max(12, int(40 * scale_factor * 0.35))
-                pole_y = sy_base - pole_h
-                
-                if obj_type == 'wp1':
-                    pygame.draw.line(self.real_cam_surf, (0, 255, 220), (sx, sy_base), (sx, pole_y), 2)
-                    pygame.draw.circle(self.real_cam_surf, (0, 255, 220), (sx, pole_y), 5)
-                    pygame.draw.circle(self.real_cam_surf, (255, 255, 255), (sx, pole_y), 2)
-                    lbl_wp1 = self.micro_font.render("WP1", True, (0, 255, 220))
-                    tx = sx + 7 if sx + 30 < real_w else sx - lbl_wp1.get_width() - 7
-                    self.real_cam_surf.blit(lbl_wp1, (tx, max(5, pole_y - 6)))
-                elif obj_type == 'wp2':
-                    pygame.draw.line(self.real_cam_surf, (200, 100, 255), (sx, sy_base), (sx, pole_y), 2)
-                    pygame.draw.circle(self.real_cam_surf, (200, 100, 255), (sx, pole_y), 5)
-                    pygame.draw.circle(self.real_cam_surf, (255, 255, 255), (sx, pole_y), 2)
-                    lbl_wp2 = self.micro_font.render("WP2", True, (200, 100, 255))
-                    tx = sx + 7 if sx + 30 < real_w else sx - lbl_wp2.get_width() - 7
-                    self.real_cam_surf.blit(lbl_wp2, (tx, max(5, pole_y - 6)))
-                elif obj_type == 'avoid':
-                    pygame.draw.line(self.real_cam_surf, (255, 20, 190), (sx, sy_base), (sx, pole_y), 3)
-                    pygame.draw.circle(self.real_cam_surf, (255, 20, 190), (sx, pole_y), 7)
-                    pygame.draw.circle(self.real_cam_surf, (255, 255, 255), (sx, pole_y), 3)
-                    lbl_av = self.micro_font.render("Avoid", True, (255, 120, 220))
-                    tx = sx + 9 if sx + 40 < real_w else sx - lbl_av.get_width() - 9
-                    self.real_cam_surf.blit(lbl_av, (tx, max(5, pole_y - 7)))
-                elif obj_type == 'target':
-                    pygame.draw.line(self.real_cam_surf, (20, 250, 80), (sx, sy_base), (sx, pole_y), 3)
-                    pygame.draw.circle(self.real_cam_surf, (20, 250, 80), (sx, pole_y), 7)
-                    pygame.draw.circle(self.real_cam_surf, (255, 255, 255), (sx, pole_y), 3)
-                    lbl_tgt = self.micro_font.render("Target", True, (20, 250, 80))
-                    tx = sx + 9 if sx + 40 < real_w else sx - lbl_tgt.get_width() - 9
-                    self.real_cam_surf.blit(lbl_tgt, (tx, max(5, pole_y - 7)))
-
-        pygame.draw.rect(self.real_cam_surf, (130, 180, 220), (0, 0, real_w, real_h), 2)
-        self.real_cam_surf.blit(self.font.render("LiDAR 1st View", True, (255, 255, 255)), (10, 10))
-        env.screen.blit(self.real_cam_surf, (1050, env.sim_h + 35))
+        # 만약 전체화면 3D 모드(fullscreen_3d) 활성화 시 상단 메인 시뮬레이션 영역(1800x630)에 고해상도 3D 투사
+        if getattr(env, 'fullscreen_3d', False):
+            main_3d = self.engine_3d.render(env, hits, env.w, env.sim_h)
+            env.screen.blit(main_3d, (0, 0))
 
         # --- 4. 실시간 베지어 곡선 & 곡률 프로파일 그래프 & 5. 가중치 패널 (라인트레이싱 모드에서는 완전 제외) ---
         if not getattr(env, 'linetrace_mode', False):

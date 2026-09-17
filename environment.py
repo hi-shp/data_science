@@ -149,6 +149,11 @@ class BoatEnv:
             16: pygame.Rect(272, 848, 46, 34)
         }
         
+        # 실시간 3D 그래픽스 엔진 상태 변수
+        self.cam_3d_mode = 1  # 0: 1인칭 조타석, 1: 3인칭 추종 체이스, 2: 전술 드론
+        self.fullscreen_3d = False
+        self.panel_3d_rect = pygame.Rect(1050, self.sim_h + 35, 320, 220)
+        
         self.renderer = EnvRenderer(self)
         self.reset()
 
@@ -223,6 +228,11 @@ class BoatEnv:
             self.linetrace_queued = False
 
     def handle_click(self, pos):
+        # 3D 뷰포트 패널 클릭 시 카메라 시점 즉시 순환 (1인칭 <-> 3인칭 <-> 전술 드론)
+        if getattr(self, 'panel_3d_rect', None) and self.panel_3d_rect.collidepoint(pos):
+            self.cam_3d_mode = (getattr(self, 'cam_3d_mode', 1) + 1) % 3
+            return
+
         is_mode_click = getattr(self, 'mode_btn_top_rect', None) and self.mode_btn_top_rect.collidepoint(pos)
         if is_mode_click:
             # 버튼 클릭 시 현재 실행 중인 에피소드에서 실시간으로 알고리즘 즉시 변경 (GAP NAVIGATION <-> LINE TRACING)

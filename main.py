@@ -19,6 +19,10 @@ def run():
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_SPACE:
                     env.paused = not env.paused
+                elif e.key == pygame.K_c:
+                    env.cam_3d_mode = (getattr(env, 'cam_3d_mode', 1) + 1) % 3
+                elif e.key == pygame.K_v:
+                    env.fullscreen_3d = not getattr(env, 'fullscreen_3d', False)
             elif e.type == pygame.MOUSEBUTTONDOWN:
                 if e.button == 1:
                     env.handle_click(e.pos)
