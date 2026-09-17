@@ -27,6 +27,9 @@ def run():
                     env.fullscreen_3d = not getattr(env, 'fullscreen_3d', False)
                 elif e.key == pygame.K_m:
                     env.toggle_manual_mode()
+                elif e.key == pygame.K_b:
+                    if getattr(env, 'manual_mode', False):
+                        env.toggle_blind_mode()
                 elif e.key == pygame.K_F11:
                     env.toggle_fullscreen()
                 elif e.key == pygame.K_ESCAPE:

@@ -116,6 +116,9 @@ class _Engine3DCore:
             uniform vec3 u_cam_pos;
             uniform vec3 u_light_dir;
             uniform vec3 u_fog_color;
+            uniform int u_blind_mode;
+            uniform vec2 u_boat_pos;
+            uniform float u_lidar_range;
             
             out vec4 fragColor;
             
@@ -134,6 +137,17 @@ class _Engine3DCore:
                 float dist = length(v_world_pos - u_cam_pos);
                 float fog = clamp((dist - 14.0) / 75.0, 0.0, 0.85);
                 col = mix(col, u_fog_color, fog);
+                
+                // 라이다 블라인드 시연 모드: 라이다 범위(6.4m) 외곽 완전 암전(Pitch Black) 처리
+                if (u_blind_mode == 1) {
+                    float d_boat = length(v_world_pos.xz - u_boat_pos);
+                    if (d_boat > u_lidar_range) {
+                        col = vec3(0.0);
+                    } else if (d_boat > u_lidar_range - 0.7) {
+                        float edge_fade = (d_boat - (u_lidar_range - 0.7)) / 0.7;
+                        col = mix(col, vec3(0.0), edge_fade);
+                    }
+                }
                 
                 fragColor = vec4(col, 1.0);
             }
@@ -188,6 +202,9 @@ class _Engine3DCore:
             uniform vec3 u_cam_pos;
             uniform vec3 u_light_dir;
             uniform vec3 u_fog_color;
+            uniform int u_blind_mode;
+            uniform vec2 u_boat_pos;
+            uniform float u_lidar_range;
             
             out vec4 fragColor;
             
@@ -222,6 +239,17 @@ class _Engine3DCore:
                 float dist = length(v_world_pos - u_cam_pos);
                 float fog = clamp((dist - 18.0) / 80.0, 0.0, 0.90);
                 water_color = mix(water_color, u_fog_color, fog);
+                
+                // 라이다 블라인드 시연 모드: 라이다 범위(6.4m) 외곽 완전 암전(Pitch Black) 처리
+                if (u_blind_mode == 1) {
+                    float d_boat = length(v_world_pos.xz - u_boat_pos);
+                    if (d_boat > u_lidar_range) {
+                        water_color = vec3(0.0);
+                    } else if (d_boat > u_lidar_range - 0.7) {
+                        float edge_fade = (d_boat - (u_lidar_range - 0.7)) / 0.7;
+                        water_color = mix(water_color, vec3(0.0), edge_fade);
+                    }
+                }
                 
                 fragColor = vec4(water_color, 1.0);
             }
@@ -634,8 +662,12 @@ class _Engine3DCore:
         
         # 4. FBO 활성화 및 해양 배경색 클리어
         fbo.use()
-        sky_fog = (0.12, 0.28, 0.48)
-        self.ctx.clear(0.08, 0.22, 0.38, 1.0, depth=1.0)
+        is_blind = getattr(env, 'blind_mode', False)
+        sky_fog = (0.0, 0.0, 0.0) if is_blind else (0.12, 0.28, 0.48)
+        if is_blind:
+            self.ctx.clear(0.0, 0.0, 0.0, 1.0, depth=1.0)
+        else:
+            self.ctx.clear(0.08, 0.22, 0.38, 1.0, depth=1.0)
         
         light_dir = (0.55, 0.80, 0.30)
         
@@ -646,18 +678,25 @@ class _Engine3DCore:
         self.prog_ocean['u_cam_pos'].value = tuple(cam_eye)
         self.prog_ocean['u_light_dir'].value = light_dir
         self.prog_ocean['u_fog_color'].value = sky_fog
+        self.prog_ocean['u_blind_mode'].value = 1 if is_blind else 0
+        self.prog_ocean['u_boat_pos'].value = (float(boat_x), float(boat_z))
+        self.prog_ocean['u_lidar_range'].value = 6.4
         self.ocean_vao.render()
         
         # 6. [부표 장애물 렌더링] 시야 반경 내 부표 표출
         self.prog_mesh['u_cam_pos'].value = tuple(cam_eye)
         self.prog_mesh['u_light_dir'].value = light_dir
         self.prog_mesh['u_fog_color'].value = sky_fog
+        self.prog_mesh['u_blind_mode'].value = 1 if is_blind else 0
+        self.prog_mesh['u_boat_pos'].value = (float(boat_x), float(boat_z))
+        self.prog_mesh['u_lidar_range'].value = 6.4
         
+        max_buoy_dist_sq = (6.4 * 6.4) if is_blind else (55.0 * 55.0)
         for idx, (ox, oy, r) in enumerate(env.dynamic_obstacles):
             obs_x = ox / 50.0
             obs_z = oy / 50.0
             dx = obs_x - boat_x; dz = obs_z - boat_z
-            if dx*dx + dz*dz > 55.0 * 55.0:
+            if dx*dx + dz*dz > max_buoy_dist_sq:
                 continue
                 
             obs_y = self._wave_height(obs_x, obs_z, self.time)
@@ -703,12 +742,29 @@ class _Engine3DCore:
         # 8. [목적지 비콘 타워 렌더링]
         tgt_x = env.target[0] / 50.0
         tgt_z = env.target[1] / 50.0
-        tgt_y = self._wave_height(tgt_x, tgt_z, self.time)
-        M_tgt = self._matrix_model(tgt_x, tgt_y, tgt_z, self.time * 0.5)
-        MVP_tgt = VP @ M_tgt
-        self.prog_mesh['u_model'].write(M_tgt.T.tobytes())
-        self.prog_mesh['u_mvp'].write(MVP_tgt.T.tobytes())
-        self.beacon_vao.render()
+        tgt_dx = tgt_x - boat_x
+        tgt_dz = tgt_z - boat_z
+        tgt_dist = math.hypot(tgt_dx, tgt_dz)
+
+        if is_blind:
+            # 블라인드 모드: 라이다 유효 반경(6.4m) 테두리 원 상에 도착 지점(Target) 비콘 표출
+            rim_ang = math.atan2(tgt_dz, tgt_dx)
+            rim_3d_x = boat_x + math.cos(rim_ang) * 6.4
+            rim_3d_z = boat_z + math.sin(rim_ang) * 6.4
+            rim_3d_y = self._wave_height(rim_3d_x, rim_3d_z, self.time)
+
+            M_rim_tgt = self._matrix_model(rim_3d_x, rim_3d_y, rim_3d_z, self.time * 0.8)
+            MVP_rim_tgt = VP @ M_rim_tgt
+            self.prog_mesh['u_model'].write(M_rim_tgt.T.tobytes())
+            self.prog_mesh['u_mvp'].write(MVP_rim_tgt.T.tobytes())
+            self.beacon_vao.render()
+        else:
+            tgt_y = self._wave_height(tgt_x, tgt_z, self.time)
+            M_tgt = self._matrix_model(tgt_x, tgt_y, tgt_z, self.time * 0.5)
+            MVP_tgt = VP @ M_tgt
+            self.prog_mesh['u_model'].write(M_tgt.T.tobytes())
+            self.prog_mesh['u_mvp'].write(MVP_tgt.T.tobytes())
+            self.beacon_vao.render()
 
         # 9. [동적 발광 그래픽스 렌더링] (베지에 리본, 홀로그램 링, 라이다 광선)
         tri_verts = []
@@ -770,7 +826,28 @@ class _Engine3DCore:
 
         # 최종 목적지 녹색 홀로그램 비콘 및 발광 회전 링 (2D 녹색 타겟과 100% 색상 통일)
         if hasattr(env, 'target') and env.target is not None:
-            add_holo_beacon(env.target, [0.08, 0.98, 0.35, 0.95], height=5.5)
+            if is_blind:
+                # 블라인드 모드: 라이다 유효 반경(6.4m) 테두리 원 상의 목표 방향 지점에 홀로그램 비콘 생성
+                rim_pos = [rim_3d_x * 50.0, rim_3d_z * 50.0]
+                add_holo_beacon(rim_pos, [0.08, 0.98, 0.35, 0.95], height=4.5)
+            else:
+                add_holo_beacon(env.target, [0.08, 0.98, 0.35, 0.95], height=5.5)
+
+        # 블라인드 모드 시 3D 수면 상에 라이다 시야 테두리 발광 원(반경 6.4m) 렌더링
+        if is_blind:
+            n_segs = 64
+            rim_pts = []
+            for s_idx in range(n_segs + 1):
+                th = (s_idx / n_segs) * 2.0 * math.pi
+                rx = boat_x + math.cos(th) * 6.4
+                rz = boat_z + math.sin(th) * 6.4
+                ry = self._wave_height(rx, rz, self.time) + 0.05
+                rim_pts.append((rx, ry, rz))
+            for s_idx in range(n_segs):
+                p1, p2 = rim_pts[s_idx], rim_pts[s_idx + 1]
+                c_rim = [0.0, 0.90, 1.0, 0.85]
+                line_verts.extend(list(p1) + c_rim)
+                line_verts.extend(list(p2) + c_rim)
 
         if getattr(env, 'current_wp', None) is not None:
             add_holo_beacon(env.current_wp["pos"], [0.0, 1.0, 0.85, 0.95]) # Cyan WP1
@@ -860,10 +937,12 @@ class _Engine3DCore:
         hdg_deg = int(math.degrees(heading)) % 360
         steer_deg = math.degrees(steer)
         knots = speed * 1.94384
-        
+        is_blind = getattr(env, 'blind_mode', False)
+
         if is_large:
             # 전체화면 3D 모드: 화면을 가리는 하단 검은색 바를 추가하지 않고 3D 화면을 100% 꽉 채우며, 우측 하단 텍스트는 그대로 유지
-            rc_tag = " | RC MANUAL [WASD]" if getattr(env, 'manual_mode', False) else " | ModernGL 3.3 Core Profile"
+            blind_tag = " | BLIND VISION" if is_blind else ""
+            rc_tag = f" | RC MANUAL [WASD]{blind_tag}" if getattr(env, 'manual_mode', False) else " | ModernGL 3.3 Core Profile"
             txt_str = f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | HDG: {hdg_deg:03d}° | RUDDER: {steer_deg:+.1f}°{rc_tag}"
             lbl_stat = f_info.render(txt_str, True, (225, 242, 255))
             lbl_stat_sh = f_info.render(txt_str, True, (10, 15, 25))
@@ -871,6 +950,28 @@ class _Engine3DCore:
             txt_y = h - 24
             surf.blit(lbl_stat_sh, (txt_x + 1, txt_y + 1))
             surf.blit(lbl_stat, (txt_x, txt_y))
+
+            # 블라인드 모드 상단 중앙 목표 방위/거리 HUD (이모지, 별표 없는 정밀 공학 표기)
+            if is_blind and hasattr(env, 'target') and env.target is not None:
+                tgt_dx = (env.target[0] / 50.0) - (env.boat_pos[0] / 50.0)
+                tgt_dz = (env.target[1] / 50.0) - (env.boat_pos[1] / 50.0)
+                tgt_dist = math.hypot(tgt_dx, tgt_dz)
+                t_bearing = int(math.degrees(math.atan2(tgt_dz, tgt_dx))) % 360
+                rel_bearing = (t_bearing - hdg_deg) % 360
+                if rel_bearing > 180: rel_bearing -= 360
+
+                b_str = f"BLIND VISION [LiDAR 6.4m] | GOAL: {tgt_dist:.1f}m (BEARING {t_bearing:03d}°, REL {rel_bearing:+d}°)"
+                lbl_b = f_info.render(b_str, True, (80, 255, 140))
+                badge_pad_x, badge_pad_y = 12, 4
+                badge_w = lbl_b.get_width() + badge_pad_x * 2
+                badge_h = lbl_b.get_height() + badge_pad_y * 2
+                bx_hud = (w - badge_w) // 2
+                by_hud = 36
+                badge_surf = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
+                badge_surf.fill((10, 24, 18, 215))
+                pygame.draw.rect(badge_surf, (40, 220, 120), (0, 0, badge_w, badge_h), 1, border_radius=4)
+                badge_surf.blit(lbl_b, (badge_pad_x, badge_pad_y))
+                surf.blit(badge_surf, (bx_hud, by_hud))
         else:
             # 기본 3D 패널(320x220): 하단 바 영역에 표출
             info_h = 20
@@ -933,6 +1034,7 @@ def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name, full_w=1840, ful
         p_env.dt = req.get('dt', 0.04)
         p_env.paused = req.get('paused', False)
         p_env.manual_mode = req.get('manual_mode', False)
+        p_env.blind_mode = req.get('blind_mode', False)
         
         target_buf = buf_panel if (w, h) == (320, 220) else buf_full
         core.render_into_buffer(p_env, hits, w, h, target_buf)
@@ -1014,7 +1116,8 @@ class Engine3D:
             'hits': hits,
             'dt': float(getattr(env, 'dt', 0.04)),
             'paused': bool(getattr(env, 'paused', False)),
-            'manual_mode': bool(getattr(env, 'manual_mode', False))
+            'manual_mode': bool(getattr(env, 'manual_mode', False)),
+            'blind_mode': bool(getattr(env, 'blind_mode', False))
         }
         
         self.parent_conn.send(req)

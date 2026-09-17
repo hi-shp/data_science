@@ -160,12 +160,14 @@ class BoatEnv:
         self.layout = get_dashboard_layout(self.w, self.sim_h)
         self.panel_3d_rect = pygame.Rect(self.layout['p3_x'], self.sim_h + 35, 320, 220)
         
-        # 사용자 직접 수동 조종(RC) 모드 변수
+        # RC 조종기 모드 및 블라인드 시연 모드
         self.manual_mode = False
         self.manual_throttle = 0.0
         self.manual_steer = 0.0
         self.saved_manual_state = None
         self.rc_btn_rect = None
+        self.blind_mode = False
+        self.blind_btn_rect = None
         
         self.renderer = EnvRenderer(self)
         self.reset()
@@ -246,6 +248,11 @@ class BoatEnv:
             self.toggle_manual_mode()
             return
 
+        # 0-1. 눈 깜빡임(블라인드 시연 모드) 토글 버튼 클릭 (RC 모드 상태에서만 활성화)
+        if getattr(self, 'manual_mode', False) and getattr(self, 'blind_btn_rect', None) and self.blind_btn_rect.collidepoint(pos):
+            self.toggle_blind_mode()
+            return
+
         # 1. 3D 전체화면/2D 화면 교체 버튼 클릭 (메인 화면 좌측 하단)
         view_rect = getattr(self, 'view_btn_rect', getattr(self, 'view_btn_top_rect', None))
         if view_rect and view_rect.collidepoint(pos):
@@ -322,10 +329,14 @@ class BoatEnv:
         flags = pygame.FULLSCREEN if self.is_fullscreen_window else 0
         self.screen = pygame.display.set_mode((self.w, self.h), flags)
 
+    def toggle_blind_mode(self):
+        """블라인드 모드 토글: 라이다 탐지 반경(6.4m / 320px) 이외 시야 암전 처리 및 원 테두리 목표점 위치 표출"""
+        self.blind_mode = not getattr(self, 'blind_mode', False)
+
     def toggle_manual_mode(self):
         """RC 조종기 모드 토글: 3D 전체화면 즉시 전환 및 WASD 수동 조종 활성화, 복귀 시 이전 세팅 복원 및 새 에피소드 시작"""
         if not getattr(self, 'manual_mode', False):
-            # 1. 수동 조종 모드 진입: 현재 세팅 저장 후 3D 전체화면 전환
+            # 1. 수동 조종 모드 진입: 현재 세팅 저장 후 3D 전체화면 전환 및 새 에피소드 시작
             self.saved_manual_state = {
                 'fullscreen_3d': getattr(self, 'fullscreen_3d', False),
                 'cam_3d_mode': getattr(self, 'cam_3d_mode', 1),
@@ -340,13 +351,17 @@ class BoatEnv:
                 'linetrace_mode': getattr(self, 'linetrace_mode', False),
             }
             self.manual_mode = True
+            self.blind_mode = False  # 진입 시 기본 블라인드 OFF
             self.fullscreen_3d = True  # 즉시 3D View 전체화면 전환 (2D는 하단 패널로 자동 스왑)
             self.sim_speed = 1
             self.manual_throttle = 0.0
             self.manual_steer = 0.0
+            self.reset()  # 사용자 요청: RC 모드 진입할 때도 새 에피소드 생성
         else:
             # 2. 수동 조종 모드 종료: 조종 모드 이전 세팅 완벽 복원 후 새 에피소드 리셋
             self.manual_mode = False
+            self.blind_mode = False
+            self.blind_btn_rect = None
             saved = getattr(self, 'saved_manual_state', None)
             if saved:
                 self.fullscreen_3d = saved.get('fullscreen_3d', False)

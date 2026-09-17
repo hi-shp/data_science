@@ -398,6 +398,76 @@ class EnvRenderer:
         # 선박 형상 정밀 렌더링 (스크린 좌표)
         self._draw_boat_hull(sbx, sby, ch, sh, target_surf=target_surf)
 
+        # 7. 라이다 블라인드 시연 모드 (LiDAR Blind Vision Darkness Mask)
+        # 사용자 요청: 라이다 범위 내에만 시야를 밝혀두고 나머진 검은색으로 다 뜨도록 하고, 검은색 원 테두리에 도착 지점이 어디인지만 표시
+        if getattr(env, 'blind_mode', False):
+            surf_w, surf_h = target_surf.get_size()
+            if not hasattr(self, '_blind_mask_surf') or self._blind_mask_surf.get_size() != (surf_w, surf_h):
+                self._blind_mask_surf = pygame.Surface((surf_w, surf_h), pygame.SRCALPHA)
+            
+            # (1) 암전 마스크 생성 및 원형 라이다 시야 천공
+            mask = self._blind_mask_surf
+            mask.fill((0, 0, 0, 255))
+            r_lidar = int(env.lidar_range)
+            pygame.draw.circle(mask, (0, 0, 0, 0), (int(sbx), int(sby)), r_lidar)
+            target_surf.blit(mask, (0, 0))
+            
+            # (2) 라이다 시야 원 테두리 발광 링 렌더링
+            pygame.draw.circle(target_surf, (0, 220, 255), (int(sbx), int(sby)), r_lidar, 2)
+            pygame.draw.circle(target_surf, (0, 160, 255, 80), (int(sbx), int(sby)), r_lidar + 1, 1)
+            
+            # (3) 원 테두리 상에 도착 지점(Target) 방향 및 거리 지시 표식 렌더링
+            dx_t = env.target[0] - env.boat_pos[0]
+            dy_t = env.target[1] - env.boat_pos[1]
+            dist_t = math.hypot(dx_t, dy_t)
+            ang_t = math.atan2(dy_t, dx_t)
+            
+            # 원 테두리 상의 목표점 교차 좌표
+            rim_x = sbx + math.cos(ang_t) * r_lidar
+            rim_y = sby + math.sin(ang_t) * r_lidar
+            
+            # 펄스 헤일로 및 네온 그린 비콘 마커
+            pulse = math.sin(env.frame * 0.15) * 3.0
+            pygame.draw.circle(target_surf, (0, 255, 120, 90), (int(rim_x), int(rim_y)), int(14 + pulse), 2)
+            
+            # 다이아몬드 마커
+            dm_r = 7
+            irx, iry = int(rim_x), int(rim_y)
+            diamond_pts = [
+                (irx, iry - dm_r),
+                (irx + dm_r, iry),
+                (irx, iry + dm_r),
+                (irx - dm_r, iry)
+            ]
+            pygame.draw.polygon(target_surf, (40, 255, 110), diamond_pts)
+            pygame.draw.polygon(target_surf, (255, 255, 255), diamond_pts, 1)
+            
+            # 목표 방향 화살표 지시선 (원 테두리 바깥 방향)
+            arr_len = 16
+            ax = irx + int(math.cos(ang_t) * arr_len)
+            ay = iry + int(math.sin(ang_t) * arr_len)
+            pygame.draw.line(target_surf, (80, 255, 140), (irx, iry), (ax, ay), 3)
+            
+            # 도착 지점 거리 정보 배지 (예: "GOAL 24.5m")
+            dist_m = dist_t / 50.0
+            badge_txt = f"GOAL {dist_m:.1f}m"
+            lbl_badge = self.bold_font.render(badge_txt, True, (80, 255, 150))
+            badge_w = lbl_badge.get_width() + 10
+            badge_h = lbl_badge.get_height() + 4
+            
+            # 배지 위치: 테두리 안쪽으로 약간 오프셋하여 화면 및 마스크 내 가독성 확보
+            tag_offset = 32
+            bx_tag = rim_x - math.cos(ang_t) * tag_offset - badge_w / 2
+            by_tag = rim_y - math.sin(ang_t) * tag_offset - badge_h / 2
+            bx_tag = max(8, min(surf_w - badge_w - 8, bx_tag))
+            by_tag = max(8, min(surf_h - badge_h - 8, by_tag))
+            
+            tag_surf = pygame.Surface((badge_w, badge_h), pygame.SRCALPHA)
+            tag_surf.fill((10, 30, 20, 210))
+            pygame.draw.rect(tag_surf, (40, 255, 120), (0, 0, badge_w, badge_h), 1, border_radius=3)
+            tag_surf.blit(lbl_badge, (5, 2))
+            target_surf.blit(tag_surf, (int(bx_tag), int(by_tag)))
+
     def _draw_minimap(self):
         """전체 맵에서 현재 위치를 표시하는 미니맵 오버레이 (주행화면 우측 하단)"""
         env = self.env
@@ -417,8 +487,12 @@ class EnvRenderer:
         pygame.draw.rect(mm_surf, (8, 18, 38, 200), (0, 0, mm_w + 4, mm_h + 4), border_radius=3)
         pygame.draw.rect(mm_surf, (40, 100, 160, 180), (2, 2, mm_w, mm_h), border_radius=2)
         
-        # 장애물 (작은 빨간 점)
+        # 장애물 (작은 빨간 점) - 블라인드 모드 시 라이다 범위 밖 장애물은 은닉
+        is_blind = getattr(env, 'blind_mode', False)
         for ox, oy, r in env.dynamic_obstacles:
+            if is_blind:
+                if math.hypot(ox - env.boat_pos[0], oy - env.boat_pos[1]) > env.lidar_range:
+                    continue
             mx = int(2 + ox * scale_x)
             my = int(2 + oy * scale_y)
             pygame.draw.circle(mm_surf, (220, 60, 40, 200), (mx, my), max(1, int(r * scale_x)))
@@ -1424,74 +1498,102 @@ class EnvRenderer:
         
         env.screen.blit(hud_surf, (hud_x, hud_y))
 
-        # --- 우측 상단 텔레메트리 HUD 하단: RC 조종기 모양 아이콘 버튼 ---
-        btn_x = hud_x
+        # --- 우측 상단 텔레메트리 HUD 하단: 간략화된 조이스틱 아이콘 버튼 & 눈 깜빡임(블라인드 모드) 버튼 ---
+        # 사용자 요청: 게임기 말고 조이스틱 아이콘만 글자 없이 간략한 버튼으로 수정, RC 모드 진입 시 그 옆에 눈 깜빡임 버튼 표시
         btn_y = hud_y + hud_h + 8
-        btn_w = hud_w
-        btn_h = 38
-        rc_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+        rc_btn_w, rc_btn_h = 42, 38
+        rc_x = hud_x
+        rc_rect = pygame.Rect(rc_x, btn_y, rc_btn_w, rc_btn_h)
         env.rc_btn_rect = rc_rect
 
         mpos = pygame.mouse.get_pos()
         is_hover = rc_rect.collidepoint(mpos)
         is_manual = getattr(env, 'manual_mode', False)
 
-        rc_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
+        rc_surf = pygame.Surface((rc_btn_w, rc_btn_h), pygame.SRCALPHA)
 
         if is_manual:
-            # 활성화(RC ON) 상태: 앰버/골드 네온 글로우 스타일
-            bg_col = (48, 30, 10, 235) if is_hover else (36, 22, 8, 220)
-            border_col = (255, 190, 30) if is_hover else (240, 160, 20)
+            # 활성화(RC 수동 조종 중) 상태: 앰버/골드 네온 글로우 스타일
+            bg_col = (48, 30, 10, 240) if is_hover else (36, 22, 8, 220)
+            border_col = (255, 195, 30) if is_hover else (240, 160, 20)
             border_w = 2
-            txt_main_col = (255, 220, 80)
-            txt_sub_col = (255, 180, 120)
-            status_led_col = (255, 200, 30)
-            icon_accent = (255, 210, 50)
-            main_label = "RC ACTIVE [WASD]"
-            sub_label = "Click: Reset & Exit"
+            ball_col = (255, 85, 45)
+            accent_col = (255, 200, 40)
         else:
-            # 비활성화(AUTO NAV) 상태: 사이언/다크 네이비 글래스모피즘
+            # 비활성화(자율운항) 상태: 사이언/다크 네이비 글래스모피즘
             bg_col = (16, 38, 62, 235) if is_hover else (10, 25, 45, 210)
             border_col = (0, 230, 255) if is_hover else (0, 150, 210)
             border_w = 1 if not is_hover else 2
-            txt_main_col = (225, 245, 255)
-            txt_sub_col = (130, 190, 225)
-            status_led_col = (0, 240, 160)
-            icon_accent = (0, 210, 255)
-            main_label = "RC MANUAL DRIVE"
-            sub_label = "WASD / Arrow Keys"
+            ball_col = (0, 200, 240)
+            accent_col = (0, 210, 255)
 
-        pygame.draw.rect(rc_surf, bg_col, (0, 0, btn_w, btn_h), border_radius=5)
-        pygame.draw.rect(rc_surf, border_col, (0, 0, btn_w, btn_h), border_w, border_radius=5)
+        pygame.draw.rect(rc_surf, bg_col, (0, 0, rc_btn_w, rc_btn_h), border_radius=6)
+        pygame.draw.rect(rc_surf, border_col, (0, 0, rc_btn_w, rc_btn_h), border_w, border_radius=6)
 
-        # 조종기 (Remote Controller / Gamepad) 정밀 벡터 아이콘 렌더링
-        ix, iy = 8, 8
-        # 안테나
-        pygame.draw.line(rc_surf, icon_accent, (ix + 15, iy), (ix + 15, iy + 4), 2)
-        pygame.draw.circle(rc_surf, status_led_col, (ix + 15, iy - 1), 2)
+        # 조이스틱(Joystick) 정밀 벡터 아이콘 렌더링 (글자 일체 없이 심플하게 표현)
+        cx, cy = 21, 19
+        # 1) 조이스틱 원형 베이스 플레이트
+        pygame.draw.ellipse(rc_surf, (20, 32, 48), (cx - 10, cy + 4, 20, 9))
+        pygame.draw.ellipse(rc_surf, accent_col, (cx - 10, cy + 4, 20, 9), 1)
+        pygame.draw.ellipse(rc_surf, (10, 16, 26), (cx - 5, cy + 5, 10, 5))
+        # 2) 메탈 샤프트 (금속 지지대)
+        pygame.draw.line(rc_surf, (175, 195, 215), (cx, cy + 5), (cx - 2, cy - 4), 3)
+        pygame.draw.line(rc_surf, (245, 250, 255), (cx - 1, cy + 4), (cx - 2, cy - 4), 1)
+        # 3) 조이스틱 볼 노브 (상단 원형 손잡이 + 스펙큘러 하이라이트)
+        pygame.draw.circle(rc_surf, ball_col, (cx - 2, cy - 6), 6)
+        pygame.draw.circle(rc_surf, (255, 255, 255), (cx - 4, cy - 8), 2)
 
-        # 조종기 본체
-        pygame.draw.rect(rc_surf, (22, 44, 70), (ix + 2, iy + 4, 26, 17), border_radius=4)
-        pygame.draw.rect(rc_surf, icon_accent, (ix + 2, iy + 4, 26, 17), 1, border_radius=4)
+        # 활성화 시 미세 LED 인디케이터 점등
+        if is_manual:
+            pygame.draw.circle(rc_surf, (255, 210, 40), (rc_btn_w - 6, 6), 2)
 
-        # 좌측 D-패드 (WASD 십자키 형상)
-        pygame.draw.line(rc_surf, (255, 255, 255), (ix + 5, iy + 12), (ix + 11, iy + 12), 2)
-        pygame.draw.line(rc_surf, (255, 255, 255), (ix + 8, iy + 9), (ix + 8, iy + 15), 2)
+        env.screen.blit(rc_surf, (rc_x, btn_y))
 
-        # 우측 액션 버튼
-        pygame.draw.circle(rc_surf, status_led_col, (ix + 20, iy + 10), 2)
-        pygame.draw.circle(rc_surf, icon_accent, (ix + 24, iy + 14), 2)
+        # --- RC 모드 진입 시에만 그 옆에 나타나는 눈 깜빡임(블라인드 시연 모드) 토글 버튼 ---
+        if is_manual:
+            eye_btn_w, eye_btn_h = 42, 38
+            eye_x = rc_x + 48
+            eye_rect = pygame.Rect(eye_x, btn_y, eye_btn_w, eye_btn_h)
+            env.blind_btn_rect = eye_rect
 
-        # 중앙 트윈 조이스틱 노브
-        pygame.draw.circle(rc_surf, (15, 25, 40), (ix + 12, iy + 17), 3)
-        pygame.draw.circle(rc_surf, (200, 225, 255), (ix + 12, iy + 17), 1)
-        pygame.draw.circle(rc_surf, (15, 25, 40), (ix + 18, iy + 17), 3)
-        pygame.draw.circle(rc_surf, (200, 225, 255), (ix + 18, iy + 17), 1)
+            is_eye_hover = eye_rect.collidepoint(mpos)
+            is_blind = getattr(env, 'blind_mode', False)
 
-        # 텍스트 레이블 (메인 제목 + 보조 설명)
-        t_main = self.font.render(main_label, True, txt_main_col)
-        t_sub = self.micro_font.render(sub_label, True, txt_sub_col)
-        rc_surf.blit(t_main, (44, 4))
-        rc_surf.blit(t_sub, (46, 21))
+            eye_surf = pygame.Surface((eye_btn_w, eye_btn_h), pygame.SRCALPHA)
 
-        env.screen.blit(rc_surf, (btn_x, btn_y))
+            if is_blind:
+                # 블라인드 모드 ON: 마젠타/바이올렛 네온 하이라이트
+                eye_bg = (44, 16, 56, 240) if is_eye_hover else (34, 12, 44, 220)
+                eye_border = (255, 70, 200) if is_eye_hover else (230, 45, 170)
+                eye_border_w = 2
+                eye_accent = (255, 120, 220)
+                iris_col = (255, 50, 150)
+            else:
+                # 블라인드 모드 OFF (일반 시야): 사이언/다크 네이비 글래스모피즘
+                eye_bg = (16, 38, 62, 235) if is_eye_hover else (10, 25, 45, 210)
+                eye_border = (0, 230, 255) if is_eye_hover else (0, 150, 210)
+                eye_border_w = 1 if not is_eye_hover else 2
+                eye_accent = (0, 210, 255)
+                iris_col = (0, 190, 240)
+
+            pygame.draw.rect(eye_surf, eye_bg, (0, 0, eye_btn_w, eye_btn_h), border_radius=6)
+            pygame.draw.rect(eye_surf, eye_border, (0, 0, eye_btn_w, eye_btn_h), eye_border_w, border_radius=6)
+
+            # 눈(Eye) 정밀 벡터 아이콘 렌더링
+            ecx, ecy = 21, 19
+            # 상단 및 하단 눈꺼풀 호(Arc)
+            pygame.draw.arc(eye_surf, eye_accent, (ecx - 12, ecy - 10, 24, 18), 0.18 * math.pi, 0.82 * math.pi, 2)
+            pygame.draw.arc(eye_surf, eye_accent, (ecx - 12, ecy - 10, 24, 18), 1.18 * math.pi, 1.82 * math.pi, 2)
+            # 홍채 및 동공
+            pygame.draw.circle(eye_surf, iris_col, (ecx, ecy), 4)
+            pygame.draw.circle(eye_surf, (10, 15, 25), (ecx, ecy), 2)
+            pygame.draw.circle(eye_surf, (255, 255, 255), (ecx - 1, ecy - 1), 1)
+
+            # 블라인드(시야 제한) 활성화 시 눈 가림 대각 슬래시 라인 표출
+            if is_blind:
+                pygame.draw.line(eye_surf, (255, 75, 75), (ecx - 10, ecy - 7), (ecx + 10, ecy + 7), 2)
+                pygame.draw.circle(eye_surf, (255, 60, 190), (eye_btn_w - 6, 6), 2)
+
+            env.screen.blit(eye_surf, (eye_x, btn_y))
+        else:
+            env.blind_btn_rect = None
