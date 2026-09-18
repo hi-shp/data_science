@@ -477,22 +477,20 @@ class BoatEnv:
             target_fwd = m_thr * 5500.0
             mom = (tR - tL) * self.params['mom_coeff']
         else:
-            # 220도 범위 내 최소 장애물 거리에 따른 연속 속도 제어
+            # 220도 범위 내 최소 장애물 거리에 따른 연속 속도 제어 (줄어드는 기울기를 완만하게 조정)
             em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-            # 거리 감속: 급격한 선속 소실을 차단하고 최소 0.65의 추진력 보장
-            dist_speed_factor = max(0.65, math.tanh(em_dist / 45.0))
+            dist_speed_factor = math.tanh(em_dist / 30.0) ** 0.5
             
-            # 회전 각도에 따른 감속 완화 (과도한 속도 증발 차단)
+            # 회전해야 하는 각도(헤딩 오차 및 조향 명령 강도)에 따른 감속 기울기 완화
             turn_err = abs(wrap(self.heading_target - self.boat_heading))
             steer_angle_equiv = abs(getattr(self, 'prev_steer', 0.0)) * (math.pi * 0.5)
             effective_turn_angle = max(turn_err, steer_angle_equiv)
             
-            # 반각 코사인 모델 적용: 0도 1.0, 45도 0.92, 90도 0.71, 최소 하한선 0.60 보장
-            turn_cos = math.cos(min(math.pi * 0.5, effective_turn_angle * 0.5))
-            turn_speed_factor = max(0.60, turn_cos)
+            # 완만한 코사인 지수 함수 적용 (최저속도 강제 클램프 없이 자연스러운 감속 곡선 유지)
+            turn_cos = max(0.0, math.cos(min(math.pi * 0.5, effective_turn_angle)))
+            turn_speed_factor = turn_cos ** 0.35
             
-            # 거리와 각도 감속의 이중 중첩(곱셈) 배제: min 선택 및 전체 하한선 0.55 보장으로 시원한 통과력 확보
-            speed_factor = max(0.55, min(dist_speed_factor, turn_speed_factor))
+            speed_factor = dist_speed_factor * turn_speed_factor
             
             # 라인트레이싱 모드에서는 갭 내비 대비 살짝 느린 속도 (85%)로 주행하여 반응형 회피에 여유 확보
             if getattr(self, 'linetrace_mode', False):
