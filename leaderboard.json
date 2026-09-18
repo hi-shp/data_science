@@ -214,5 +214,37 @@
     "cumulative_turn_deg": 448.8,
     "date": "2026-09-18 13:58",
     "timestamp": 1789707537.090537
+  },
+  {
+    "player": "Player",
+    "collisions": 0,
+    "time": 17.54,
+    "cumulative_turn_deg": 438.1,
+    "date": "2026-09-18 15:49",
+    "timestamp": 1789714148.2489052
+  },
+  {
+    "player": "Player",
+    "collisions": 0,
+    "time": 19.32,
+    "cumulative_turn_deg": 503.8,
+    "date": "2026-09-18 15:49",
+    "timestamp": 1789714169.3455286
+  },
+  {
+    "player": "Player",
+    "collisions": 1,
+    "time": 18.86,
+    "cumulative_turn_deg": 380.2,
+    "date": "2026-09-18 15:49",
+    "timestamp": 1789714189.2034528
+  },
+  {
+    "player": "Player",
+    "collisions": 0,
+    "time": 18.03,
+    "cumulative_turn_deg": 222.6,
+    "date": "2026-09-18 15:50",
+    "timestamp": 1789714208.2515855
   }
 ]
