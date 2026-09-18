@@ -72,12 +72,12 @@ def run():
                 map_bounds=map_bounds
             )
             env.render(hits)
-            env.clock.tick(60)
+            env.clock.tick(120)
             continue
 
-        # 실시간 배속 설정에 따른 서브스텝 반복 실행 (4배속까지 100% 연산율 유지)
+        # 실시간 배속 설정에 따른 서브스텝 반복 실행 (120 FPS 타겟: 4배속까지 물리 연산 100% 보존 및 적응형 인지/탐색 주기)
         sub_steps = max(1, int(getattr(env, 'sim_speed', 1)))
-        plan_interval = 1 if sub_steps <= 4 else 3
+        plan_interval = sub_steps
         hits = None
         new_wp = None
         
@@ -323,10 +323,7 @@ def run():
                     else:
                         env.next_wp = None
 
-                env.path_timer += env.dt
-                if env.path_timer >= 0.01:
-                    env.path_timer = 0
-                    
+                if should_plan:
                     boat_spd = math.hypot(env.boat_vel[0], env.boat_vel[1])
                     if env.current_wp is None:
                         # 목적지 직행 상황: 과도한 160px 외측 대우회를 방지하고 틈새로 직진 진입하도록 클리어런스 완화 (min_clearance=8.0)
@@ -417,7 +414,7 @@ def run():
 
         if hits is not None:
             env.render(hits)
-        env.clock.tick(60)
+        env.clock.tick(120)
 
 if __name__ == "__main__":
     run()
