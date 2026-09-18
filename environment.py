@@ -12,7 +12,10 @@ from navigation import reactive_avoidance
 from ui_renderer import EnvRenderer
 
 class BoatEnv:
-    def __init__(self):
+    def __init__(self, render_enabled=True):
+        self.render_enabled = render_enabled
+        if not render_enabled:
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
         os.environ['SDL_VIDEO_CENTERED'] = '1'
         pygame.init()
         self.w = WIDTH
@@ -21,8 +24,11 @@ class BoatEnv:
         self.cam_x = 0      # 카메라 X 오프셋 (보트 추종)
         self.sim_h = SIM_H
         self.is_fullscreen_window = False
-        self.screen = pygame.display.set_mode((self.w, self.h))
-        pygame.display.set_caption("kaboat simulation")
+        if render_enabled:
+            self.screen = pygame.display.set_mode((self.w, self.h))
+            pygame.display.set_caption("kaboat simulation")
+        else:
+            self.screen = pygame.Surface((self.w, self.h))
         self.clock = pygame.time.Clock()
         self.dt = 0.04
 
@@ -181,7 +187,10 @@ class BoatEnv:
         self.leaderboard_retry_rect = None
         self.leaderboard_exit_rect = None
         
-        self.renderer = EnvRenderer(self)
+        if render_enabled:
+            self.renderer = EnvRenderer(self)
+        else:
+            self.renderer = None
         self.reset()
 
     def load_params(self):
@@ -448,8 +457,8 @@ class BoatEnv:
         self.dynamic_obstacles[:, 0] = ox + np.sin(phase) * (r * 0.2)
         self.dynamic_obstacles[:, 1] = oy + np.cos(phase * 1.2) * (r * 0.2)
         
-        # 부표 중앙을 기준으로 부드러운 백색 원형 구름 파도가 주기적으로 퍼져나감
-        if self.frame % 36 == 0:
+        # 부표 중앙을 기준으로 부드러운 백색 원형 구름 파도가 주기적으로 퍼져나감 (렌더링 활성화 시에만 생성)
+        if self.render_enabled and self.frame % 36 == 0:
             for i in range(len(self.obstacles)):
                 self.reflected_wakes.append([
                     self.dynamic_obstacles[i, 0], self.dynamic_obstacles[i, 1], r[i] + 1.0, 72
@@ -517,7 +526,7 @@ class BoatEnv:
             self.boat_pos[0] = np.clip(self.boat_pos[0], 25, self.map_w - 25)
             self.boat_pos[1] = np.clip(self.boat_pos[1], 25, self.sim_h - 25)
         
-        if self.frame % 7 == 0:
+        if self.render_enabled and self.frame % 7 == 0:
             pygame.draw.line(self.trail, (255, 255, 255, 60),
                              (int(prev[0]), int(prev[1])),
                              (int(self.boat_pos[0]), int(self.boat_pos[1])), 2)
@@ -548,84 +557,85 @@ class BoatEnv:
         lat_vec = np.array([-math.sin(self.boat_heading), math.cos(self.boat_heading)])
         self.boat_pos += lat_vec * (self.boat_ang_vel * L_pivot * self.dt)
 
-        # 실제 선박 유체역학 파도 생성 (Realistic Hydrodynamic Wave System)
-        if vel_norm > 2.0:
-            h = self.boat_heading
-            intensity = min(1.0, vel_norm / 11.0)
-            sh = math.sin(h); ch = math.cos(h)
-            GAP = 11; L = 84
+        # 실제 선박 유체역학 파도 생성 (Realistic Hydrodynamic Wave System) - 렌더링 활성화 시에만 실행
+        if self.render_enabled:
+            if vel_norm > 2.0:
+                h = self.boat_heading
+                intensity = min(1.0, vel_norm / 11.0)
+                sh = math.sin(h); ch = math.cos(h)
+                GAP = 11; L = 84
 
-            # 선미 듀얼 쓰러스터 추진 제트 기포 및 후방 횡단 웨이크 (Enlarged Stern Roostertail & Trailing Foam)
-            if self.frame % 2 == 0:
-                stern_lx = self.boat_pos[0] - sh * GAP - ch * (L * 0.50)
-                stern_ly = self.boat_pos[1] + ch * GAP - sh * (L * 0.50)
-                stern_rx = self.boat_pos[0] + sh * GAP - ch * (L * 0.50)
-                stern_ry = self.boat_pos[1] - ch * GAP - sh * (L * 0.50)
-                
-                self.wakes.append([stern_lx + random.uniform(-1.5, 1.5), stern_ly + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
-                self.wakes.append([stern_rx + random.uniform(-1.5, 1.5), stern_ry + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
-                
-            if self.frame % 3 == 0:
-                cx = self.boat_pos[0] - ch * 42
-                cy = self.boat_pos[1] - sh * 42
-                self.wakes.append([cx + random.uniform(-2.5, 2.5), cy + random.uniform(-2.5, 2.5), 4.5, 130 * intensity, -ch * 0.85, -sh * 0.85])
+                # 선미 듀얼 쓰러스터 추진 제트 기포 및 후방 횡단 웨이크 (Enlarged Stern Roostertail & Trailing Foam)
+                if self.frame % 2 == 0:
+                    stern_lx = self.boat_pos[0] - sh * GAP - ch * (L * 0.50)
+                    stern_ly = self.boat_pos[1] + ch * GAP - sh * (L * 0.50)
+                    stern_rx = self.boat_pos[0] + sh * GAP - ch * (L * 0.50)
+                    stern_ry = self.boat_pos[1] - ch * GAP - sh * (L * 0.50)
+                    
+                    self.wakes.append([stern_lx + random.uniform(-1.5, 1.5), stern_ly + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
+                    self.wakes.append([stern_rx + random.uniform(-1.5, 1.5), stern_ry + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
+                    
+                if self.frame % 3 == 0:
+                    cx = self.boat_pos[0] - ch * 42
+                    cy = self.boat_pos[1] - sh * 42
+                    self.wakes.append([cx + random.uniform(-2.5, 2.5), cy + random.uniform(-2.5, 2.5), 4.5, 130 * intensity, -ch * 0.85, -sh * 0.85])
 
-            # 좌/우 회전 시 외측 선체 유체 저항에 의한 흰색 거품 (Outer Hull Resistance Foam)
-            if abs(self.boat_ang_vel) > 0.06:
-                turn_p = min(1.0, abs(self.boat_ang_vel) / 0.42) * intensity
-                s = 1.0 if self.boat_ang_vel < 0 else -1.0
-                
-                rand_l = random.uniform(-L * 0.25, L * 0.15)
-                bx_foam = self.boat_pos[0] + s * (-sh) * (GAP + random.uniform(1.5, 4.0)) + ch * rand_l
-                by_foam = self.boat_pos[1] + s * ch * (GAP + random.uniform(1.5, 4.0)) + sh * rand_l
-                
-                drift_vx = s * (-sh) * random.uniform(0.3, 0.7) - ch * 0.35
-                drift_vy = s * ch * random.uniform(0.3, 0.7) - sh * 0.35
-                init_r = random.uniform(2.0, 3.5)
-                alpha = random.uniform(140, 200) * turn_p
-                
-                # 7번째 원소=1: 순백색 거품 태그 (뷰쪽 파란색 링 없이 흰색만)
-                self.wakes.append([bx_foam, by_foam, init_r, alpha, drift_vx, drift_vy, 1])
+                # 좌/우 회전 시 외측 선체 유체 저항에 의한 흰색 거품 (Outer Hull Resistance Foam)
+                if abs(self.boat_ang_vel) > 0.06:
+                    turn_p = min(1.0, abs(self.boat_ang_vel) / 0.42) * intensity
+                    s = 1.0 if self.boat_ang_vel < 0 else -1.0
+                    
+                    rand_l = random.uniform(-L * 0.25, L * 0.15)
+                    bx_foam = self.boat_pos[0] + s * (-sh) * (GAP + random.uniform(1.5, 4.0)) + ch * rand_l
+                    by_foam = self.boat_pos[1] + s * ch * (GAP + random.uniform(1.5, 4.0)) + sh * rand_l
+                    
+                    drift_vx = s * (-sh) * random.uniform(0.3, 0.7) - ch * 0.35
+                    drift_vy = s * ch * random.uniform(0.3, 0.7) - sh * 0.35
+                    init_r = random.uniform(2.0, 3.5)
+                    alpha = random.uniform(140, 200) * turn_p
+                    
+                    # 7번째 원소=1: 순백색 거품 태그 (뷰쪽 파란색 링 없이 흰색만)
+                    self.wakes.append([bx_foam, by_foam, init_r, alpha, drift_vx, drift_vy, 1])
 
-        # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering)
-        if len(self.wakes) > 0 and len(self.dynamic_obstacles) > 0:
-            bx, by = self.boat_pos
-            dx_b = self.dynamic_obstacles[:, 0] - bx
-            dy_b = self.dynamic_obstacles[:, 1] - by
-            near_mask = dx_b * dx_b + dy_b * dy_b < 32400.0  # 180.0**2
-            if np.any(near_mask):
-                near_obs = self.dynamic_obstacles[near_mask]
-                near_list = [(float(row[0]), float(row[1]), float(row[2])) for row in near_obs]
-                for w in self.wakes:
-                    if w[3] <= 0:
-                        continue
-                    wx, wy = w[0], w[1]
-                    absorbed = False
-                    for ox, oy, orad in near_list:
-                        dx = wx - ox
-                        dy = wy - oy
-                        d = math.hypot(dx, dy)
-                        
-                        # 1. 장애물 내부로 들어간 파도는 완전히 소멸/흡수 (Absorption)
-                        if d < orad + 2.0:
-                            w[3] = 0
-                            absorbed = True
-                            break
-                        
-                        # 2. 장애물 둘레에 파도가 닿으면 나노 거품 반사 산란
-                        if w[3] > 35 and abs(d - (w[2] + orad)) < 5.0:
-                            if random.random() < 0.35:
-                                for _ in range(random.randint(2, 4)):
-                                    angle = math.atan2(dy, dx) + random.uniform(-0.8, 0.8)
-                                    spd = random.uniform(0.8, 1.8)
-                                    fx = ox + math.cos(angle) * (orad + random.uniform(0.8, 2.2))
-                                    fy = oy + math.sin(angle) * (orad + random.uniform(0.8, 2.2))
-                                    self.reflected_wakes.append([
-                                        fx, fy, random.uniform(0.3, 0.65), w[3] * 0.85,
-                                        math.cos(angle) * spd, math.sin(angle) * spd
-                                    ])
-                    if absorbed:
-                        continue
+            # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering)
+            if len(self.wakes) > 0 and len(self.dynamic_obstacles) > 0:
+                bx, by = self.boat_pos
+                dx_b = self.dynamic_obstacles[:, 0] - bx
+                dy_b = self.dynamic_obstacles[:, 1] - by
+                near_mask = dx_b * dx_b + dy_b * dy_b < 32400.0  # 180.0**2
+                if np.any(near_mask):
+                    near_obs = self.dynamic_obstacles[near_mask]
+                    near_list = [(float(row[0]), float(row[1]), float(row[2])) for row in near_obs]
+                    for w in self.wakes:
+                        if w[3] <= 0:
+                            continue
+                        wx, wy = w[0], w[1]
+                        absorbed = False
+                        for ox, oy, orad in near_list:
+                            dx = wx - ox
+                            dy = wy - oy
+                            d = math.hypot(dx, dy)
+                            
+                            # 1. 장애물 내부로 들어간 파도는 완전히 소멸/흡수 (Absorption)
+                            if d < orad + 2.0:
+                                w[3] = 0
+                                absorbed = True
+                                break
+                            
+                            # 2. 장애물 둘레에 파도가 닿으면 나노 거품 반사 산란
+                            if w[3] > 35 and abs(d - (w[2] + orad)) < 5.0:
+                                if random.random() < 0.35:
+                                    for _ in range(random.randint(2, 4)):
+                                        angle = math.atan2(dy, dx) + random.uniform(-0.8, 0.8)
+                                        spd = random.uniform(0.8, 1.8)
+                                        fx = ox + math.cos(angle) * (orad + random.uniform(0.8, 2.2))
+                                        fy = oy + math.sin(angle) * (orad + random.uniform(0.8, 2.2))
+                                        self.reflected_wakes.append([
+                                            fx, fy, random.uniform(0.3, 0.65), w[3] * 0.85,
+                                            math.cos(angle) * spd, math.sin(angle) * spd
+                                        ])
+                        if absorbed:
+                            continue
 
     def collide(self):
         bx, by = self.boat_pos
@@ -883,4 +893,5 @@ class BoatEnv:
         self.cam_x = self.cam_x * 0.85 + target_cam_x * 0.15
 
     def render(self, hits):
-        self.renderer.render(hits)
+        if self.renderer is not None:
+            self.renderer.render(hits)
