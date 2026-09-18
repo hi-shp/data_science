@@ -5,19 +5,32 @@ import datetime
 
 LEADERBOARD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "leaderboard.json")
 
-# 자율운항 GAP 알고리즘의 평균 성능 벤치마크 기준치
-# 10,000회 시뮬레이션 및 실시간 3차 베지에-순수추종 알고리즘 기반 통계치:
-# - 충돌 횟수: 평균 0.0회 (무충돌 자율운항)
-# - 도달 시간: 평균 11.8초
-# - 누적 회전 각도: 평균 52.4도
-AI_BENCHMARK = {
-    "name": "GAP 알고리즘",
-    "collisions": 0,
-    "time": 11.8,
-    "cumulative_turn_deg": 52.4,
-    "is_ai": True,
-    "date": "BENCHMARK"
-}
+# 자율운항 GAP 알고리즘 100회 시뮬레이션 기반 고정 벤치마크 (1등 최고 기록 및 평균 기록)
+# - 1등 (최고 기록): 충돌 0회, 화면 표면 시간 18.72초, 누적 회전 313.1도
+# - 평균 기록: 충돌 0회 (성공률 99%), 화면 표면 시간 20.87초, 누적 회전 420.6도
+AI_BENCHMARKS = [
+    {
+        "name": "GAP 알고리즘 (1등)",
+        "player": "GAP 알고리즘 (1등)",
+        "collisions": 0,
+        "time": 18.72,
+        "cumulative_turn_deg": 313.1,
+        "is_ai": True,
+        "date": "GAP 최고"
+    },
+    {
+        "name": "GAP 알고리즘 (평균)",
+        "player": "GAP 알고리즘 (평균)",
+        "collisions": 0,
+        "time": 20.87,
+        "cumulative_turn_deg": 420.6,
+        "is_ai": True,
+        "date": "GAP 평균"
+    }
+]
+
+# 이전 호환성 유지용 객체 (기본: 1등 최고 기록)
+AI_BENCHMARK = AI_BENCHMARKS[0]
 
 def load_leaderboard():
     """leaderboard.json 파일에서 주행 기록 목록 로드"""
@@ -69,12 +82,11 @@ def add_record(collisions, arrival_time, cumulative_turn_deg=0.0, cum_turn=None,
     return new_record
 
 def get_unified_records():
-    """사용자 주행 기록과 자율운항 AI 벤치마크를 통합하여 1, 2, 3순위로 정렬된 전체 기록 반환"""
+    """사용자 주행 기록과 자율운항 AI 벤치마크(1등, 평균)를 통합하여 1, 2, 3순위로 정렬된 전체 기록 반환"""
     records = load_leaderboard()
     all_entries = [dict(r) for r in records]
-    ai_entry = dict(AI_BENCHMARK)
-    ai_entry["player"] = "GAP 알고리즘"
-    all_entries.append(ai_entry)
+    for ai_b in AI_BENCHMARKS:
+        all_entries.append(dict(ai_b))
     all_entries.sort(key=lambda r: (
         r.get("collisions", 999),
         r.get("time", 9999.0),
@@ -90,12 +102,13 @@ def get_top_records(limit=10):
     """상위 N개 통합 기록 반환"""
     return get_unified_records()[:limit]
 
-def get_ai_benchmark_rank():
-    """통합 랭킹에서 AI 알고리즘의 순위(1-indexed) 계산"""
+def get_ai_benchmark_rank(target_name="GAP 알고리즘 (1등)"):
+    """통합 랭킹에서 지정된 AI 알고리즘의 순위(1-indexed) 계산"""
     unified = get_unified_records()
     for idx, r in enumerate(unified):
         if r.get("is_ai", False):
-            return idx + 1
+            if target_name is None or r.get("name") == target_name or r.get("player") == target_name:
+                return idx + 1
     return 1
 
 def get_player_rank(current_record):
