@@ -378,7 +378,7 @@ def run():
             if getattr(env, 'manual_mode', False):
                 if dist_tgt_end < 70 and not getattr(env, 'show_leaderboard', False):
                     # RC 수동 조종 모드 목적지 도달: 랭킹 기록 저장 및 리더보드 모달 표출
-                    elapsed_time = round(time.time() - getattr(env, 'manual_start_time', time.time()), 2)
+                    elapsed_time = round(getattr(env, 'manual_sim_elapsed', 0.0), 2)
                     record = leaderboard.add_record(
                         collisions=env.manual_collisions,
                         arrival_time=elapsed_time,

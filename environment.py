@@ -171,7 +171,7 @@ class BoatEnv:
         self.blind_btn_rect = None
         
         # RC 주행 메트릭스 및 랭킹 시스템
-        self.manual_start_time = time.time()
+        self.manual_sim_elapsed = 0.0
         self.manual_collisions = 0
         self.manual_cum_turn = 0.0
         self.manual_collision_cooldown = 0
@@ -255,7 +255,7 @@ class BoatEnv:
             self.linetrace_queued = False
 
         # RC 주행 메트릭스 리셋
-        self.manual_start_time = time.time()
+        self.manual_sim_elapsed = 0.0
         self.manual_collisions = 0
         self.manual_cum_turn = 0.0
         self.manual_collision_cooldown = 0
@@ -431,7 +431,7 @@ class BoatEnv:
         self.show_leaderboard = False
         self.leaderboard_view_only = False
         self.last_manual_result = None
-        self.manual_start_time = time.time()
+        self.manual_sim_elapsed = 0.0
         self.manual_collisions = 0
         self.manual_cum_turn = 0.0
         self.manual_collision_cooldown = 0
@@ -514,8 +514,10 @@ class BoatEnv:
         d_head = self.boat_ang_vel * self.dt
         self.boat_heading += d_head
         
-        # RC 수동 조종 모드 시 누적 회전 각도 및 비단절 충돌 카운트 추적
+        # RC 수동 조종 모드 시 시뮬레이션 시간 누적, 회전 각도, 충돌 카운트 추적
         if getattr(self, 'manual_mode', False):
+            if not getattr(self, 'show_leaderboard', False):
+                self.manual_sim_elapsed += self.dt
             self.manual_cum_turn = getattr(self, 'manual_cum_turn', 0.0) + math.degrees(abs(d_head))
             if getattr(self, 'manual_collision_flash', 0) > 0:
                 self.manual_collision_flash -= 1

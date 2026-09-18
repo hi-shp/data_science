@@ -1571,7 +1571,7 @@ class EnvRenderer:
 
         if is_manual:
             # 수동 조종 모드 전용 텔레메트리 (도달시간, 누적회전각, 목표거리 - 영문 표기)
-            elapsed_sec = time.time() - getattr(env, 'manual_start_time', time.time())
+            elapsed_sec = getattr(env, 'manual_sim_elapsed', 0.0)
             c_turn = getattr(env, 'manual_cum_turn', 0.0)
 
             time_txt = self.small_font.render(f"Time: {elapsed_sec:.1f} s", True, (220, 235, 255))
@@ -1800,11 +1800,7 @@ class EnvRenderer:
         last_rec = getattr(env, 'last_manual_result', None)
         if last_rec is None:
             cur_coll = getattr(env, 'manual_collisions', 0)
-            m_start = getattr(env, 'manual_start_time', 0.0)
-            if m_start <= 0 or abs(time.time() - m_start) > 86400:
-                cur_time = 0.0
-            else:
-                cur_time = round(time.time() - m_start, 2)
+            cur_time = round(getattr(env, 'manual_sim_elapsed', 0.0), 2)
             cur_turn = round(getattr(env, 'manual_cum_turn', 0.0), 1)
             last_rec = {"collisions": cur_coll, "time": cur_time, "cumulative_turn_deg": cur_turn, "date": "NOW", "timestamp": time.time()}
         else:
