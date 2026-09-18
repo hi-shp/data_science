@@ -294,9 +294,9 @@ def generate_subfig3():
     ax3.axhline(7.0, color='#64748B', lw=4.0, zorder=5)
     ax3.text(0.4, 7.15, "수조 외곽 콘크리트 벽", fontsize=11.5, fontweight='bold', color='#475569')
     
-    b1_x, b1_y = 4.0, 4.4
-    b2_x, b2_y = 4.0, 2.8
-    margin_r = 1.0
+    b1_x, b1_y = 4.0, 4.0
+    b2_x, b2_y = 4.0, 3.2
+    margin_r = 0.5
     
     c1 = Circle((b1_x, b1_y), margin_r, fc='#FEE2E2', ec='#EF4444', lw=1.2, ls='--', alpha=0.6, zorder=2)
     c2 = Circle((b2_x, b2_y), margin_r, fc='#FEE2E2', ec='#EF4444', lw=1.2, ls='--', alpha=0.6, zorder=2)
@@ -304,22 +304,27 @@ def generate_subfig3():
     ax3.add_patch(c2)
     
     # Overlap Hatch
-    ax3.fill_between([3.4, 4.0, 4.6], [3.6, 3.8, 3.6], [3.6, 3.4, 3.6], 
+    ax3.fill_between([3.7, 4.0, 4.3], [3.6, 3.7, 3.6], [3.6, 3.5, 3.6], 
                      color='#DC2626', alpha=0.35, hatch='///', zorder=3)
     
-    ax3.add_patch(Circle((b1_x, b1_y), 0.22, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
-    ax3.add_patch(Circle((b2_x, b2_y), 0.22, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
-    ax3.text(b1_x, b1_y + 0.35, "부표 A", ha='center', va='bottom', fontsize=12.0, fontweight='bold', color='#9A3412')
-    ax3.text(b2_x, b2_y - 0.35, "부표 B", ha='center', va='top', fontsize=12.0, fontweight='bold', color='#9A3412')
+    ax3.add_patch(Circle((b1_x, b1_y), 0.16, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
+    ax3.add_patch(Circle((b2_x, b2_y), 0.16, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
+    ax3.text(b1_x + 0.22, b1_y, "부표 A", ha='left', va='center', fontsize=11.5, fontweight='bold', color='#9A3412')
+    ax3.text(b2_x + 0.22, b2_y, "부표 B", ha='left', va='center', fontsize=11.5, fontweight='bold', color='#9A3412')
     
-    ax3.annotate('안전마진 중첩 구간\n(0.4m 겹침 발생)', xy=(3.8, 3.6), xytext=(2.2, 2.7),
+    ax3.annotate('안전마진 중첩 구간\n(0.2m 겹침 발생)', xy=(3.9, 3.6), xytext=(2.2, 2.7),
                  arrowprops=dict(arrowstyle='->', color='#991B1B', lw=1.4),
                  ha='center', va='center', fontsize=10.8, fontweight='bold', color='#991B1B',
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_DANGER_BORDER, lw=0.9), zorder=15)
     
-    ax3.annotate('', xy=(4.0, 4.18), xytext=(4.0, 3.02),
+    ax3.annotate('', xy=(4.0, 3.95), xytext=(4.0, 3.25),
                  arrowprops=dict(arrowstyle='<->', color='#0F172A', lw=1.5), zorder=10)
-    ax3.text(4.25, 3.6, "실제 통로\n폭 1.6m", ha='left', va='center', fontsize=11.0, fontweight='bold', color='#0F172A')
+    ax3.text(4.85, 3.6, "실제 통로\n폭 0.8m", ha='left', va='center', fontsize=11.0, fontweight='bold', color='#0F172A')
+
+    # Margin dimension arrow
+    ax3.annotate('', xy=(3.5, 4.0), xytext=(4.0, 4.0),
+                 arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.2), zorder=10)
+    ax3.text(3.75, 4.22, "안전마진 0.5m", ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#DC2626')
     
     # Abort Trajectory
     pts = np.array([
@@ -347,7 +352,7 @@ def generate_subfig3():
     
     ax3.add_patch(FancyBboxPatch((0.45, 0.40), 6.10, 1.48, boxstyle="round,pad=0.08", 
                                  fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2, zorder=24))
-    ax3.text(3.5, 1.55, "1. 통로 폭(1.6m)보다 안전마진 합(2.0m)이 더 큽니다.", 
+    ax3.text(3.5, 1.55, "1. 통로 폭(0.8m)보다 안전마진 합(1.0m)이 더 큽니다.", 
              ha='center', va='center', fontsize=10.5, color='#991B1B', fontweight='bold', zorder=25)
     ax3.text(3.5, 1.14, "2. 안전마진이 중첩되어 열린 통로를 벽으로 오판합니다.", 
              ha='center', va='center', fontsize=10.8, color='#78350F', fontweight='bold', zorder=26,
@@ -374,7 +379,7 @@ def generate_subfig4():
     ax_top = fig.add_axes([0.08, 0.52, 0.88, 0.40])
     ax_top.set_facecolor('#FFFFFF')
     ax_top.set_xlim(0.5, 9.5)
-    ax_top.set_ylim(-2.8, 2.8)
+    ax_top.set_ylim(-3.7, 3.7)
 
     for spine in ax_top.spines.values():
         spine.set_color(COLOR_BORDER_STRONG)
@@ -382,27 +387,32 @@ def generate_subfig4():
     ax_top.set_xticks([])
     ax_top.set_yticks([])
 
-    ax_top.text(5.0, 2.50, "선체 거동: 매 프레임 단순 반사 계산으로 인해 직선 주행 중 좌우 요동 발생", 
+    ax_top.text(5.0, 3.35, "선체 거동: 매 프레임 단순 반사 계산으로 인해 직선 주행 중 좌우 요동 발생", 
                 ha='center', va='top', fontsize=11.2, fontweight='bold', color=COLOR_TEXT_MAIN, zorder=30)
 
     # Nominal straight path line down center
     ax_top.plot([0.6, 9.4], [0.0, 0.0], color='#94A3B8', lw=2.0, ls=':', zorder=5)
 
-    # 11 transparent boats overlapping each other by ~50% sequentially in time!
-    boat_x_samples = np.linspace(1.2, 8.8, 11)
-    boat_headings = [np.deg2rad(28 if i % 2 == 0 else -28) for i in range(len(boat_x_samples))]
-    boat_y_samples = [0.42 if i % 2 == 0 else -0.42 for i in range(len(boat_x_samples))]
+    # Smooth sinusoidal trajectory and 11 overlapping boats oscillating along wave
+    x_fine = np.linspace(0.8, 9.2, 300)
+    A = 0.75
+    wavelength = 2.6
+    y_fine = A * np.sin(2 * np.pi * (x_fine - 0.8) / wavelength)
+    ax_top.plot(x_fine, y_fine, color='#DC2626', lw=2.0, ls='--', alpha=0.7, zorder=6)
 
-    ax_top.plot(boat_x_samples, boat_y_samples, color='#DC2626', lw=1.6, ls='--', alpha=0.65, zorder=6)
+    boat_x_samples = np.linspace(1.2, 8.8, 11)
+    boat_y_samples = A * np.sin(2 * np.pi * (boat_x_samples - 0.8) / wavelength)
+    dy_dx = A * (2 * np.pi / wavelength) * np.cos(2 * np.pi * (boat_x_samples - 0.8) / wavelength)
+    boat_headings = np.arctan2(dy_dx, 1.0)
 
     for i, (bx, by, bhd) in enumerate(zip(boat_x_samples, boat_y_samples, boat_headings)):
-        draw_boat(ax_top, bx, by, bhd, length=1.45, width=0.72, color='#38BDF8', ec='#0284C7', alpha=0.52, zorder=10 + i)
+        draw_boat(ax_top, bx, by, bhd, length=1.40, width=0.70, color='#38BDF8', ec='#0284C7', alpha=0.55, zorder=10 + i)
 
-    ax_top.text(2.0, 1.75, "좌현 반사 조타", ha='center', va='bottom', fontsize=10.5, fontweight='bold', color='#DC2626', 
+    ax_top.text(2.1, 2.30, "좌현 반사 조타", ha='center', va='center', fontsize=10.5, fontweight='bold', color='#DC2626', 
                 bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec='#FCA5A5', lw=0.9), zorder=35)
-    ax_top.text(2.7, -1.75, "우현 반사 조타", ha='center', va='top', fontsize=10.5, fontweight='bold', color='#0284C7', 
+    ax_top.text(3.4, -2.30, "우현 반사 조타", ha='center', va='center', fontsize=10.5, fontweight='bold', color='#0284C7', 
                 bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec='#93C5FD', lw=0.9), zorder=35)
-    ax_top.text(5.0, -2.50, "시간순 중첩 관찰: 단순 반사 제어를 반복하여 직선 경로에서도 좌우로 요동치며 전진합니다.", 
+    ax_top.text(5.0, -3.35, "시간순 중첩 관찰: 단순 반사 제어를 반복하여 직선 경로에서도 좌우로 요동치며 전진합니다.", 
                 ha='center', va='bottom', fontsize=10.2, fontweight='bold', color='#78350F', zorder=35,
                 bbox=dict(boxstyle='round,pad=0.22,rounding_size=0.12', fc='#FEF08A', ec='#F59E0B', lw=1.1))
 
@@ -410,8 +420,8 @@ def generate_subfig4():
     ax_bot = fig.add_axes([0.08, 0.08, 0.88, 0.38])
     ax_bot.set_facecolor(COLOR_PANEL)
     ax_bot.set_xlim(0, 10)
-    ax_bot.set_ylim(-38, 22)
-    ax_bot.set_yticks([-30, -20, -10, 0, 10])
+    ax_bot.set_ylim(-36, 18)
+    ax_bot.set_yticks([-10, 0, 10])
 
     ax_bot.grid(True, color='#E2E8F0', ls='--', lw=0.8, alpha=0.8)
     for spine in ax_bot.spines.values():
@@ -423,25 +433,24 @@ def generate_subfig4():
     ax_bot.tick_params(labelsize=10.5)
 
     t = np.linspace(0, 10, 500)
-    chatter = 12.0 * np.sin(2 * np.pi * 4.5 * t) + 2.5 * np.sin(2 * np.pi * 1.2 * t) + np.random.normal(0, 0.4, len(t))
-    chatter = np.clip(chatter, -16, 16) - 5.0
+    chatter = np.clip(10.0 * np.sin(2 * np.pi * 4.5 * t) + np.random.normal(0, 0.4, len(t)), -11, 11)
 
     ax_bot.plot(t, chatter, color='#DC2626', lw=1.2, zorder=4)
-    ax_bot.axhline(-5, color='#64748B', lw=1.0, ls='--', zorder=2)
+    ax_bot.axhline(0, color='#64748B', lw=1.0, ls='--', zorder=2)
 
-    ax_bot.annotate('매 제어 주기마다 즉각 반사 조타 (좌우 고주파 진동)', xy=(2.5, 10), xytext=(2.5, 14),
+    ax_bot.annotate('매 제어 주기마다 즉각 반사 조타 (좌우 고주파 진동)', xy=(3.5, 10), xytext=(3.5, 14),
                     ha='center', va='bottom',
                     fontsize=10.2, fontweight='bold', color='#B91C1C',
                     bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_DANGER_BORDER, lw=0.9), zorder=20)
 
-    ax_bot.add_patch(FancyBboxPatch((0.5, -36.5), 9.0, 17.0, boxstyle="round,pad=0.5", 
+    ax_bot.add_patch(FancyBboxPatch((0.5, -34.5), 9.0, 16.5, boxstyle="round,pad=0.4", 
                                     fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2, zorder=24))
-    ax_bot.text(5.0, -23.0, "1. 매 제어 프레임마다 단순 반사 규칙을 반복 계산하여 조타합니다.", 
+    ax_bot.text(5.0, -21.5, "1. 매 제어 프레임마다 단순 반사 규칙을 반복 계산하여 조타합니다.", 
                 ha='center', va='center', fontsize=10.2, color='#991B1B', fontweight='bold', zorder=25)
-    ax_bot.text(5.0, -28.0, "2. 상태 제어나 완충 없이 즉각 반응하므로 좌우로 심하게 진동합니다.", 
+    ax_bot.text(5.0, -26.5, "2. 상태 제어나 완충 없이 즉각 반응하므로 좌우로 심하게 진동합니다.", 
                 ha='center', va='center', fontsize=10.5, color='#78350F', fontweight='bold', zorder=26,
                 bbox=dict(boxstyle='round,pad=0.25,rounding_size=0.15', fc='#FEF08A', ec='#F59E0B', lw=1.2))
-    ax_bot.text(5.0, -33.0, "3. 진동으로 인해 조타 구동부가 마모되고 전진 추진 효율이 저하됩니다.", 
+    ax_bot.text(5.0, -31.5, "3. 진동으로 인해 조타 구동부가 마모되고 전진 추진 효율이 저하됩니다.", 
                 ha='center', va='center', fontsize=10.2, color='#991B1B', fontweight='bold', zorder=25)
 
     out_path = os.path.join(SUBFIG_DIR, 'subfig4_violent_chattering_overlapping_boats.png')
@@ -787,9 +796,9 @@ def generate_sheet_1():
     ax3.axhline(7.0, color='#64748B', lw=4.0, zorder=5)
     ax3.text(0.4, 7.15, "수조 외곽 콘크리트 벽", fontsize=10.8, fontweight='bold', color='#475569')
     
-    b1_x, b1_y = 4.0, 4.4
-    b2_x, b2_y = 4.0, 2.8
-    margin_r = 1.0
+    b1_x, b1_y = 4.0, 4.0
+    b2_x, b2_y = 4.0, 3.2
+    margin_r = 0.5
     
     c1 = Circle((b1_x, b1_y), margin_r, fc='#FEE2E2', ec='#EF4444', lw=1.2, ls='--', alpha=0.6, zorder=2)
     c2 = Circle((b2_x, b2_y), margin_r, fc='#FEE2E2', ec='#EF4444', lw=1.2, ls='--', alpha=0.6, zorder=2)
@@ -797,22 +806,27 @@ def generate_sheet_1():
     ax3.add_patch(c2)
     
     # Overlap Hatch
-    ax3.fill_between([3.4, 4.0, 4.6], [3.6, 3.8, 3.6], [3.6, 3.4, 3.6], 
+    ax3.fill_between([3.7, 4.0, 4.3], [3.6, 3.7, 3.6], [3.6, 3.5, 3.6], 
                      color='#DC2626', alpha=0.35, hatch='///', zorder=3)
     
-    ax3.add_patch(Circle((b1_x, b1_y), 0.22, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
-    ax3.add_patch(Circle((b2_x, b2_y), 0.22, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
-    ax3.text(b1_x, b1_y + 0.35, "부표 A", ha='center', va='bottom', fontsize=11.2, fontweight='bold', color='#9A3412')
-    ax3.text(b2_x, b2_y - 0.35, "부표 B", ha='center', va='top', fontsize=11.2, fontweight='bold', color='#9A3412')
+    ax3.add_patch(Circle((b1_x, b1_y), 0.16, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
+    ax3.add_patch(Circle((b2_x, b2_y), 0.16, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
+    ax3.text(b1_x + 0.22, b1_y, "부표 A", ha='left', va='center', fontsize=11.2, fontweight='bold', color='#9A3412')
+    ax3.text(b2_x + 0.22, b2_y, "부표 B", ha='left', va='center', fontsize=11.2, fontweight='bold', color='#9A3412')
     
-    ax3.annotate('안전마진 중첩 구간\n(0.4m 겹침 발생)', xy=(3.8, 3.6), xytext=(2.2, 2.7),
+    ax3.annotate('안전마진 중첩 구간\n(0.2m 겹침 발생)', xy=(3.9, 3.6), xytext=(2.2, 2.7),
                  arrowprops=dict(arrowstyle='->', color='#991B1B', lw=1.4),
                  ha='center', va='center', fontsize=9.8, fontweight='bold', color='#991B1B',
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_DANGER_BORDER, lw=0.9), zorder=15)
     
-    ax3.annotate('', xy=(4.0, 4.18), xytext=(4.0, 3.02),
+    ax3.annotate('', xy=(4.0, 3.95), xytext=(4.0, 3.25),
                  arrowprops=dict(arrowstyle='<->', color='#0F172A', lw=1.5), zorder=10)
-    ax3.text(4.25, 3.6, "실제 통로\n폭 1.6m", ha='left', va='center', fontsize=10.2, fontweight='bold', color='#0F172A')
+    ax3.text(4.85, 3.6, "실제 통로\n폭 0.8m", ha='left', va='center', fontsize=10.2, fontweight='bold', color='#0F172A')
+
+    # Margin dimension arrow
+    ax3.annotate('', xy=(3.5, 4.0), xytext=(4.0, 4.0),
+                 arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.2), zorder=10)
+    ax3.text(3.75, 4.22, "안전마진 0.5m", ha='center', va='bottom', fontsize=9.2, fontweight='bold', color='#DC2626')
     
     # Abort Trajectory
     pts = np.array([
@@ -840,7 +854,7 @@ def generate_sheet_1():
     
     ax3.add_patch(FancyBboxPatch((0.45, 0.40), 6.10, 1.48, boxstyle="round,pad=0.08", 
                                  fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2, zorder=24))
-    ax3.text(3.5, 1.55, "1. 통로 폭(1.6m)보다 안전마진 합(2.0m)이 더 큽니다.", 
+    ax3.text(3.5, 1.55, "1. 통로 폭(0.8m)보다 안전마진 합(1.0m)이 더 큽니다.", 
              ha='center', va='center', fontsize=9.8, color='#991B1B', fontweight='bold', zorder=25)
     ax3.text(3.5, 1.14, "2. 안전마진이 중첩되어 열린 통로를 벽으로 오판합니다.", 
              ha='center', va='center', fontsize=10.2, color='#78350F', fontweight='bold', zorder=26,
@@ -852,11 +866,11 @@ def generate_sheet_1():
     # SUBPLOT 4: 한계 2 - 극심한 진동과 선체 불안정성 (left: 0.347, width: 0.304)
     # Divided cleanly into ax4_top (boats motion) and ax4_bot (rudder graph)
     # --------------------------------------------------------------------------
-    # Top Card: 11 semi-transparent boats overlapping each other by ~50%
+    # Top Card: 11 semi-transparent boats oscillating along sinusoidal wave
     ax4_top = fig.add_axes([0.347, 0.256, 0.304, 0.176])
     ax4_top.set_facecolor('#FFFFFF')
     ax4_top.set_xlim(0.5, 9.5)
-    ax4_top.set_ylim(-2.8, 2.8)
+    ax4_top.set_ylim(-3.7, 3.7)
 
     for spine in ax4_top.spines.values():
         spine.set_color(COLOR_BORDER_STRONG)
@@ -867,26 +881,32 @@ def generate_sheet_1():
     ax4_top.set_title("한계 2: 매 프레임 단순 반사 계산의 반복으로 선체가 좌우로 진동합니다.", 
                       fontsize=11.8, fontweight='bold', pad=7, color=COLOR_DANGER, loc='left')
 
-    ax4_top.text(5.0, 2.45, "선체 거동: 매 프레임 단순 반사 계산으로 인해 직선 주행 중 좌우 요동 발생", 
+    ax4_top.text(5.0, 3.35, "선체 거동: 매 프레임 단순 반사 계산으로 인해 직선 주행 중 좌우 요동 발생", 
                  ha='center', va='top', fontsize=10.2, fontweight='bold', color=COLOR_TEXT_MAIN, zorder=30)
 
     # Nominal straight line
     ax4_top.plot([0.6, 9.4], [0.0, 0.0], color='#94A3B8', lw=2.0, ls=':', zorder=5)
 
-    boat_x_samples = np.linspace(1.2, 8.8, 11)
-    boat_headings = [np.deg2rad(28 if i % 2 == 0 else -28) for i in range(len(boat_x_samples))]
-    boat_y_samples = [0.42 if i % 2 == 0 else -0.42 for i in range(len(boat_x_samples))]
+    # Smooth sinusoidal trajectory and 11 overlapping boats oscillating along wave
+    x_fine = np.linspace(0.8, 9.2, 300)
+    A = 0.75
+    wavelength = 2.6
+    y_fine = A * np.sin(2 * np.pi * (x_fine - 0.8) / wavelength)
+    ax4_top.plot(x_fine, y_fine, color='#DC2626', lw=2.0, ls='--', alpha=0.7, zorder=6)
 
-    ax4_top.plot(boat_x_samples, boat_y_samples, color='#DC2626', lw=1.6, ls='--', alpha=0.65, zorder=6)
+    boat_x_samples = np.linspace(1.2, 8.8, 11)
+    boat_y_samples = A * np.sin(2 * np.pi * (boat_x_samples - 0.8) / wavelength)
+    dy_dx = A * (2 * np.pi / wavelength) * np.cos(2 * np.pi * (boat_x_samples - 0.8) / wavelength)
+    boat_headings = np.arctan2(dy_dx, 1.0)
 
     for i, (bx, by, bhd) in enumerate(zip(boat_x_samples, boat_y_samples, boat_headings)):
-        draw_boat(ax4_top, bx, by, bhd, length=1.45, width=0.72, color='#38BDF8', ec='#0284C7', alpha=0.52, zorder=10 + i)
+        draw_boat(ax4_top, bx, by, bhd, length=1.40, width=0.70, color='#38BDF8', ec='#0284C7', alpha=0.55, zorder=10 + i)
 
-    ax4_top.text(2.0, 1.70, "좌현 반사 조타", ha='center', va='bottom', fontsize=9.6, fontweight='bold', color='#DC2626', 
+    ax4_top.text(2.1, 2.30, "좌현 반사 조타", ha='center', va='center', fontsize=9.6, fontweight='bold', color='#DC2626', 
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec='#FCA5A5', lw=0.9), zorder=35)
-    ax4_top.text(2.7, -1.70, "우현 반사 조타", ha='center', va='top', fontsize=9.6, fontweight='bold', color='#0284C7', 
+    ax4_top.text(3.4, -2.30, "우현 반사 조타", ha='center', va='center', fontsize=9.6, fontweight='bold', color='#0284C7', 
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec='#93C5FD', lw=0.9), zorder=35)
-    ax4_top.text(5.0, -2.48, "시간순 중첩 관찰: 단순 반사 제어를 반복하여 직선 경로에서도 좌우로 요동치며 전진합니다.", 
+    ax4_top.text(5.0, -3.35, "시간순 중첩 관찰: 단순 반사 제어를 반복하여 직선 경로에서도 좌우로 요동치며 전진합니다.", 
                  ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#78350F', zorder=35,
                  bbox=dict(boxstyle='round,pad=0.20,rounding_size=0.12', fc='#FEF08A', ec='#F59E0B', lw=1.1))
 
@@ -894,8 +914,8 @@ def generate_sheet_1():
     ax4_bot = fig.add_axes([0.347, 0.050, 0.304, 0.172])
     ax4_bot.set_facecolor(COLOR_PANEL)
     ax4_bot.set_xlim(0, 10)
-    ax4_bot.set_ylim(-38, 22)
-    ax4_bot.set_yticks([-30, -20, -10, 0, 10])
+    ax4_bot.set_ylim(-36, 18)
+    ax4_bot.set_yticks([-10, 0, 10])
 
     ax4_bot.grid(True, color='#E2E8F0', ls='--', lw=0.8, alpha=0.8)
     for spine in ax4_bot.spines.values():
@@ -907,25 +927,24 @@ def generate_sheet_1():
     ax4_bot.tick_params(labelsize=9.8)
 
     t = np.linspace(0, 10, 500)
-    chatter = 12.0 * np.sin(2 * np.pi * 4.5 * t) + 2.5 * np.sin(2 * np.pi * 1.2 * t) + np.random.normal(0, 0.4, len(t))
-    chatter = np.clip(chatter, -16, 16) - 5.0
+    chatter = np.clip(10.0 * np.sin(2 * np.pi * 4.5 * t) + np.random.normal(0, 0.4, len(t)), -11, 11)
 
     ax4_bot.plot(t, chatter, color='#DC2626', lw=1.2, zorder=4)
-    ax4_bot.axhline(-5, color='#64748B', lw=1.0, ls='--', zorder=2)
+    ax4_bot.axhline(0, color='#64748B', lw=1.0, ls='--', zorder=2)
 
-    ax4_bot.annotate('매 제어 주기마다 즉각 반사 조타 (좌우 고주파 진동)', xy=(2.5, 10), xytext=(2.5, 14),
+    ax4_bot.annotate('매 제어 주기마다 즉각 반사 조타 (좌우 고주파 진동)', xy=(3.5, 10), xytext=(3.5, 14),
                      ha='center', va='bottom',
                      fontsize=9.5, fontweight='bold', color='#B91C1C',
                      bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_DANGER_BORDER, lw=0.9), zorder=20)
 
-    ax4_bot.add_patch(FancyBboxPatch((0.5, -36.5), 9.0, 17.0, boxstyle="round,pad=0.5", 
+    ax4_bot.add_patch(FancyBboxPatch((0.5, -34.5), 9.0, 16.5, boxstyle="round,pad=0.4", 
                                      fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2, zorder=24))
-    ax4_bot.text(5.0, -23.0, "1. 매 제어 프레임마다 단순 반사 규칙을 반복 계산하여 조타합니다.", 
+    ax4_bot.text(5.0, -21.5, "1. 매 제어 프레임마다 단순 반사 규칙을 반복 계산하여 조타합니다.", 
                  ha='center', va='center', fontsize=9.6, color='#991B1B', fontweight='bold', zorder=25)
-    ax4_bot.text(5.0, -28.0, "2. 상태 제어나 완충 없이 즉각 반응하므로 좌우로 심하게 진동합니다.", 
+    ax4_bot.text(5.0, -26.5, "2. 상태 제어나 완충 없이 즉각 반응하므로 좌우로 심하게 진동합니다.", 
                  ha='center', va='center', fontsize=9.8, color='#78350F', fontweight='bold', zorder=26,
                  bbox=dict(boxstyle='round,pad=0.22,rounding_size=0.15', fc='#FEF08A', ec='#F59E0B', lw=1.2))
-    ax4_bot.text(5.0, -33.0, "3. 진동으로 인해 조타 구동부가 마모되고 전진 추진 효율이 저하됩니다.", 
+    ax4_bot.text(5.0, -31.5, "3. 진동으로 인해 조타 구동부가 마모되고 전진 추진 효율이 저하됩니다.", 
                  ha='center', va='center', fontsize=9.6, color='#991B1B', fontweight='bold', zorder=25)
 
     # --------------------------------------------------------------------------
