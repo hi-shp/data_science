@@ -119,17 +119,17 @@ def generate_subfig1():
                  arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.3),
                  fontsize=9.2, fontweight='bold', color='#DC2626', zorder=9)
     
-    ax1.text(3.70, 3.85, "검은 선 감지 시 → 우회전", ha='center', va='center',
+    ax1.text(3.70, 3.85, "검은 선 감지 시 → 좌회전", ha='center', va='center',
              fontsize=9.0, fontweight='bold', color='#1E40AF',
              bbox=dict(boxstyle='round,pad=0.2', fc='#EFF6FF', ec='#93C5FD', lw=0.9), zorder=10)
-    ax1.text(3.70, 2.45, "흰 바탕 감지 시 → 좌회전", ha='center', va='center',
+    ax1.text(3.70, 2.45, "흰 바탕 감지 시 → 우회전", ha='center', va='center',
              fontsize=9.0, fontweight='bold', color='#B45309',
              bbox=dict(boxstyle='round,pad=0.2', fc='#FEF3C7', ec='#FCD34D', lw=0.9), zorder=10)
     
-    ax1.text(2.51, 1.72, "1. 센서가 검은 선을 감지하면 오른쪽으로 조향합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
-    ax1.text(2.51, 1.38, "2. 센서가 흰 바탕을 감지하면 왼쪽으로 조향합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
-    ax1.text(2.51, 0.76, "단 1줄의 단순한 반사 규칙만으로도\n복잡한 곡선 경로를 벗어나지 않고 추종합니다.", 
-             ha='center', va='center', fontsize=10.8, fontweight='bold', color=COLOR_SUCCESS,
+    ax1.text(2.51, 1.72, "1. 센서가 검은 선을 감지하면 좌회전합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
+    ax1.text(2.51, 1.38, "2. 센서가 흰 바탕을 감지하면 우회전합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
+    ax1.text(2.51, 0.76, "단순한 반사 규칙만으로도 곡선 경로를 이탈 없이 추종합니다.", 
+             ha='center', va='center', fontsize=10.5, fontweight='bold', color=COLOR_SUCCESS,
              bbox=dict(boxstyle='round,pad=0.25', fc=COLOR_SUCCESS_BG, ec=COLOR_SUCCESS_BORDER, lw=1.1))
     
     # Right Column: Boat Adaptation
@@ -148,7 +148,7 @@ def generate_subfig1():
     ax1.plot([goal_x, goal_x], [goal_y - 0.25, goal_y + 0.65], color='#15803D', lw=2.2, zorder=8)
     ax1.add_patch(Polygon([(goal_x, goal_y + 0.65), (goal_x + 0.35, goal_y + 0.45), (goal_x, goal_y + 0.25)],
                          closed=True, fc='#22C55E', ec='#15803D', lw=1.2, zorder=9))
-    ax1.text(goal_x, goal_y + 0.78, "목적지(Goal)", ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#15803D')
+    ax1.text(goal_x, goal_y + 0.78, "목적지", ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#15803D')
     
     ax1.plot([6.70, goal_x], [2.85, 2.85], color='#22C55E', lw=1.5, ls='--', zorder=4)
     ax1.text(7.05, 2.62, "1순위: 목적지 추종", fontsize=9.2, fontweight='bold', color='#15803D')
@@ -165,12 +165,11 @@ def generate_subfig1():
                  arrowprops=dict(arrowstyle='->', color='#0284C7', lw=1.5),
                  fontsize=9.8, fontweight='bold', color='#0284C7', zorder=10)
     
-    ax1.text(7.49, 1.72, "1. 평상시에는 1순위로 최종 목적지를 향해 직진합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
-    ax1.text(7.49, 1.38, "2. 장애물이 감지되면 단순한 반사 규칙으로 회피 조타합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
-    ax1.text(7.49, 0.76, "단순하지만 강력한 제어:\n몇 줄의 반사 코드만으로도 목적지까지 안정적으로 도달합니다.", 
-             ha='center', va='center', fontsize=10.4, fontweight='bold', color=COLOR_PRIMARY,
-             bbox=dict(boxstyle='round,pad=0.22', fc='#F0F9FF', ec='#BAE6FD', lw=1.1))
-
+    ax1.text(7.49, 1.72, "1. 평상시에는 목적지를 향해 직진 주행합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
+    ax1.text(7.49, 1.38, "2. 장애물이 감지되면 단순 반사 규칙으로 회피합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
+    ax1.text(7.49, 0.76, "간단한 반사 코드만으로도 장애물을 피해 목표에 도달합니다.", 
+             ha='center', va='center', fontsize=10.5, fontweight='bold', color=COLOR_PRIMARY,
+             bbox=dict(boxstyle='round,pad=0.25', fc='#F0F9FF', ec='#BAE6FD', lw=1.1))
     
     out_path = os.path.join(SUBFIG_DIR, 'subfig1_linetracer_and_boat_adaptation.png')
     plt.savefig(out_path, dpi=300, facecolor=COLOR_BG)
@@ -193,7 +192,7 @@ def generate_subfig2():
         spine.set_color(COLOR_BORDER_STRONG)
         spine.set_linewidth(1.3)
         
-    ax2.set_title("초기 성공 경험: 개방 수역에서 단순 반사 제어로 0.5m 안전거리를 유지하며 목표에 도달했습니다.", 
+    ax2.set_title("초기 주행: 개방 수역에서 0.5m 안전거리를 유지하며 목표에 도달했습니다.", 
                   fontsize=12.2, fontweight='bold', pad=10, color=COLOR_TEXT_MAIN, loc='left')
     ax2.set_xlabel("전진 방향 X 좌표 (m)", fontsize=11, labelpad=4, color=COLOR_TEXT_SUB)
     ax2.set_ylabel("횡방향 Y 좌표 (m)", fontsize=11, labelpad=4, color=COLOR_TEXT_SUB)
@@ -235,10 +234,10 @@ def generate_subfig2():
     
     sample_indices = [10, 65, 130, 185]
     boat_labels = [
-        "1. 목적지를 향해 직진 주행합니다.",
+        "1. 목적지를 향해 직진합니다.",
         "2. 부표를 감지하고 우현으로 조타합니다.",
-        "3. 0.5m 안전 거리를 유지하며 통과합니다.",
-        "4. 원래 목표 경로로 복귀하여 완주합니다."
+        "3. 0.5m 안전거리를 유지하며 통과합니다.",
+        "4. 원래 경로로 복귀하여 도달합니다."
     ]
     label_pos = [
         (path_x[10], path_y[10] - 0.65),
@@ -256,7 +255,7 @@ def generate_subfig2():
                  fontsize=9.8, fontweight='bold', color=COLOR_TEXT_MAIN,
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_BORDER, lw=0.8, alpha=0.95), zorder=15)
         
-    ax2.text(5.0, 0.40, "단일 장애물 환경에서는 단순 반사 규칙만으로도 목표 지점까지 이탈 없이 안정적으로 주행을 완주했습니다.",
+    ax2.text(5.0, 0.40, "단일 장애물 환경에서는 단순 반사 규칙만으로도 목표 지점에 도달했습니다.",
              ha='center', va='center', fontsize=11, fontweight='bold', color=COLOR_SUCCESS,
              bbox=dict(boxstyle='round,pad=0.3', fc=COLOR_SUCCESS_BG, ec=COLOR_SUCCESS_BORDER, lw=1.2), zorder=20)
     ax2.legend(loc='upper left', fontsize=10, framealpha=0.9)
@@ -342,7 +341,7 @@ def generate_subfig3():
                  arrowprops=dict(arrowstyle='->', color='#16A34A', lw=2.2, ls='--'), zorder=4)
     ax3.text(5.6, 3.9, "목표 게이트 출구", ha='center', va='bottom', fontsize=10, fontweight='bold', color='#16A34A')
     
-    ax3.text(3.5, 1.15, "1. 게이트 폭(1.6m)보다 안전마진 합(2.0m)이 더 큽니다.\n2. 양쪽 마진이 겹치면서 열린 통로를 가상 벽으로 오판합니다.\n3. 진입을 포기하고 급선회하여 외곽 콘크리트 벽에 충돌합니다.",
+    ax3.text(3.5, 1.15, "1. 통로 폭(1.6m)보다 안전마진 합(2.0m)이 더 큽니다.\n2. 안전마진이 중첩되어 열린 통로를 벽으로 오판합니다.\n3. 통로 진입을 회피하다 외곽 수조 벽에 충돌합니다.",
              ha='center', va='center', fontsize=10, color='#991B1B', fontweight='bold',
              bbox=dict(boxstyle='round,pad=0.35', fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2), zorder=25)
     
@@ -358,7 +357,7 @@ def generate_subfig4():
     fig = plt.figure(figsize=(7.2, 7.5), dpi=300)
     fig.patch.set_facecolor(COLOR_BG)
 
-    fig.text(0.08, 0.965, "한계 2: 원거리 궤적과 달리 실제로는 극심한 진동으로 불안정합니다.", 
+    fig.text(0.08, 0.965, "한계 2: 직진 주행 중에도 선체와 조타가 좌우로 진동합니다.", 
              fontsize=12.2, fontweight='bold', color=COLOR_DANGER, va='top')
 
     # Top Subplot: Overlapping Boats along nominal straight line
@@ -373,8 +372,8 @@ def generate_subfig4():
     ax_top.set_xticks([])
     ax_top.set_yticks([])
 
-    ax_top.text(5.0, 2.50, "실제 선체 거동: 겉보기 일직선 주행 속 극심한 좌우 사행 진동", 
-                ha='center', va='top', fontsize=10.5, fontweight='bold', color=COLOR_TEXT_MAIN, zorder=30)
+    ax_top.text(5.0, 2.50, "선체 거동: 직선 주행 중 56° 진폭의 좌우 사행 발생", 
+                ha='center', va='top', fontsize=10.2, fontweight='bold', color=COLOR_TEXT_MAIN, zorder=30)
 
     # Nominal straight path line down center
     ax_top.plot([0.6, 9.4], [0.0, 0.0], color='#94A3B8', lw=2.0, ls=':', zorder=5)
@@ -389,11 +388,11 @@ def generate_subfig4():
     for i, (bx, by, bhd) in enumerate(zip(boat_x_samples, boat_y_samples, boat_headings)):
         draw_boat(ax_top, bx, by, bhd, length=1.45, width=0.72, color='#38BDF8', ec='#0284C7', alpha=0.52, zorder=10 + i)
 
-    ax_top.text(2.0, 1.75, "좌현 28° 조타", ha='center', va='bottom', fontsize=9.2, fontweight='bold', color='#DC2626', 
+    ax_top.text(2.0, 1.75, "좌현 28° 조타", ha='center', va='bottom', fontsize=9.0, fontweight='bold', color='#DC2626', 
                 bbox=dict(boxstyle='round,pad=0.15', fc='#FFFFFF', ec='#FCA5A5', lw=0.8), zorder=35)
-    ax_top.text(2.7, -1.75, "우현 28° 조타", ha='center', va='top', fontsize=9.2, fontweight='bold', color='#0284C7', 
+    ax_top.text(2.7, -1.75, "우현 28° 조타", ha='center', va='top', fontsize=9.0, fontweight='bold', color='#0284C7', 
                 bbox=dict(boxstyle='round,pad=0.15', fc='#FFFFFF', ec='#93C5FD', lw=0.8), zorder=35)
-    ax_top.text(5.0, -2.50, "시간순 50% 중첩: 일직선 경로 추종 시에도 선체는 좌우로 56° 진폭의 격렬한 진동을 반복함", 
+    ax_top.text(5.0, -2.50, "시간순 중첩 관찰: 직선 주행 중에도 선체는 56° 진폭으로 진동합니다.", 
                 ha='center', va='bottom', fontsize=8.8, fontweight='bold', color='#DC2626', zorder=35)
 
     # Bottom Subplot: Quantitative Rudder Angle Time-Series Chattering
@@ -417,15 +416,15 @@ def generate_subfig4():
     ax_bot.plot(t, chatter, color='#DC2626', lw=1.2, zorder=4)
     ax_bot.axhline(-5, color='#64748B', lw=1.0, ls='--', zorder=2)
 
-    ax_bot.annotate('조타각 극단적 고주파 진동 (4.5Hz, ±28°)', xy=(2.0, 11), xytext=(2.0, 16),
+    ax_bot.annotate('조타각 고주파 진동 (4.5Hz, ±28°)', xy=(2.0, 11), xytext=(2.0, 16),
                     ha='center', va='bottom',
                     fontsize=9.2, fontweight='bold', color='#B91C1C',
                     bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_DANGER_BORDER, lw=0.9), zorder=20)
 
     ax_bot.text(5.0, -28.0, 
-                "1. 멀리서 보면 경로를 아주 잘 따라가는 것처럼 보입니다.\n"
-                "2. 그러나 실제로는 짧은 시간에 큰 각도로 좌우 진동합니다.\n"
-                "3. 과도한 조타 진동으로 기어가 마모되고 선속이 40% 저하됩니다.",
+                "1. 원거리에서는 직선 궤적으로 보입니다.\n"
+                "2. 실제로는 짧은 주기로 좌우 조타가 반복됩니다.\n"
+                "3. 진동으로 인해 모터가 마모되고 선속이 40% 저하됩니다.",
                 ha='center', va='center', fontsize=9.6, fontweight='bold', color='#991B1B',
                 bbox=dict(boxstyle='round,pad=0.35', fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2), zorder=25)
 
@@ -450,18 +449,18 @@ def generate_subfig5():
         spine.set_color(COLOR_BORDER_STRONG)
         spine.set_linewidth(1.3)
 
-    ax5.set_title("한계 3: 단일 반사 규칙은 다중 장애물 연쇄 충돌을 유발합니다.", 
+    ax5.set_title("한계 3: 단일 반사 제어로는 다중 장애물 충돌을 방지하지 못합니다.", 
                  fontsize=12.2, fontweight='bold', pad=10, color=COLOR_DANGER, loc='left')
     ax5.set_xlabel("전진 거리 X (m)", fontsize=11, labelpad=4, color=COLOR_TEXT_SUB)
     ax5.set_ylabel("횡방향 위치 Y (m)", fontsize=11, labelpad=4, color=COLOR_TEXT_SUB)
 
-    # Top Engineering Context Banner
+    # Top Context Banner
     ax5.add_patch(FancyBboxPatch((0.25, 6.70), 7.50, 1.05, boxstyle="round,pad=0.04",
                                  fc='#FFFFFF', ec=COLOR_BORDER_STRONG, lw=1.1, zorder=20))
-    ax5.text(4.0, 7.52, "구조적 원인: 주변 장애물 배치와 환경 지도를 고려하지 못하는 단일 센서 반사", 
+    ax5.text(4.0, 7.52, "환경 지도가 없어 주변 장애물 배치를 인식하지 못합니다.", 
             ha='center', va='top', fontsize=9.8, fontweight='bold', color=COLOR_TEXT_MAIN, zorder=21)
-    ax5.text(4.0, 7.02, "전방 장애물(A)만 감지하고 즉시 좌현 조타하여, 인접 장애물(B)의 위치를 보지 못하고 직격 충돌함",
-            ha='center', va='center', fontsize=9.0, color='#475569', zorder=21)
+    ax5.text(4.0, 7.02, "장애물 A를 회피하는 과정에서 인접한 장애물 B와 충돌합니다.",
+            ha='center', va='center', fontsize=9.2, color='#475569', zorder=21)
 
     # Destination Goal at (7.3, 2.5)
     gx, gy = 7.3, 2.5
@@ -494,7 +493,7 @@ def generate_subfig5():
 
     # Sensor Beam detecting Obstacle A
     ax5.plot([2.55, bA_x - 0.25], [2.5, 2.5], color='#DC2626', lw=2.2, ls='-', zorder=15)
-    ax5.annotate('센서 감지 거리 (1.2m)\n즉시 좌현 40° 회피 조타!', xy=(2.7, 2.5), xytext=(1.8, 3.7),
+    ax5.annotate('센서 감지 (1.2m)\n즉시 좌현 40° 회피 조타!', xy=(2.7, 2.5), xytext=(1.8, 3.7),
                 arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.4),
                 fontsize=9.2, fontweight='bold', color='#DC2626',
                 bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec='#FCA5A5', lw=0.9), zorder=25)
@@ -522,7 +521,7 @@ def generate_subfig5():
 
     # Crash Flash & Big Red X at Obstacle B
     ax5.plot(5.15, 4.4, marker='X', markersize=20, color='#DC2626', markeredgecolor='#7F1D1D', markeredgewidth=2.0, zorder=30)
-    ax5.annotate('A를 회피하려다 B에 정면 충돌!\n(다중 장애물 환경에서 반사 제어 완전 실패)', 
+    ax5.annotate('장애물 A 회피 중 장애물 B와 충돌!\n(인접 장애물 위치 미인식)', 
                 xy=(5.15, 4.4), xytext=(3.4, 5.7),
                 arrowprops=dict(arrowstyle='->', color='#B91C1C', lw=1.8),
                 fontsize=9.8, fontweight='bold', color='#991B1B',
@@ -530,9 +529,9 @@ def generate_subfig5():
 
     # Declarative 3-Sentence Summary at Bottom
     ax5.text(4.0, 0.95, 
-            "1. 전방 장애물(A)을 감지하고 고정된 규칙에 따라 좌현으로 급회피를 시작합니다.\n"
-            "2. 그러나 센서 시야 밖의 인접 장애물(B)을 전혀 인식하지 못해 회피 경로가 충돌 경로가 됩니다.\n"
-            "3. 단일 센서 반사 제어는 다중 장애물이 배치된 복잡 수역에서 근본적인 한계를 드러냅니다.",
+            "1. 전방 장애물 A를 감지한 직후 좌현으로 회피합니다.\n"
+            "2. 인접 장애물 B를 인식하지 못해 충돌 경로로 진입합니다.\n"
+            "3. 단순 반사 규칙으로는 다중 장애물 환경에 대응하지 못합니다.",
             ha='center', va='center', fontsize=9.6, fontweight='bold', color='#991B1B',
             bbox=dict(boxstyle='round,pad=0.35', fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2), zorder=25)
 
@@ -609,16 +608,16 @@ def generate_sheet_1():
                  arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.3),
                  fontsize=9.2, fontweight='bold', color='#DC2626', zorder=9)
     
-    ax1.text(3.70, 3.85, "검은 선 감지 시 → 우회전", ha='center', va='center',
+    ax1.text(3.70, 3.85, "검은 선 감지 시 → 좌회전", ha='center', va='center',
              fontsize=9.0, fontweight='bold', color='#1E40AF',
              bbox=dict(boxstyle='round,pad=0.2', fc='#EFF6FF', ec='#93C5FD', lw=0.9), zorder=10)
-    ax1.text(3.70, 2.45, "흰 바탕 감지 시 → 좌회전", ha='center', va='center',
+    ax1.text(3.70, 2.45, "흰 바탕 감지 시 → 우회전", ha='center', va='center',
              fontsize=9.0, fontweight='bold', color='#B45309',
              bbox=dict(boxstyle='round,pad=0.2', fc='#FEF3C7', ec='#FCD34D', lw=0.9), zorder=10)
     
-    ax1.text(2.51, 1.72, "1. 센서가 검은 선을 감지하면 오른쪽으로 조향합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
-    ax1.text(2.51, 1.38, "2. 센서가 흰 바탕을 감지하면 왼쪽으로 조향합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
-    ax1.text(2.51, 0.76, "단 1줄의 단순한 반사 규칙만으로도\n복잡한 곡선 경로를 벗어나지 않고 추종합니다.", 
+    ax1.text(2.51, 1.72, "1. 센서가 검은 선을 감지하면 좌회전합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
+    ax1.text(2.51, 1.38, "2. 센서가 흰 바탕을 감지하면 우회전합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
+    ax1.text(2.51, 0.76, "단순한 반사 규칙만으로도 곡선 경로를 이탈 없이 추종합니다.", 
              ha='center', va='center', fontsize=10.5, fontweight='bold', color=COLOR_SUCCESS,
              bbox=dict(boxstyle='round,pad=0.25', fc=COLOR_SUCCESS_BG, ec=COLOR_SUCCESS_BORDER, lw=1.1))
     
@@ -638,7 +637,7 @@ def generate_sheet_1():
     ax1.plot([goal_x, goal_x], [goal_y - 0.25, goal_y + 0.65], color='#15803D', lw=2.2, zorder=8)
     ax1.add_patch(Polygon([(goal_x, goal_y + 0.65), (goal_x + 0.35, goal_y + 0.45), (goal_x, goal_y + 0.25)],
                          closed=True, fc='#22C55E', ec='#15803D', lw=1.2, zorder=9))
-    ax1.text(goal_x, goal_y + 0.78, "목적지(Goal)", ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#15803D')
+    ax1.text(goal_x, goal_y + 0.78, "목적지", ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#15803D')
     
     ax1.plot([6.70, goal_x], [2.85, 2.85], color='#22C55E', lw=1.5, ls='--', zorder=4)
     ax1.text(7.05, 2.62, "1순위: 목적지 추종", fontsize=9.2, fontweight='bold', color='#15803D')
@@ -655,11 +654,11 @@ def generate_sheet_1():
                  arrowprops=dict(arrowstyle='->', color='#0284C7', lw=1.5),
                  fontsize=9.8, fontweight='bold', color='#0284C7', zorder=10)
     
-    ax1.text(7.49, 1.72, "1. 평상시에는 1순위로 최종 목적지를 향해 직진합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
-    ax1.text(7.49, 1.38, "2. 장애물이 감지되면 단순한 반사 규칙으로 회피 조타합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
-    ax1.text(7.49, 0.76, "단순하지만 강력한 제어:\n몇 줄의 반사 코드만으로도 목적지까지 안정적으로 도달합니다.", 
-             ha='center', va='center', fontsize=10.4, fontweight='bold', color=COLOR_PRIMARY,
-             bbox=dict(boxstyle='round,pad=0.22', fc='#F0F9FF', ec='#BAE6FD', lw=1.1))
+    ax1.text(7.49, 1.72, "1. 평상시에는 목적지를 향해 직진 주행합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
+    ax1.text(7.49, 1.38, "2. 장애물이 감지되면 단순 반사 규칙으로 회피합니다.", ha='center', va='center', fontsize=10.2, color='#0F172A')
+    ax1.text(7.49, 0.76, "간단한 반사 코드만으로도 장애물을 피해 목표에 도달합니다.", 
+             ha='center', va='center', fontsize=10.5, fontweight='bold', color=COLOR_PRIMARY,
+             bbox=dict(boxstyle='round,pad=0.25', fc='#F0F9FF', ec='#BAE6FD', lw=1.1))
     
     # --------------------------------------------------------------------------
     # SUBPLOT 2: 초기 개방 수역 회피 성공 궤적 (right: 0.505 ~ 0.970, bottom: 0.540 ~ 0.895, height: 0.355)
@@ -674,7 +673,7 @@ def generate_sheet_1():
         spine.set_color(COLOR_BORDER_STRONG)
         spine.set_linewidth(1.3)
         
-    ax2.set_title("초기 성공 경험: 개방 수역에서 단순 반사 제어로 0.5m 안전거리를 유지하며 목표에 도달했습니다.", 
+    ax2.set_title("초기 주행: 개방 수역에서 0.5m 안전거리를 유지하며 목표에 도달했습니다.", 
                   fontsize=12.2, fontweight='bold', pad=8, color=COLOR_TEXT_MAIN, loc='left')
     ax2.set_xlabel("전진 방향 X 좌표 (m)", fontsize=11, labelpad=4, color=COLOR_TEXT_SUB)
     ax2.set_ylabel("횡방향 Y 좌표 (m)", fontsize=11, labelpad=4, color=COLOR_TEXT_SUB)
@@ -714,10 +713,10 @@ def generate_sheet_1():
     
     sample_indices = [10, 65, 130, 185]
     boat_labels = [
-        "1. 목적지를 향해 직진 주행합니다.",
+        "1. 목적지를 향해 직진합니다.",
         "2. 부표를 감지하고 우현으로 조타합니다.",
-        "3. 0.5m 안전 거리를 유지하며 통과합니다.",
-        "4. 원래 목표 경로로 복귀하여 완주합니다."
+        "3. 0.5m 안전거리를 유지하며 통과합니다.",
+        "4. 원래 경로로 복귀하여 도달합니다."
     ]
     label_pos = [
         (path_x[10], path_y[10] - 0.65),
@@ -735,7 +734,7 @@ def generate_sheet_1():
                  fontsize=9.8, fontweight='bold', color=COLOR_TEXT_MAIN,
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_BORDER, lw=0.8, alpha=0.95), zorder=15)
         
-    ax2.text(5.0, 0.40, "단일 장애물 환경에서는 단순 반사 규칙만으로도 목표 지점까지 이탈 없이 안정적으로 주행을 완주했습니다.",
+    ax2.text(5.0, 0.40, "단일 장애물 환경에서는 단순 반사 규칙만으로도 목표 지점에 도달했습니다.",
              ha='center', va='center', fontsize=11, fontweight='bold', color=COLOR_SUCCESS,
              bbox=dict(boxstyle='round,pad=0.3', fc=COLOR_SUCCESS_BG, ec=COLOR_SUCCESS_BORDER, lw=1.2), zorder=20)
     ax2.legend(loc='upper left', fontsize=10, framealpha=0.9)
@@ -743,9 +742,9 @@ def generate_sheet_1():
     # --------------------------------------------------------------------------
     # MIDDLE SECTION HEADER (y: 0.462 ~ 0.495, perfectly separated!)
     # --------------------------------------------------------------------------
-    fig.text(0.030, 0.485, "실제 경기 수조에서 직면한 라인트레이싱 알고리즘의 3대 구조적 한계", 
+    fig.text(0.030, 0.485, "실제 환경에서 직면한 라인트레이싱 알고리즘의 3대 구조적 한계", 
              fontsize=19.5, fontweight='bold', color=COLOR_DANGER, va='top')
-    fig.text(0.030, 0.458, "복잡한 경기 환경과 선박 유체역학적 특성으로 인해 단순 반사 제어가 직면한 본질적 결함입니다.", 
+    fig.text(0.030, 0.458, "다양한 장애물 배치와 선박 운동 특성으로 인해 발생한 한계입니다.", 
              fontsize=12.0, color=COLOR_TEXT_SUB, va='top')
 
     # --------------------------------------------------------------------------
@@ -821,7 +820,7 @@ def generate_sheet_1():
                  arrowprops=dict(arrowstyle='->', color='#16A34A', lw=2.2, ls='--'), zorder=4)
     ax3.text(5.6, 3.9, "목표 게이트 출구", ha='center', va='bottom', fontsize=10, fontweight='bold', color='#16A34A')
     
-    ax3.text(3.5, 1.15, "1. 게이트 폭(1.6m)보다 안전마진 합(2.0m)이 더 큽니다.\n2. 양쪽 마진이 겹치면서 열린 통로를 가상 벽으로 오판합니다.\n3. 진입을 포기하고 급선회하여 외곽 콘크리트 벽에 충돌합니다.",
+    ax3.text(3.5, 1.15, "1. 통로 폭(1.6m)보다 안전마진 합(2.0m)이 더 큽니다.\n2. 안전마진이 중첩되어 열린 통로를 벽으로 오판합니다.\n3. 통로 진입을 회피하다 외곽 수조 벽에 충돌합니다.",
              ha='center', va='center', fontsize=10, color='#991B1B', fontweight='bold',
              bbox=dict(boxstyle='round,pad=0.35', fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2), zorder=25)
 
@@ -841,10 +840,10 @@ def generate_sheet_1():
     ax4_top.set_xticks([])
     ax4_top.set_yticks([])
 
-    ax4_top.set_title("한계 2: 원거리 궤적과 달리 실제로는 극심한 진동으로 불안정합니다.", 
+    ax4_top.set_title("한계 2: 직진 주행 중에도 선체와 조타가 좌우로 진동합니다.", 
                       fontsize=12.2, fontweight='bold', pad=8, color=COLOR_DANGER, loc='left')
 
-    ax4_top.text(5.0, 2.50, "실제 선체 거동: 겉보기 일직선 주행 속 극심한 좌우 사행 진동", 
+    ax4_top.text(5.0, 2.50, "선체 거동: 직선 주행 중 56° 진폭의 좌우 사행 발생", 
                  ha='center', va='top', fontsize=10.2, fontweight='bold', color=COLOR_TEXT_MAIN, zorder=30)
 
     # Nominal straight line
@@ -863,8 +862,8 @@ def generate_sheet_1():
                  bbox=dict(boxstyle='round,pad=0.15', fc='#FFFFFF', ec='#FCA5A5', lw=0.8), zorder=35)
     ax4_top.text(2.7, -1.75, "우현 28° 조타", ha='center', va='top', fontsize=9.0, fontweight='bold', color='#0284C7', 
                  bbox=dict(boxstyle='round,pad=0.15', fc='#FFFFFF', ec='#93C5FD', lw=0.8), zorder=35)
-    ax4_top.text(5.0, -2.50, "시간순 50% 중첩: 일직선 경로 추종 시에도 선체는 좌우로 56° 진폭의 격렬한 진동을 반복함", 
-                 ha='center', va='bottom', fontsize=8.5, fontweight='bold', color='#DC2626', zorder=35)
+    ax4_top.text(5.0, -2.50, "시간순 중첩 관찰: 직선 주행 중에도 선체는 56° 진폭으로 진동합니다.", 
+                 ha='center', va='bottom', fontsize=8.8, fontweight='bold', color='#DC2626', zorder=35)
 
     # Bottom Card: Rudder Angle Chattering Time Series
     ax4_bot = fig.add_axes([0.355, 0.038, 0.290, 0.170])
@@ -887,15 +886,15 @@ def generate_sheet_1():
     ax4_bot.plot(t, chatter, color='#DC2626', lw=1.2, zorder=4)
     ax4_bot.axhline(-5, color='#64748B', lw=1.0, ls='--', zorder=2)
 
-    ax4_bot.annotate('조타각 극단적 고주파 진동 (4.5Hz, ±28°)', xy=(2.0, 11), xytext=(2.0, 16),
+    ax4_bot.annotate('조타각 고주파 진동 (4.5Hz, ±28°)', xy=(2.0, 11), xytext=(2.0, 16),
                      ha='center', va='bottom',
                      fontsize=9.0, fontweight='bold', color='#B91C1C',
                      bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_DANGER_BORDER, lw=0.9), zorder=20)
 
     ax4_bot.text(5.0, -28.0, 
-                 "1. 멀리서 보면 경로를 아주 잘 따라가는 것처럼 보입니다.\n"
-                 "2. 그러나 실제로는 짧은 시간에 큰 각도로 좌우 진동합니다.\n"
-                 "3. 과도한 조타 진동으로 기어가 마모되고 선속이 40% 저하됩니다.",
+                 "1. 원거리에서는 직선 궤적으로 보입니다.\n"
+                 "2. 실제로는 짧은 주기로 좌우 조타가 반복됩니다.\n"
+                 "3. 진동으로 인해 모터가 마모되고 선속이 40% 저하됩니다.",
                  ha='center', va='center', fontsize=9.4, fontweight='bold', color='#991B1B',
                  bbox=dict(boxstyle='round,pad=0.30', fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2), zorder=25)
 
@@ -913,7 +912,7 @@ def generate_sheet_1():
         spine.set_color(COLOR_BORDER_STRONG)
         spine.set_linewidth(1.3)
 
-    ax5.set_title("한계 3: 단일 반사 규칙은 다중 장애물 연쇄 충돌을 유발합니다.", 
+    ax5.set_title("한계 3: 단일 반사 제어로는 다중 장애물 충돌을 방지하지 못합니다.", 
                   fontsize=12.2, fontweight='bold', pad=8, color=COLOR_DANGER, loc='left')
     ax5.set_xlabel("전진 거리 X (m)", fontsize=11, labelpad=4, color=COLOR_TEXT_SUB)
     ax5.set_ylabel("횡방향 위치 Y (m)", fontsize=11, labelpad=4, color=COLOR_TEXT_SUB)
@@ -921,10 +920,10 @@ def generate_sheet_1():
     # Top Context Banner
     ax5.add_patch(FancyBboxPatch((0.25, 6.70), 7.50, 1.05, boxstyle="round,pad=0.04",
                                  fc='#FFFFFF', ec=COLOR_BORDER_STRONG, lw=1.1, zorder=20))
-    ax5.text(4.0, 7.52, "구조적 원인: 주변 장애물 배치와 환경 지도를 고려하지 못하는 단일 센서 반사", 
+    ax5.text(4.0, 7.52, "환경 지도가 없어 주변 장애물 배치를 인식하지 못합니다.", 
              ha='center', va='top', fontsize=9.8, fontweight='bold', color=COLOR_TEXT_MAIN, zorder=21)
-    ax5.text(4.0, 7.02, "전방 장애물(A)만 감지하고 즉시 좌현 조타하여, 인접 장애물(B)의 위치를 보지 못하고 직격 충돌함",
-             ha='center', va='center', fontsize=9.0, color='#475569', zorder=21)
+    ax5.text(4.0, 7.02, "장애물 A를 회피하는 과정에서 인접한 장애물 B와 충돌합니다.",
+             ha='center', va='center', fontsize=9.2, color='#475569', zorder=21)
 
     # Destination Goal at (7.3, 2.5)
     gx, gy = 7.3, 2.5
@@ -957,7 +956,7 @@ def generate_sheet_1():
 
     # Sensor Beam detecting A
     ax5.plot([2.55, bA_x - 0.25], [2.5, 2.5], color='#DC2626', lw=2.2, ls='-', zorder=15)
-    ax5.annotate('센서 감지 거리 (1.2m)\n즉시 좌현 40° 회피 조타!', xy=(2.7, 2.5), xytext=(1.8, 3.7),
+    ax5.annotate('센서 감지 (1.2m)\n즉시 좌현 40° 회피 조타!', xy=(2.7, 2.5), xytext=(1.8, 3.7),
                  arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.4),
                  fontsize=9.2, fontweight='bold', color='#DC2626',
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec='#FCA5A5', lw=0.9), zorder=25)
@@ -985,7 +984,7 @@ def generate_sheet_1():
 
     # Crash Flash & Big Red X at Obstacle B
     ax5.plot(5.15, 4.4, marker='X', markersize=20, color='#DC2626', markeredgecolor='#7F1D1D', markeredgewidth=2.0, zorder=30)
-    ax5.annotate('A를 회피하려다 B에 정면 충돌!\n(다중 장애물 환경에서 반사 제어 완전 실패)', 
+    ax5.annotate('장애물 A 회피 중 장애물 B와 충돌!\n(인접 장애물 위치 미인식)', 
                  xy=(5.15, 4.4), xytext=(3.4, 5.7),
                  arrowprops=dict(arrowstyle='->', color='#B91C1C', lw=1.8),
                  fontsize=9.8, fontweight='bold', color='#991B1B',
@@ -993,9 +992,9 @@ def generate_sheet_1():
 
     # Declarative 3-Sentence Summary at Bottom
     ax5.text(4.0, 0.95, 
-             "1. 전방 장애물(A)을 감지하고 고정된 규칙에 따라 좌현으로 급회피를 시작합니다.\n"
-             "2. 그러나 센서 시야 밖의 인접 장애물(B)을 전혀 인식하지 못해 회피 경로가 충돌 경로가 됩니다.\n"
-             "3. 단일 센서 반사 제어는 다중 장애물이 배치된 복잡 수역에서 근본적인 한계를 드러냅니다.",
+             "1. 전방 장애물 A를 감지한 직후 좌현으로 회피합니다.\n"
+             "2. 인접 장애물 B를 인식하지 못해 충돌 경로로 진입합니다.\n"
+             "3. 단순 반사 규칙으로는 다중 장애물 환경에 대응하지 못합니다.",
              ha='center', va='center', fontsize=9.6, fontweight='bold', color='#991B1B',
              bbox=dict(boxstyle='round,pad=0.35', fc=COLOR_DANGER_BG, ec=COLOR_DANGER_BORDER, lw=1.2), zorder=25)
 
