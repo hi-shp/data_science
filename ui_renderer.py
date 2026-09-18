@@ -1754,81 +1754,55 @@ class EnvRenderer:
             cur_turn = last_rec.get("cumulative_turn_deg", 0.0)
 
         player_rank = leaderboard.get_player_rank(last_rec)
-        ai_gap_rank = leaderboard.get_ai_benchmark_rank("GAP 알고리즘")
-        ai_lt_rank = leaderboard.get_ai_benchmark_rank("라인트레이싱")
-        ai_benchmarks = {b["name"]: b for b in leaderboard.get_ai_benchmarks()}
-        gap_b = ai_benchmarks.get("GAP 알고리즘", leaderboard.DEFAULT_AI_BENCHMARKS[0])
-        lt_b = ai_benchmarks.get("라인트레이싱", leaderboard.DEFAULT_AI_BENCHMARKS[1])
+        ai_rank = leaderboard.get_ai_benchmark_rank()
 
-        # 5. 상단 비교 요약 카드 3개 (플레이어 기록 vs GAP 알고리즘 vs 라인트레이싱)
-        card_w, card_h = 248, 78
+        # 5. 상단 비교 요약 카드 2개 (플레이어 기록 vs GAP 알고리즘 벤치마크)
+        card_w, card_h = 380, 78
         card_y = 76
 
-        # 카드 1: 플레이어 이번 주행 기록
+        # 좌측 카드: 플레이어 이번 주행 기록
         c1_x = 30
         pygame.draw.rect(modal_surf, (22, 27, 35, 230), (c1_x, card_y, card_w, card_h), border_radius=6)
         pygame.draw.rect(modal_surf, (48, 58, 72), (c1_x, card_y, card_w, card_h), 1, border_radius=6)
 
         p_hdr = self.ko_bold_font.render("YOUR ATTEMPT", True, (190, 205, 220))
-        modal_surf.blit(p_hdr, (c1_x + 12, card_y + 8))
+        modal_surf.blit(p_hdr, (c1_x + 14, card_y + 10))
 
         p_rank_str = f"#{player_rank}위" if player_rank else "-"
         p_rank_surf = self.ko_bold_font.render(p_rank_str, True, (140, 160, 185))
-        modal_surf.blit(p_rank_surf, (c1_x + card_w - p_rank_surf.get_width() - 12, card_y + 8))
+        modal_surf.blit(p_rank_surf, (c1_x + card_w - p_rank_surf.get_width() - 14, card_y + 10))
 
         m1_col = (110, 190, 135) if cur_coll == 0 else (205, 95, 95)
         m1_surf = self.ko_font.render(f"충돌: {cur_coll}회", True, m1_col)
-        modal_surf.blit(m1_surf, (c1_x + 12, card_y + 34))
+        modal_surf.blit(m1_surf, (c1_x + 14, card_y + 42))
 
-        m2_surf = self.ko_font.render(f"시간: {cur_time:.1f}s", True, (190, 200, 212))
-        modal_surf.blit(m2_surf, (c1_x + 124, card_y + 34))
+        m2_surf = self.ko_font.render(f"시간: {cur_time:.2f}s", True, (190, 200, 212))
+        modal_surf.blit(m2_surf, (c1_x + 130, card_y + 42))
 
         m3_surf = self.ko_font.render(f"누적 회전: {cur_turn:.1f}\u00b0", True, (190, 200, 212))
-        modal_surf.blit(m3_surf, (c1_x + 12, card_y + 54))
+        modal_surf.blit(m3_surf, (c1_x + 242, card_y + 42))
 
-        # 카드 2: GAP 알고리즘 벤치마크
-        c2_x = 30 + card_w + 18
-        pygame.draw.rect(modal_surf, (22, 28, 38, 230), (c2_x, card_y, card_w, card_h), border_radius=6)
-        pygame.draw.rect(modal_surf, (45, 68, 92), (c2_x, card_y, card_w, card_h), 1, border_radius=6)
+        # 우측 카드: GAP 알고리즘 벤치마크
+        c2_x = mw - 30 - card_w
+        pygame.draw.rect(modal_surf, (22, 27, 35, 230), (c2_x, card_y, card_w, card_h), border_radius=6)
+        pygame.draw.rect(modal_surf, (48, 58, 72), (c2_x, card_y, card_w, card_h), 1, border_radius=6)
 
-        ai_hdr = self.ko_bold_font.render("GAP 알고리즘", True, (160, 200, 235))
-        modal_surf.blit(ai_hdr, (c2_x + 12, card_y + 8))
+        ai_hdr = self.ko_bold_font.render("GAP 알고리즘", True, (160, 195, 225))
+        modal_surf.blit(ai_hdr, (c2_x + 14, card_y + 10))
 
-        ai_rank_str = f"#{ai_gap_rank}위"
-        ai_rank_surf = self.ko_bold_font.render(ai_rank_str, True, (135, 175, 215))
-        modal_surf.blit(ai_rank_surf, (c2_x + card_w - ai_rank_surf.get_width() - 12, card_y + 8))
+        ai_rank_str = f"BENCHMARK (#{ai_rank}위)"
+        ai_rank_surf = self.ko_bold_font.render(ai_rank_str, True, (130, 155, 180))
+        modal_surf.blit(ai_rank_surf, (c2_x + card_w - ai_rank_surf.get_width() - 14, card_y + 10))
 
-        gap_c_col = (110, 190, 135) if gap_b['collisions'] == 0 else (205, 95, 95)
-        gap1_surf = self.ko_font.render(f"충돌: {gap_b['collisions']}회", True, gap_c_col)
-        modal_surf.blit(gap1_surf, (c2_x + 12, card_y + 34))
+        ai_b = leaderboard.AI_BENCHMARK
+        ai1_surf = self.ko_font.render(f"충돌: {ai_b['collisions']}회", True, (110, 190, 135))
+        modal_surf.blit(ai1_surf, (c2_x + 14, card_y + 42))
 
-        gap2_surf = self.ko_font.render(f"시간: {gap_b['time']:.1f}s", True, (190, 200, 212))
-        modal_surf.blit(gap2_surf, (c2_x + 124, card_y + 34))
+        ai2_surf = self.ko_font.render(f"시간: {ai_b['time']:.1f}s", True, (190, 200, 212))
+        modal_surf.blit(ai2_surf, (c2_x + 130, card_y + 42))
 
-        gap3_surf = self.ko_font.render(f"누적 회전: {gap_b['cumulative_turn_deg']:.1f}\u00b0", True, (190, 200, 212))
-        modal_surf.blit(gap3_surf, (c2_x + 12, card_y + 54))
-
-        # 카드 3: 라인트레이싱 벤치마크
-        c3_x = c2_x + card_w + 18
-        pygame.draw.rect(modal_surf, (28, 25, 36, 230), (c3_x, card_y, card_w, card_h), border_radius=6)
-        pygame.draw.rect(modal_surf, (68, 55, 88), (c3_x, card_y, card_w, card_h), 1, border_radius=6)
-
-        lt_hdr = self.ko_bold_font.render("라인트레이싱", True, (205, 185, 230))
-        modal_surf.blit(lt_hdr, (c3_x + 12, card_y + 8))
-
-        lt_rank_str = f"#{ai_lt_rank}위"
-        lt_rank_surf = self.ko_bold_font.render(lt_rank_str, True, (175, 155, 205))
-        modal_surf.blit(lt_rank_surf, (c3_x + card_w - lt_rank_surf.get_width() - 12, card_y + 8))
-
-        lt_c_col = (110, 190, 135) if lt_b['collisions'] == 0 else (205, 95, 95)
-        lt1_surf = self.ko_font.render(f"충돌: {lt_b['collisions']}회", True, lt_c_col)
-        modal_surf.blit(lt1_surf, (c3_x + 12, card_y + 34))
-
-        lt2_surf = self.ko_font.render(f"시간: {lt_b['time']:.1f}s", True, (190, 200, 212))
-        modal_surf.blit(lt2_surf, (c3_x + 124, card_y + 34))
-
-        lt3_surf = self.ko_font.render(f"누적 회전: {lt_b['cumulative_turn_deg']:.1f}\u00b0", True, (190, 200, 212))
-        modal_surf.blit(lt3_surf, (c3_x + 12, card_y + 54))
+        ai3_surf = self.ko_font.render(f"누적 회전: {ai_b['cumulative_turn_deg']:.1f}\u00b0", True, (190, 200, 212))
+        modal_surf.blit(ai3_surf, (c2_x + 242, card_y + 42))
 
         # 6. 상위 10등 랭킹 테이블 (TOP 10 LEADERBOARD)
         tbl_y = 166
@@ -1844,10 +1818,10 @@ class EnvRenderer:
         cols = [
             ("순위", 60),
             ("기록명", 200),
-            ("충돌", 100),
-            ("시간", 110),
+            ("충돌", 110),
+            ("시간", 120),
             ("누적 회전", 120),
-            ("일시 / 비고", 190)
+            ("일시", 140)
         ]
         col_x = 44
         for name, w in cols:
@@ -1855,8 +1829,20 @@ class EnvRenderer:
             modal_surf.blit(lbl, (col_x, tbl_y + 5))
             col_x += w
 
-        # 전체 목록 로드 및 통합 랭킹 가져오기
-        all_entries = leaderboard.get_unified_records()
+        # 전체 목록 로드 및 GAP 알고리즘 벤치마크 항목 결합 정렬
+        records = leaderboard.load_leaderboard()
+        all_entries = [dict(r) for r in records]
+        ai_entry = dict(leaderboard.AI_BENCHMARK)
+        ai_entry["player"] = "GAP 알고리즘"
+        all_entries.append(ai_entry)
+
+        # 정렬: 1순위 충돌, 2순위 시간, 3순위 누적회전
+        all_entries.sort(key=lambda r: (
+            r.get("collisions", 999),
+            r.get("time", 9999.0),
+            r.get("cumulative_turn_deg", 99999.0)
+        ))
+
         top_10 = all_entries[:10]
         row_y = tbl_y + th_h + 3
         row_h = 25
@@ -1864,7 +1850,6 @@ class EnvRenderer:
         for idx, entry in enumerate(top_10):
             rank_num = idx + 1
             is_ai = entry.get("is_ai", False)
-            ai_name = entry.get("name", entry.get("player", ""))
             is_cur_attempt = (
                 not is_ai and
                 last_rec and
@@ -1872,14 +1857,10 @@ class EnvRenderer:
             )
 
             # 행 배경 및 테두리 스타일
-            if is_ai and "GAP" in ai_name:
-                row_bg = (22, 32, 45, 230)
-                row_border = (48, 72, 100)
-                t_col = (175, 210, 240)
-            elif is_ai and "라인" in ai_name:
-                row_bg = (28, 24, 38, 230)
-                row_border = (72, 54, 98)
-                t_col = (205, 185, 230)
+            if is_ai:
+                row_bg = (24, 34, 46, 230)
+                row_border = (50, 75, 105)
+                t_col = (175, 205, 235)
             elif is_cur_attempt:
                 row_bg = (34, 32, 26, 230)
                 row_border = (95, 85, 55)
@@ -1902,10 +1883,8 @@ class EnvRenderer:
 
             # 구분 / 기록명
             p_name = entry.get("player", "Player")
-            if is_ai and "GAP" in ai_name:
-                tag_surf = self.ko_bold_font.render(f"{p_name} [평균]", True, (175, 210, 240))
-            elif is_ai and "라인" in ai_name:
-                tag_surf = self.ko_bold_font.render(f"{p_name} [평균]", True, (205, 185, 230))
+            if is_ai:
+                tag_surf = self.ko_bold_font.render(p_name, True, (175, 205, 235))
             elif is_cur_attempt:
                 tag_surf = self.ko_bold_font.render(f"[YOU] {p_name}", True, (215, 200, 165))
             else:
@@ -1919,14 +1898,14 @@ class EnvRenderer:
             c_col = (110, 190, 135) if c_val == 0 else (205, 95, 95)
             c_surf = self.ko_font.render(c_str, True, c_col)
             modal_surf.blit(c_surf, (col_x + 6, row_y + 3))
-            col_x += 100
+            col_x += 110
 
             # 도달 시간
             tm_val = entry.get("time", 0.0)
-            tm_str = f"{tm_val:.1f}s"
+            tm_str = f"{tm_val:.2f}s"
             tm_surf = self.ko_font.render(tm_str, True, t_col)
             modal_surf.blit(tm_surf, (col_x + 6, row_y + 3))
-            col_x += 110
+            col_x += 120
 
             # 누적 회전
             trn_val = entry.get("cumulative_turn_deg", 0.0)
@@ -1935,7 +1914,7 @@ class EnvRenderer:
             modal_surf.blit(trn_surf, (col_x + 6, row_y + 3))
             col_x += 120
 
-            # 일시 / 비고
+            # 일시
             dt_str = entry.get("date", "-")
             dt_surf = self.ko_small_font.render(dt_str, True, (115, 130, 148))
             modal_surf.blit(dt_surf, (col_x, row_y + 4))

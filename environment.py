@@ -12,10 +12,7 @@ from navigation import reactive_avoidance
 from ui_renderer import EnvRenderer
 
 class BoatEnv:
-    def __init__(self, render_enabled=True):
-        self.render_enabled = render_enabled
-        if not render_enabled:
-            os.environ["SDL_VIDEODRIVER"] = "dummy"
+    def __init__(self):
         os.environ['SDL_VIDEO_CENTERED'] = '1'
         pygame.init()
         self.w = WIDTH
@@ -24,11 +21,8 @@ class BoatEnv:
         self.cam_x = 0      # 카메라 X 오프셋 (보트 추종)
         self.sim_h = SIM_H
         self.is_fullscreen_window = False
-        if render_enabled:
-            self.screen = pygame.display.set_mode((self.w, self.h))
-            pygame.display.set_caption("kaboat simulation")
-        else:
-            self.screen = pygame.Surface((self.w, self.h))
+        self.screen = pygame.display.set_mode((self.w, self.h))
+        pygame.display.set_caption("kaboat simulation")
         self.clock = pygame.time.Clock()
         self.dt = 0.04
 
@@ -41,8 +35,8 @@ class BoatEnv:
             'avoid_normal': 0.05,
             'avoid_em': 0.7,
             'clear_margin': 10.0,
-            'em_enter': 175.0,
-            'em_exit': 220.0,
+            'em_enter': 125.0,
+            'em_exit': 160.0,
             'em_hold_frames': 18,
             'align_exp': 6.0,
             'heading_exp': 4.0,
@@ -59,9 +53,9 @@ class BoatEnv:
         self.rel_angles = np.linspace(-np.pi, np.pi, self.lidar_beams, endpoint=False)
         
         self.mass = 10
-        self.inertia = 10
+        self.inertia = 4.5
         self.drag = 0.2
-        self.rot_drag = 5
+        self.rot_drag = 0.8
         self.boat_radius = 25
         
         # 선체 표면 기하 형상 (ui_renderer의 선체 렌더링과 100% 일치하는 정밀 히트박스)
@@ -89,7 +83,7 @@ class BoatEnv:
         
         self.obs_n = int(80 * (self.map_w / self.w))   # 맵 확장에 비례하는 장애물 수 (기본 80개)
         self.obs_r = 17
-        self.min_obs = 130
+        self.min_obs = 120
         
         self.grid = init_grid()
         self.clusters = []
@@ -187,10 +181,7 @@ class BoatEnv:
         self.leaderboard_retry_rect = None
         self.leaderboard_exit_rect = None
         
-        if render_enabled:
-            self.renderer = EnvRenderer(self)
-        else:
-            self.renderer = None
+        self.renderer = EnvRenderer(self)
         self.reset()
 
     def load_params(self):
@@ -457,8 +448,8 @@ class BoatEnv:
         self.dynamic_obstacles[:, 0] = ox + np.sin(phase) * (r * 0.2)
         self.dynamic_obstacles[:, 1] = oy + np.cos(phase * 1.2) * (r * 0.2)
         
-        # 부표 중앙을 기준으로 부드러운 백색 원형 구름 파도가 주기적으로 퍼져나감 (렌더링 활성화 시에만 생성)
-        if self.render_enabled and self.frame % 36 == 0:
+        # 부표 중앙을 기준으로 부드러운 백색 원형 구름 파도가 주기적으로 퍼져나감
+        if self.frame % 36 == 0:
             for i in range(len(self.obstacles)):
                 self.reflected_wakes.append([
                     self.dynamic_obstacles[i, 0], self.dynamic_obstacles[i, 1], r[i] + 1.0, 72
@@ -477,20 +468,9 @@ class BoatEnv:
             target_fwd = m_thr * 5500.0
             mom = (tR - tL) * self.params['mom_coeff']
         else:
-            # 220도 범위 내 최소 장애물 거리에 따른 연속 속도 제어 (선속 멈춤 현상 원천 방지)
+            # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어 (장애물 근접 시 최소 속도를 더욱 낮추어 서행)
             em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-            dist_speed_factor = 0.35 + 0.65 * math.tanh(em_dist / 40.0)
-            
-            # 회전 각도에 따른 감속 (90도 이상에서도 멈추지 않도록 반각 코사인 연속 함수 적용)
-            turn_err = abs(wrap(self.heading_target - self.boat_heading))
-            steer_angle_equiv = abs(getattr(self, 'prev_steer', 0.0)) * (math.pi * 0.5)
-            effective_turn_angle = max(turn_err, steer_angle_equiv)
-            
-            turn_cos = math.cos(min(math.pi, effective_turn_angle) * 0.5)
-            turn_speed_factor = 0.30 + 0.70 * turn_cos
-            
-            speed_factor = dist_speed_factor * turn_speed_factor
-            
+            speed_factor = (math.tanh(em_dist / 100.0)) ** 1.35
             # 라인트레이싱 모드에서는 갭 내비 대비 살짝 느린 속도 (85%)로 주행하여 반응형 회피에 여유 확보
             if getattr(self, 'linetrace_mode', False):
                 speed_factor *= 0.85
@@ -522,7 +502,7 @@ class BoatEnv:
             self.boat_pos[0] = np.clip(self.boat_pos[0], 25, self.map_w - 25)
             self.boat_pos[1] = np.clip(self.boat_pos[1], 25, self.sim_h - 25)
         
-        if self.render_enabled and self.frame % 7 == 0:
+        if self.frame % 7 == 0:
             pygame.draw.line(self.trail, (255, 255, 255, 60),
                              (int(prev[0]), int(prev[1])),
                              (int(self.boat_pos[0]), int(self.boat_pos[1])), 2)
@@ -553,85 +533,84 @@ class BoatEnv:
         lat_vec = np.array([-math.sin(self.boat_heading), math.cos(self.boat_heading)])
         self.boat_pos += lat_vec * (self.boat_ang_vel * L_pivot * self.dt)
 
-        # 실제 선박 유체역학 파도 생성 (Realistic Hydrodynamic Wave System) - 렌더링 활성화 시에만 실행
-        if self.render_enabled:
-            if vel_norm > 2.0:
-                h = self.boat_heading
-                intensity = min(1.0, vel_norm / 11.0)
-                sh = math.sin(h); ch = math.cos(h)
-                GAP = 11; L = 84
+        # 실제 선박 유체역학 파도 생성 (Realistic Hydrodynamic Wave System)
+        if vel_norm > 2.0:
+            h = self.boat_heading
+            intensity = min(1.0, vel_norm / 11.0)
+            sh = math.sin(h); ch = math.cos(h)
+            GAP = 11; L = 84
 
-                # 선미 듀얼 쓰러스터 추진 제트 기포 및 후방 횡단 웨이크 (Enlarged Stern Roostertail & Trailing Foam)
-                if self.frame % 2 == 0:
-                    stern_lx = self.boat_pos[0] - sh * GAP - ch * (L * 0.50)
-                    stern_ly = self.boat_pos[1] + ch * GAP - sh * (L * 0.50)
-                    stern_rx = self.boat_pos[0] + sh * GAP - ch * (L * 0.50)
-                    stern_ry = self.boat_pos[1] - ch * GAP - sh * (L * 0.50)
-                    
-                    self.wakes.append([stern_lx + random.uniform(-1.5, 1.5), stern_ly + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
-                    self.wakes.append([stern_rx + random.uniform(-1.5, 1.5), stern_ry + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
-                    
-                if self.frame % 3 == 0:
-                    cx = self.boat_pos[0] - ch * 42
-                    cy = self.boat_pos[1] - sh * 42
-                    self.wakes.append([cx + random.uniform(-2.5, 2.5), cy + random.uniform(-2.5, 2.5), 4.5, 130 * intensity, -ch * 0.85, -sh * 0.85])
+            # 선미 듀얼 쓰러스터 추진 제트 기포 및 후방 횡단 웨이크 (Enlarged Stern Roostertail & Trailing Foam)
+            if self.frame % 2 == 0:
+                stern_lx = self.boat_pos[0] - sh * GAP - ch * (L * 0.50)
+                stern_ly = self.boat_pos[1] + ch * GAP - sh * (L * 0.50)
+                stern_rx = self.boat_pos[0] + sh * GAP - ch * (L * 0.50)
+                stern_ry = self.boat_pos[1] - ch * GAP - sh * (L * 0.50)
+                
+                self.wakes.append([stern_lx + random.uniform(-1.5, 1.5), stern_ly + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
+                self.wakes.append([stern_rx + random.uniform(-1.5, 1.5), stern_ry + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
+                
+            if self.frame % 3 == 0:
+                cx = self.boat_pos[0] - ch * 42
+                cy = self.boat_pos[1] - sh * 42
+                self.wakes.append([cx + random.uniform(-2.5, 2.5), cy + random.uniform(-2.5, 2.5), 4.5, 130 * intensity, -ch * 0.85, -sh * 0.85])
 
-                # 좌/우 회전 시 외측 선체 유체 저항에 의한 흰색 거품 (Outer Hull Resistance Foam)
-                if abs(self.boat_ang_vel) > 0.06:
-                    turn_p = min(1.0, abs(self.boat_ang_vel) / 0.42) * intensity
-                    s = 1.0 if self.boat_ang_vel < 0 else -1.0
-                    
-                    rand_l = random.uniform(-L * 0.25, L * 0.15)
-                    bx_foam = self.boat_pos[0] + s * (-sh) * (GAP + random.uniform(1.5, 4.0)) + ch * rand_l
-                    by_foam = self.boat_pos[1] + s * ch * (GAP + random.uniform(1.5, 4.0)) + sh * rand_l
-                    
-                    drift_vx = s * (-sh) * random.uniform(0.3, 0.7) - ch * 0.35
-                    drift_vy = s * ch * random.uniform(0.3, 0.7) - sh * 0.35
-                    init_r = random.uniform(2.0, 3.5)
-                    alpha = random.uniform(140, 200) * turn_p
-                    
-                    # 7번째 원소=1: 순백색 거품 태그 (뷰쪽 파란색 링 없이 흰색만)
-                    self.wakes.append([bx_foam, by_foam, init_r, alpha, drift_vx, drift_vy, 1])
+            # 좌/우 회전 시 외측 선체 유체 저항에 의한 흰색 거품 (Outer Hull Resistance Foam)
+            if abs(self.boat_ang_vel) > 0.06:
+                turn_p = min(1.0, abs(self.boat_ang_vel) / 0.42) * intensity
+                s = 1.0 if self.boat_ang_vel < 0 else -1.0
+                
+                rand_l = random.uniform(-L * 0.25, L * 0.15)
+                bx_foam = self.boat_pos[0] + s * (-sh) * (GAP + random.uniform(1.5, 4.0)) + ch * rand_l
+                by_foam = self.boat_pos[1] + s * ch * (GAP + random.uniform(1.5, 4.0)) + sh * rand_l
+                
+                drift_vx = s * (-sh) * random.uniform(0.3, 0.7) - ch * 0.35
+                drift_vy = s * ch * random.uniform(0.3, 0.7) - sh * 0.35
+                init_r = random.uniform(2.0, 3.5)
+                alpha = random.uniform(140, 200) * turn_p
+                
+                # 7번째 원소=1: 순백색 거품 태그 (뷰쪽 파란색 링 없이 흰색만)
+                self.wakes.append([bx_foam, by_foam, init_r, alpha, drift_vx, drift_vy, 1])
 
-            # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering)
-            if len(self.wakes) > 0 and len(self.dynamic_obstacles) > 0:
-                bx, by = self.boat_pos
-                dx_b = self.dynamic_obstacles[:, 0] - bx
-                dy_b = self.dynamic_obstacles[:, 1] - by
-                near_mask = dx_b * dx_b + dy_b * dy_b < 32400.0  # 180.0**2
-                if np.any(near_mask):
-                    near_obs = self.dynamic_obstacles[near_mask]
-                    near_list = [(float(row[0]), float(row[1]), float(row[2])) for row in near_obs]
-                    for w in self.wakes:
-                        if w[3] <= 0:
-                            continue
-                        wx, wy = w[0], w[1]
-                        absorbed = False
-                        for ox, oy, orad in near_list:
-                            dx = wx - ox
-                            dy = wy - oy
-                            d = math.hypot(dx, dy)
-                            
-                            # 1. 장애물 내부로 들어간 파도는 완전히 소멸/흡수 (Absorption)
-                            if d < orad + 2.0:
-                                w[3] = 0
-                                absorbed = True
-                                break
-                            
-                            # 2. 장애물 둘레에 파도가 닿으면 나노 거품 반사 산란
-                            if w[3] > 35 and abs(d - (w[2] + orad)) < 5.0:
-                                if random.random() < 0.35:
-                                    for _ in range(random.randint(2, 4)):
-                                        angle = math.atan2(dy, dx) + random.uniform(-0.8, 0.8)
-                                        spd = random.uniform(0.8, 1.8)
-                                        fx = ox + math.cos(angle) * (orad + random.uniform(0.8, 2.2))
-                                        fy = oy + math.sin(angle) * (orad + random.uniform(0.8, 2.2))
-                                        self.reflected_wakes.append([
-                                            fx, fy, random.uniform(0.3, 0.65), w[3] * 0.85,
-                                            math.cos(angle) * spd, math.sin(angle) * spd
-                                        ])
-                        if absorbed:
-                            continue
+        # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering)
+        if len(self.wakes) > 0 and len(self.dynamic_obstacles) > 0:
+            bx, by = self.boat_pos
+            dx_b = self.dynamic_obstacles[:, 0] - bx
+            dy_b = self.dynamic_obstacles[:, 1] - by
+            near_mask = dx_b * dx_b + dy_b * dy_b < 32400.0  # 180.0**2
+            if np.any(near_mask):
+                near_obs = self.dynamic_obstacles[near_mask]
+                near_list = [(float(row[0]), float(row[1]), float(row[2])) for row in near_obs]
+                for w in self.wakes:
+                    if w[3] <= 0:
+                        continue
+                    wx, wy = w[0], w[1]
+                    absorbed = False
+                    for ox, oy, orad in near_list:
+                        dx = wx - ox
+                        dy = wy - oy
+                        d = math.hypot(dx, dy)
+                        
+                        # 1. 장애물 내부로 들어간 파도는 완전히 소멸/흡수 (Absorption)
+                        if d < orad + 2.0:
+                            w[3] = 0
+                            absorbed = True
+                            break
+                        
+                        # 2. 장애물 둘레에 파도가 닿으면 나노 거품 반사 산란
+                        if w[3] > 35 and abs(d - (w[2] + orad)) < 5.0:
+                            if random.random() < 0.35:
+                                for _ in range(random.randint(2, 4)):
+                                    angle = math.atan2(dy, dx) + random.uniform(-0.8, 0.8)
+                                    spd = random.uniform(0.8, 1.8)
+                                    fx = ox + math.cos(angle) * (orad + random.uniform(0.8, 2.2))
+                                    fy = oy + math.sin(angle) * (orad + random.uniform(0.8, 2.2))
+                                    self.reflected_wakes.append([
+                                        fx, fy, random.uniform(0.3, 0.65), w[3] * 0.85,
+                                        math.cos(angle) * spd, math.sin(angle) * spd
+                                    ])
+                    if absorbed:
+                        continue
 
     def collide(self):
         bx, by = self.boat_pos
@@ -766,34 +745,33 @@ class BoatEnv:
                 self.heading_target = math.atan2(self.current_wp["pos"][1] - self.boat_pos[1], self.current_wp["pos"][0] - self.boat_pos[0])
             else:
                 self.heading_target = math.atan2(self.target[1] - self.boat_pos[1], self.target[0] - self.boat_pos[0])
-            heading_error = wrap(self.heading_target - self.boat_heading)
-            return float(np.clip(heading_error * self.params['steer_gain'], -1.0, 1.0))
+            return 0
         px, py = self.pursuit_target
         heading_target = math.atan2(py - self.boat_pos[1], px - self.boat_pos[0])
         self.heading_target = heading_target
         heading_error = wrap(heading_target - self.boat_heading)
 
         # 거리에 따라 연속적으로 조향 및 회피력 스케일링
-        clear_ratio = np.clip((min_front_dist - 170.0) / 60.0, 0.0, 1)
-        steer_gain = self.params['steer_gain'] + (1.0 - clear_ratio) * 0.45
-        avoid_multiplier = self.params['avoid_normal'] + (1.0 - clear_ratio) * (self.params['avoid_em'] * 0.45)
+        clear_ratio = np.clip((min_front_dist - 150.0) / 50.0, 0.0, 1)
+        steer_gain = self.params['steer_gain'] + (1.0 - clear_ratio) * 0.4
+        avoid_multiplier = self.params['avoid_normal'] + (1.0 - clear_ratio) * (self.params['avoid_em'] * 0.40)
             
-        # 각속도 댐핑을 강화하여 관성 오버슈트 및 휙휙 도는 회전 억제 (관성 16 대응)
-        d_term = -0.22 * getattr(self, 'boat_ang_vel', 0.0)
+        # 각속도 댐핑을 강화하여 관성 오버슈트 및 휙휙 도는 회전 억제
+        d_term = -0.12 * getattr(self, 'boat_ang_vel', 0.0)
         steer_raw = heading_error * steer_gain + d_term
         alpha = self.params['steer_alpha']
         steer_f = alpha * steer_raw + (1.0 - alpha) * self.prev_steer
         self.prev_steer = steer_f
         
         # [갭 내비게이션 다이렉트 모드 전용 회피]
-        # 질량 20 / 관성 16에 맞춰 회피 개시 거리를 175px로 대폭 확장
+        # 원거리 불필요한 대우회 및 갭 사이 떨림을 방지하되, 근접 장애물(< 55px)에 대해서는 강력한 기존 회피력 완전 유지
         if self.current_wp is None:
             fov_rad = 1.134464  # np.deg2rad(65)
             fwd_mask = np.abs(self.rel_angles) <= fov_rad
             fwd_indices = np.where(fwd_mask)[0]
 
-            SAFE_DIST = 175.0        # 회피 개시 거리 (원거리 조기 회피)
-            CRIT_DIST = 85.0        # 근접 긴급 회피 기준 거리 (선체 반경 25px + 장애물 반경 17px = 42px 충돌선 대비 여유 확보)
+            SAFE_DIST = 100.0        # 회피 개시 거리 (원거리 불필요한 대우회 방지)
+            CRIT_DIST = 60.0        # 근접 긴급 회피 기준 거리 (선체 반경 25px + 장애물 반경 17px = 42px 충돌선)
 
             if len(fwd_indices) > 0:
                 fwd_dists = dists[fwd_indices]
@@ -823,33 +801,33 @@ class BoatEnv:
                 push_l = max(0.0, (SAFE_DIST - d_right) / SAFE_DIST) ** 1.5  # 우측 장애물 -> 좌측 반발
                 net_dir = push_r - push_l
 
-                # 2. 근접 위험도(Urgency) 계산
+                # 2. 근접 위험도(Urgency) 계산: 55px 이하 근접 시 기존의 강력한 반발력(0.75~1.0)으로 즉각 회피
                 urgency = float(np.clip((SAFE_DIST - min_dist) / (SAFE_DIST - CRIT_DIST), 0.0, 1.0))
                 front_f = max(0.0, math.cos(closest_ang * (np.pi / 2.0 / fov_rad)))
 
                 if min_dist < CRIT_DIST:
-                    # [근접 위험 구간] 기존의 강력한 회피력 완전 유지 및 회피 가중치 상향
+                    # [근접 위험 구간] 기존의 강력한 회피력 완전 유지
                     avoid_dir = -float(np.sign(closest_ang)) if abs(closest_ang) > 0.04 else (-1.0 if d_left >= d_right else 1.0)
-                    avoid_steer = avoid_dir * (0.85 + 0.15 * urgency)
-                    if min_dist < CRIT_DIST - 10.0:  # 75px 이하 극근접 충돌 위험 시 100% 완전 회피
-                        steer_cmd = avoid_dir * 1.0
+                    avoid_steer = avoid_dir * (0.75 + 0.25 * urgency)
+                    if min_dist < CRIT_DIST - 5.0:  # 50px 이하 극근접 충돌 위험 시 100% 완전 회피
+                        steer_cmd = avoid_dir * 0.3
                     else:
-                        avoid_weight = max(0.65, urgency * front_f)
+                        avoid_weight = min(0.50, urgency * front_f)
                         steer_cmd = (1.0 - avoid_weight) * steer_f + avoid_weight * avoid_steer
                 else:
-                    # [중거리(85px ~ 175px) 접근 구간] 양측 밸런싱을 적용하여 크게 돌지 않고 틈새 중앙으로 안정적 진입
-                    avoid_steer = np.clip(net_dir * 0.40, -0.50, 0.50)
+                    # [중거리(55px ~ 95px) 접근 구간] 양측 밸런싱을 적용하여 크게 돌지 않고 틈새 중앙으로 안정적 진입
+                    avoid_steer = np.clip(net_dir * 0.35, -0.45, 0.45)
                     steer_cmd = steer_f + avoid_steer
 
-                # 측면 근접 보호(Flank Guard): 배 옆(65~95도) 52px 이내 장애물 근접 시 측면 찰과 충돌 강력 방지
+                # 측면 근접 보호(Flank Guard): 배 옆(65~95도) 42px 이내 장애물 근접 시 측면 찰과 충돌 강력 방지 (기존 반발력 0.40 유지)
                 flank_mask = (np.abs(self.rel_angles) > fov_rad) & (np.abs(self.rel_angles) <= 1.658)
                 if np.any(flank_mask):
                     f_dists = dists[flank_mask]
                     f_min = float(np.min(f_dists))
-                    if f_min < 52.0:
+                    if f_min < 42.0:
                         f_idx = np.where(flank_mask)[0][np.argmin(f_dists)]
                         f_ang = float(self.rel_angles[f_idx])
-                        f_push = -float(np.sign(f_ang)) * (52.0 - f_min) / 52.0 * 0.45
+                        f_push = -float(np.sign(f_ang)) * (42.0 - f_min) / 42.0 * 0.40
                         steer_cmd = float(np.clip(steer_cmd + f_push, -1.0, 1.0))
 
                 return float(np.clip(steer_cmd, -1.0, 1.0))
@@ -867,20 +845,7 @@ class BoatEnv:
         if np.any(rear_mask) and np.min(dists[rear_mask]) <= 45.3:
             return 0.0
 
-        final_steer = np.clip(steer_f + avoid_multiplier * avoid, -1, 1)
-
-        # 측면 근접 보호(Flank Guard): 웨이포인트 주행 중에도 배 옆(65~95도) 52px 이내 장애물 근접 시 측면 찰과 충돌 강력 방지
-        flank_mask = (np.abs(self.rel_angles) > 1.134464) & (np.abs(self.rel_angles) <= 1.658)
-        if np.any(flank_mask):
-            f_dists = dists[flank_mask]
-            f_min = float(np.min(f_dists))
-            if f_min < 52.0:
-                f_idx = np.where(flank_mask)[0][np.argmin(f_dists)]
-                f_ang = float(self.rel_angles[f_idx])
-                f_push = -float(np.sign(f_ang)) * (52.0 - f_min) / 52.0 * 0.45
-                final_steer = float(np.clip(final_steer + f_push, -1.0, 1.0))
-
-        return final_steer
+        return np.clip(steer_f + avoid_multiplier * avoid, -1, 1)
 
     def update_camera(self):
         """카메라 X 오프셋을 보트 위치에 맞춰 부드럽게 추종 (맵 경계 클램핑)"""
@@ -890,5 +855,4 @@ class BoatEnv:
         self.cam_x = self.cam_x * 0.85 + target_cam_x * 0.15
 
     def render(self, hits):
-        if self.renderer is not None:
-            self.renderer.render(hits)
+        self.renderer.render(hits)

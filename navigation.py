@@ -217,8 +217,8 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
             v_gap = c2 - c1
             gap_w = math.hypot(v_gap[0], v_gap[1])
             
-            # 최소 통과 폭 (45px) ~ 전방 게이트 유효 최대 폭 (340px)
-            if not (45.0 <= gap_w <= 340.0):
+            # 최소 통과 폭 (45px) ~ 전방 게이트 유효 최대 폭 (280px)
+            if not (45.0 <= gap_w <= 280.0):
                 continue
                 
             # 바운딩 박스 빠른 필터링: c1과 c2 영역 바깥에 있는 장애물은 검사 대상에서 즉시 배제
@@ -268,10 +268,6 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         # 1. 갭(mid)이 현재 탐색 기준 위치보다 목적지에 유의미하게 가까워져야 함
         req_progress_dist = -5.0 if is_next_wp else -15.0
         if dist_mid_to_target >= dist_to_target + req_progress_dist:
-            continue
-            
-        # 상/하단 맵 경계(수면 외곽벽) 근접 갭 배제 (최소 50px 안전 공간 확보)
-        if my < 50.0 or my > (GRID_H * GRID - 50.0):
             continue
             
         forward_progress = np.dot(rel / distm, gps_vec)
@@ -567,8 +563,8 @@ def line_trace_steering(boat_pos, boat_heading, target_pos, dists, rel_angles, b
     wide_mask = np.abs(rel_angles) <= 1.91986  # np.deg2rad(110)
     min_wide = float(np.min(dists[wide_mask])) if np.any(wide_mask) else 999.0
     
-    SAFE_DIST = 220.0       # 장애물 감지 및 회피 개시 거리 (px)
-    CRIT_DIST = 70.0        # 긴급 완전 회피 기준 거리 (px)
+    SAFE_DIST = 180.0       # 장애물 감지 및 회피 개시 거리 (px)
+    CRIT_DIST = 55.0        # 긴급 완전 회피 기준 거리 (px)
     
     if len(fwd_indices) > 0:
         fwd_dists = dists[fwd_indices]
@@ -607,8 +603,8 @@ def line_trace_steering(boat_pos, boat_heading, target_pos, dists, rel_angles, b
         urgency = float(np.clip((SAFE_DIST - min_dist) / (SAFE_DIST - CRIT_DIST), 0.0, 1.0))
         
         # 긴급도에 따른 적극적인 회피 조향
-        avoid_steer = avoid_dir * (0.25 + 0.2 * urgency)
-        avoid_weight = urgency * front_f * 0.6
+        avoid_steer = avoid_dir * (0.75 + 0.25 * urgency)
+        avoid_weight = urgency * front_f
         
         # 근접 위험 시 급선회(100% 회피 조향) 허용
         if min_dist < CRIT_DIST + 15.0:
@@ -618,21 +614,21 @@ def line_trace_steering(boat_pos, boat_heading, target_pos, dists, rel_angles, b
     else:
         steer_cmd = steer_goal
         
-    # 측면 근접 보호(Flank Guard): 배 옆(65~95도)에 장애물이 52px 이내로 근접 시 외측 선체 찰과 방지
+    # 측면 근접 보호(Flank Guard): 배 옆(65~95도)에 장애물이 45px 이내로 근접 시 외측 선체 찰과 방지
     flank_mask = (np.abs(rel_angles) > fov_rad) & (np.abs(rel_angles) <= 1.658)
     if np.any(flank_mask):
         f_dists = dists[flank_mask]
         f_min = float(np.min(f_dists))
-        if f_min < 40.0:
+        if f_min < 45.0:
             f_idx = np.where(flank_mask)[0][np.argmin(f_dists)]
             f_ang = float(rel_angles[f_idx])
             f_dir = -float(np.sign(f_ang))
-            f_push = f_dir * float(np.clip((52.0 - f_min) / 20.0, 0.0, 0.5))
+            f_push = f_dir * float(np.clip((45.0 - f_min) / 20.0, 0.0, 0.5))
             if (steer_cmd * f_dir) <= 0:
                 steer_cmd = steer_cmd * 0.5 + f_push
 
     # 3. 각속도 댐핑 및 지수 이동 평균 평활화 (오버슈트 및 횡방향 출렁임 방지)
-    d_term = -0.30 * float(boat_ang_vel)
+    d_term = -0.25 * float(boat_ang_vel)
     steer_raw = float(np.clip(steer_cmd + d_term, -1.0, 1.0))
     steer_f = float(np.clip(0.55 * steer_raw + 0.45 * prev_steer, -1.0, 1.0))
     
