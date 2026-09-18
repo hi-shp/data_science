@@ -192,13 +192,13 @@ class BoatEnv:
         self.reset()
 
     def load_params(self):
-        for json_path in ["best_learned_params.json", "params.json"]:
-            if os.path.exists(json_path):
-                try:
-                    with open(json_path, "r") as f:
-                        self.params.update(json.load(f))
-                except Exception:
-                    pass
+        json_path = "best_learned_params.json"
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r") as f:
+                    self.params.update(json.load(f))
+            except Exception:
+                pass
         # 물리 동역학 및 장애물 환경 파라미터 실시간 동기화
         self.mass = float(self.params.get('mass', 10.0))
         self.inertia = float(self.params.get('inertia', 4.5))
