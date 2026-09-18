@@ -99,10 +99,11 @@ def draw_boat_pose(ax, x, y, heading_rad, color=COLOR_BLUE, length=1.2, width=0.
 # SHEET 1: Background & Motivation (Idea Rationale & Reality Verification)
 # =========================================================================
 def generate_sheet_1():
-    fig = plt.figure(figsize=(15, 11), dpi=250)
+    # 2930 x 1570 mm 6-split ratio = 1.24417 (16.0 x 12.86 inches), 300 DPI for ultra-high print resolution
+    fig = plt.figure(figsize=(16, 12.86), dpi=300)
     fig.patch.set_facecolor(COLOR_BG)
-    gs = gridspec.GridSpec(2, 2, height_ratios=[0.11, 0.89], width_ratios=[1.0, 1.0],
-                           left=0.03, right=0.97, top=0.97, bottom=0.03, wspace=0.05, hspace=0.06)
+    gs = gridspec.GridSpec(2, 2, height_ratios=[0.08, 0.92], width_ratios=[1.0, 1.0],
+                           left=0.025, right=0.975, top=0.98, bottom=0.025, wspace=0.035, hspace=0.035)
 
     # Header
     ax_head = fig.add_subplot(gs[0, :])
@@ -110,102 +111,325 @@ def generate_sheet_1():
                       "[연구 동기 및 배경] 새로운 자율운항 아이디어의 구상과 현실성 검증을 위한 2D 시뮬레이션 개발",
                       "단순 반사식 제어의 한계를 극복하는 새로운 알고리즘 아이디어의 물리적 실체화 및 사전 거동 평가")
 
-    # Left Card: 1. 새로운 갭 네비게이션 아이디어 구상 동기
+    # =========================================================================
+    # LEFT CARD: 1. 발상의 전환: 장애물 반사(라인트레이싱)에서 능동적 통로(Gap) 개척으로
+    # =========================================================================
     ax1 = fig.add_subplot(gs[1, 0])
     ax1.set_facecolor(COLOR_CARD_BG)
     ax1.axis('off')
     ax1.set_xlim(0, 1)
     ax1.set_ylim(0, 1)
-    frame1 = FancyBboxPatch((0.02, 0.02), 0.96, 0.96, boxstyle="round,pad=0.015",
+    frame1 = FancyBboxPatch((0.015, 0.015), 0.97, 0.97, boxstyle="round,pad=0.015",
                             ec=COLOR_BORDER, fc=COLOR_CARD_BG, lw=1.5)
     ax1.add_patch(frame1)
 
-    ax1.text(0.06, 0.94, "1. 새로운 자율운항 알고리즘 아이디어 구상 동기",
-             fontsize=13.5, fontweight='bold', color=COLOR_NAVY)
+    ax1.text(0.04, 0.958, "1. 발상의 전환: 장애물 척력(반사 제어)에서 능동적 통로(Gap) 개척으로",
+             fontsize=14.5, fontweight='bold', color=COLOR_NAVY)
 
-    cards_left = [
-        ("기존 제어 방식의 한계 체감",
-         "• 기존 소형 자율운항보트에 적용되던 원시적 반사 제어의 한계 목격\n"
-         "• 부표가 좁게 배치된 게이트 진입 시 회피를 포기하거나 수조 벽면에 충돌\n"
-         "• 디테일한 미션 제어 파라미터 튜닝이 사실상 불가능한 구조적 결함 확인",
-         COLOR_RED, COLOR_RED_LIGHT),
+    # Subplot 1 (Top-Left): [A] 기존 반사 제어의 한계 (척력 모델에 의한 게이트 폐쇄)
+    # Figure coordinates: [0.050, 0.515, 0.415, 0.315]
+    ax_legacy = fig.add_axes([0.050, 0.515, 0.415, 0.315])
+    ax_legacy.set_facecolor('#FFFFFF')
+    ax_legacy.set_xlim(-0.5, 9.5)
+    ax_legacy.set_ylim(-1.5, 7.5)
+    ax_legacy.set_aspect('equal')
+    ax_legacy.grid(True, color='#E2E8F0', linestyle='--', alpha=0.7)
+    ax_legacy.set_xlabel("X 좌표 (m)", fontsize=9.5, color=COLOR_TEXT_MAIN)
+    ax_legacy.set_ylabel("Y 좌표 (m)", fontsize=9.5, color=COLOR_TEXT_MAIN)
+    ax_legacy.set_title("[A] 기존 반사 제어: 장애물 척력에 의한 게이트 폐쇄 및 외곽벽 충돌",
+                        fontsize=11.5, fontweight='bold', color=COLOR_RED, pad=6)
 
-        ("발상의 전환: '장애물 척력'에서 '통과 가능한 틈(Gap)'으로",
-         "• 장애물에 밀려나는 방식 대신 '선박이 지나갈 수 있는 안전한 틈새'를 능동 탐색\n"
-         "• 임의의 인접 부표 사이 중심을 갭 후보로 지정하고 우선순위에 따라 추종\n"
-         "• 라인트레이싱의 지그재그 진동을 없애면서 SLAM 수준의 유연한 거동 모색",
-         COLOR_BLUE, COLOR_BLUE_LIGHT),
+    # Buoys A & B forming a narrow gate
+    b1_pos = (5.8, 2.6)
+    b2_pos = (5.8, 5.4)
 
-        ("새로운 아이디어의 현실성 체크 및 물리적 실체화 당위성",
-         "• 단순한 수학적 공식을 넘어 '물 위에서 실제로 어떻게 움직일 것인가' 확인 필요\n"
-         "• 선박 선회 시 선미가 바깥으로 밀리는 횡표류(Sway Slip) 물리 현상 고려\n"
-         "• 새로운 제어 알고리즘의 실현 가능성과 거동 안정성을 사전에 가시화",
-         COLOR_GREEN, '#DCFCE7')
-    ]
+    # Repulsive field circles & radiation arrows
+    for b_pos in [b1_pos, b2_pos]:
+        for rad in [0.8, 1.4]:
+            c = Circle(b_pos, rad, ec=COLOR_RED, fc='none', lw=1.2, linestyle=':', alpha=0.5)
+            ax_legacy.add_patch(c)
+        for th in np.linspace(0, 2*np.pi, 8, endpoint=False):
+            arr_x = b_pos[0] + 0.45 * np.cos(th)
+            arr_y = b_pos[1] + 0.45 * np.sin(th)
+            dx = 0.55 * np.cos(th)
+            dy = 0.55 * np.sin(th)
+            ax_legacy.annotate('', xy=(arr_x + dx, arr_y + dy), xytext=(arr_x, arr_y),
+                               arrowprops=dict(arrowstyle='->', color='#F87171', lw=1.1))
 
-    y_pos = 0.88
-    for title, desc, border_col, fill_col in cards_left:
-        box = FancyBboxPatch((0.05, y_pos - 0.22), 0.90, 0.22, boxstyle="round,pad=0.012",
-                             ec=border_col, fc='#FFFFFF', lw=1.6)
-        ax1.add_patch(box)
-        ax1.text(0.08, y_pos - 0.045, title, fontsize=11.5, fontweight='bold', color=border_col)
-        ax1.text(0.08, y_pos - 0.125, desc, fontsize=10.0, color=COLOR_TEXT_MAIN, linespacing=1.4)
-        y_pos -= 0.27
+    ax_legacy.add_patch(Circle(b1_pos, 0.30, ec=COLOR_NAVY, fc='#EF4444', lw=1.6, zorder=6))
+    ax_legacy.add_patch(Circle(b2_pos, 0.30, ec=COLOR_NAVY, fc='#EF4444', lw=1.6, zorder=6))
+    ax_legacy.text(5.8, 1.90, "부표 A", ha='center', fontsize=9.8, fontweight='bold', color=COLOR_RED)
+    ax_legacy.text(5.8, 6.10, "부표 B", ha='center', fontsize=9.8, fontweight='bold', color=COLOR_RED)
 
-    # Right Card: 2. 알고리즘 거동 가시화 및 현실성 체크를 위한 가상 시뮬레이터 구축
+    # Gate width annotation
+    ax_legacy.annotate('', xy=(5.8, 5.4), xytext=(5.8, 2.6),
+                       arrowprops=dict(arrowstyle='<->', color=COLOR_NAVY, lw=1.5))
+    ax_legacy.text(6.05, 4.0, "실제 통로 폭: 2.8m\n(선폭 0.8m 통과 가능)",
+                   va='center', fontsize=9.0, fontweight='bold', color=COLOR_NAVY)
+
+    # Overlapped Virtual Wall Box (placed cleanly to the left)
+    ax_legacy.text(4.2, 4.9, "척력장 중첩 구간\n(가상 차폐벽으로 오판)",
+                   ha='center', va='center', fontsize=9.0, fontweight='bold', color=COLOR_RED,
+                   bbox=dict(boxstyle='round,pad=0.25', fc='#FEF2F2', ec=COLOR_RED, lw=1.4))
+
+    # Boat start pose
+    draw_boat_pose(ax_legacy, 1.2, 4.0, 0.0, color='#94A3B8', length=1.4, width=0.7)
+    ax_legacy.text(1.2, 3.1, "자율운항보트 (선폭 0.8m)", ha='center', fontsize=9.0, fontweight='bold', color=COLOR_NAVY)
+
+    # Repulsive vector acting on boat
+    ax_legacy.annotate('', xy=(2.4, 3.0), xytext=(1.8, 3.9),
+                       arrowprops=dict(arrowstyle='->', color=COLOR_RED, lw=2.2))
+    ax_legacy.text(2.6, 2.4, "합산 척력 (우회 회피 강제)", fontsize=9.0, fontweight='bold', color=COLOR_RED)
+
+    # Erroneous steering path leading to wall collision
+    t_err = np.linspace(0, 1, 50)
+    err_x = 1.2 + 5.7 * t_err
+    err_y = 4.0 - 5.0 * (t_err**1.5)
+    ax_legacy.plot(err_x, err_y, color=COLOR_RED, lw=2.8, linestyle='-', label='기존 알고리즘 회피 궤적 (게이트 포기)')
+
+    # Wall at y = -1.0
+    ax_legacy.axhline(-1.0, color='#334155', lw=3.0)
+    ax_legacy.fill_between([-0.5, 9.5], -1.5, -1.0, color='#CBD5E1', hatch='//')
+    ax_legacy.plot(6.9, -1.0, marker='X', markersize=12, color=COLOR_RED, markeredgecolor='#FFFFFF', markeredgewidth=1.5)
+    ax_legacy.text(6.9, -0.6, "수조 외곽벽 충돌 지점!", fontsize=10.0, fontweight='bold', color=COLOR_RED, ha='center')
+
+    ax_legacy.legend(loc='upper left', fontsize=8.2, framealpha=0.95, facecolor='#FFFFFF')
+
+    # Subplot 2 (Bottom-Left): [B] 제안 갭 네비게이션 (능동적 틈새 추출 및 유선형 통과)
+    # Figure coordinates: [0.050, 0.155, 0.415, 0.310]
+    ax_prop = fig.add_axes([0.050, 0.155, 0.415, 0.310])
+    ax_prop.set_facecolor('#FFFFFF')
+    ax_prop.set_xlim(-0.5, 9.5)
+    ax_prop.set_ylim(-1.5, 7.5)
+    ax_prop.set_aspect('equal')
+    ax_prop.grid(True, color='#E2E8F0', linestyle='--', alpha=0.7)
+    ax_prop.set_xlabel("X 좌표 (m)", fontsize=9.5, color=COLOR_TEXT_MAIN)
+    ax_prop.set_ylabel("Y 좌표 (m)", fontsize=9.5, color=COLOR_TEXT_MAIN)
+    ax_prop.set_title("[B] 제안 갭 네비게이션: 능동적 틈새(Gap) 탐색 및 유선형 중앙 돌파",
+                      fontsize=11.5, fontweight='bold', color=COLOR_BLUE, pad=6)
+
+    # Same Buoys
+    ax_prop.add_patch(Circle(b1_pos, 0.30, ec=COLOR_NAVY, fc='#EF4444', lw=1.6, zorder=6))
+    ax_prop.add_patch(Circle(b2_pos, 0.30, ec=COLOR_NAVY, fc='#EF4444', lw=1.6, zorder=6))
+    ax_prop.text(5.8, 1.90, "부표 A", ha='center', fontsize=9.8, fontweight='bold', color=COLOR_RED)
+    ax_prop.text(5.8, 6.10, "부표 B", ha='center', fontsize=9.8, fontweight='bold', color=COLOR_RED)
+
+    # Highlighted Safe Passage Corridor (Light Cyan/Green)
+    corr = Rectangle((4.9, 2.9), 1.8, 2.2, ec=COLOR_BLUE, fc='#E0F2FE', alpha=0.55, lw=1.8, linestyle='--')
+    ax_prop.add_patch(corr)
+
+    # Symmetrically placed gap annotations inside corridor
+    ax_prop.text(5.8, 4.60, "최적 갭 목표점 (P3)", ha='center', va='center',
+                 fontsize=9.2, fontweight='bold', color='#D97706',
+                 bbox=dict(boxstyle='round,pad=0.18', fc='#FEF3C7', ec='#F59E0B', lw=1.0))
+
+    # Target Gap Center Star
+    gap_center = (5.8, 4.0)
+    ax_prop.plot(gap_center[0], gap_center[1], marker='*', markersize=16, color='#F59E0B',
+                 markeredgecolor=COLOR_NAVY, markeredgewidth=1.3, zorder=7)
+
+    ax_prop.text(5.8, 3.40, "안전 통과 틈새 (폭 2.2m)", ha='center', va='center',
+                 fontsize=9.0, fontweight='bold', color=COLOR_BLUE,
+                 bbox=dict(boxstyle='round,pad=0.18', fc='#EFF6FF', ec=COLOR_BLUE, lw=1.0))
+
+    # Boat poses along smooth trajectory (distinct colors & headings)
+    draw_boat_pose(ax_prop, 1.2, 4.0, 0.0, color='#1E40AF', length=1.4, width=0.7)
+    ax_prop.text(1.2, 3.1, "① 진입 상태", ha='center', fontsize=8.8, fontweight='bold', color='#1E40AF')
+
+    draw_boat_pose(ax_prop, 3.4, 4.0, 0.0, color='#0284C7', length=1.3, width=0.65)
+    ax_prop.text(3.4, 4.75, "② 갭 조준 주행", ha='center', fontsize=8.8, fontweight='bold', color='#0284C7')
+
+    draw_boat_pose(ax_prop, 7.8, 4.0, 0.0, color='#10B981', length=1.4, width=0.7)
+    ax_prop.text(7.8, 4.80, "③ 중앙 통과 완료", ha='center', fontsize=8.8, fontweight='bold', color='#047857')
+
+    # Smooth Bézier trajectory right through the center
+    t_bez = np.linspace(0, 1, 60)
+    bez_x = 1.2 + 7.7 * t_bez
+    bez_y = 4.0 * np.ones_like(t_bez)
+    ax_prop.plot(bez_x, bez_y, color=COLOR_BLUE, lw=3.0, zorder=4, label='제안 갭네비게이션 궤적 (중앙 직진 통과)')
+
+    # Wall remains safe
+    ax_prop.axhline(-1.0, color='#334155', lw=3.0)
+    ax_prop.fill_between([-0.5, 9.5], -1.5, -1.0, color='#CBD5E1', hatch='//')
+    ax_prop.text(4.5, -0.6, "수조 외곽벽 (충돌 위험 0건, 안전 거리 유지)", fontsize=9.5, fontweight='bold', color='#475569', ha='center')
+
+    # Target exit
+    ax_prop.plot(9.1, 4.0, marker='s', markersize=9, color=COLOR_GREEN, label='게이트 통과 출구')
+    ax_prop.text(9.1, 4.45, "목표 출구", ha='center', fontsize=9.5, fontweight='bold', color=COLOR_GREEN)
+
+    # Guiding callout box on top-left of subplot B
+    principle_box = FancyBboxPatch((0.2, 5.7), 4.2, 1.4, boxstyle="round,pad=0.1", ec=COLOR_BLUE, fc='#FFFFFF', lw=1.2)
+    ax_prop.add_patch(principle_box)
+    ax_prop.text(0.4, 6.6, "발상의 전환 메커니즘", fontsize=9.2, fontweight='bold', color=COLOR_BLUE)
+    ax_prop.text(0.4, 6.0, "장애물을 밀어내는 척력 대신,\n지나갈 수 있는 안전한 빈틈을 능동 조준", fontsize=8.5, color=COLOR_TEXT_MAIN)
+
+    ax_prop.legend(loc='upper right', fontsize=8.2, framealpha=0.95, facecolor='#FFFFFF')
+
+    # Bottom Left Summary Banner
+    left_banner = FancyBboxPatch((0.050, 0.032), 0.415, 0.068, boxstyle="round,pad=0.01",
+                                 ec=COLOR_BLUE, fc='#EFF6FF', lw=1.6)
+    fig.add_artist(left_banner)
+    fig.text(0.257, 0.070, "핵심 발상 전환: 장애물에 쫓겨 다니는 수동적 척력 제어 탈피",
+             ha='center', va='center', fontsize=11.8, fontweight='bold', color=COLOR_NAVY)
+    fig.text(0.257, 0.046, "선박이 통과할 수 있는 최적의 틈(Gap)을 먼저 찾아 유선형으로 중앙을 안정 돌파",
+             ha='center', va='center', fontsize=10.2, color=COLOR_TEXT_MAIN)
+
+    # =========================================================================
+    # RIGHT CARD: 2. 새로운 아이디어의 현실성 사전 검증: 자체 2D 시뮬레이터 구축
+    # =========================================================================
     ax2 = fig.add_subplot(gs[1, 1])
     ax2.set_facecolor(COLOR_CARD_BG)
     ax2.axis('off')
     ax2.set_xlim(0, 1)
     ax2.set_ylim(0, 1)
-    frame2 = FancyBboxPatch((0.02, 0.02), 0.96, 0.96, boxstyle="round,pad=0.015",
+    frame2 = FancyBboxPatch((0.015, 0.015), 0.97, 0.97, boxstyle="round,pad=0.015",
                             ec=COLOR_BORDER, fc=COLOR_CARD_BG, lw=1.5)
     ax2.add_patch(frame2)
 
-    ax2.text(0.06, 0.94, "2. 알고리즘 거동 가시화 및 현실성 체크용 시뮬레이터 구축",
-             fontsize=13.5, fontweight='bold', color=COLOR_NAVY)
+    ax2.text(0.04, 0.958, "2. 새로운 아이디어의 현실성 사전 검증: 자체 2D 시뮬레이터 구축",
+             fontsize=14.5, fontweight='bold', color=COLOR_NAVY)
 
-    # Sub-box 1: Hardware Specs
-    hw_box = FancyBboxPatch((0.05, 0.58), 0.90, 0.32, boxstyle="round,pad=0.012",
-                            ec=COLOR_BLUE, fc='#FFFFFF', lw=1.6)
-    ax2.add_patch(hw_box)
-    ax2.text(0.08, 0.855, "자율운항보트 하드웨어 구성 사양 (기준 플랫폼)",
-             fontsize=11.5, fontweight='bold', color=COLOR_BLUE)
-    ax2.text(0.08, 0.805, "• 선체 제원: 쌍동선(Catamaran) 전장 L=0.79m, 폭 B=0.40m, 중량 4.8kg",
-             fontsize=10.0, color=COLOR_TEXT_MAIN)
-    ax2.text(0.08, 0.755, "• 메인 연산장치: NVIDIA Jetson Orin Nano (저전력 임베디드 AI 엣지 보드)",
-             fontsize=10.0, color=COLOR_TEXT_MAIN)
-    ax2.text(0.08, 0.705, "• 인지 및 항법 센서: YDLIDAR TG15 2D LiDAR (전방 180°, 8m 유효 범위) + AHRS",
-             fontsize=10.0, color=COLOR_TEXT_MAIN)
-    ax2.text(0.08, 0.655, "• 추진 및 조타: 트윈 브러시리스 모터(추력 2.5kgf) + 서보모터 (회전 한계 60°/s)",
-             fontsize=10.0, color=COLOR_TEXT_MAIN)
-    ax2.text(0.08, 0.605, "• 통신 및 프레임워크: ROS 2 Humble 기반 토픽 퍼블리시/서브스크라이브 연동",
-             fontsize=10.0, color=COLOR_TEXT_MAIN)
+    # Subplot 3 (Top-Right): [C] 선박 하드웨어 구성 사양 및 180° LiDAR 인지 시스템
+    # Figure coordinates: [0.535, 0.515, 0.415, 0.315]
+    ax_hw = fig.add_axes([0.535, 0.515, 0.415, 0.315])
+    ax_hw.set_facecolor('#FFFFFF')
+    ax_hw.set_xlim(-3.5, 9.5)
+    ax_hw.set_ylim(-4.5, 4.5)
+    ax_hw.set_aspect('equal')
+    ax_hw.grid(True, color='#E2E8F0', linestyle='--', alpha=0.7)
+    ax_hw.set_xlabel("전방 상대 거리 (m)", fontsize=9.5, color=COLOR_TEXT_MAIN)
+    ax_hw.set_ylabel("좌우 상대 거리 (m)", fontsize=9.5, color=COLOR_TEXT_MAIN)
+    ax_hw.set_title("[C] 자율운항보트 하드웨어 구조 및 전방 180° LiDAR 인지 시스템",
+                    fontsize=11.5, fontweight='bold', color=COLOR_NAVY, pad=6)
 
-    # Sub-box 2: Simulator Physics & Mapping
-    sim_box = FancyBboxPatch((0.05, 0.06), 0.90, 0.48, boxstyle="round,pad=0.012",
-                             ec=COLOR_GREEN, fc='#FFFFFF', lw=1.6)
-    ax2.add_patch(sim_box)
-    ax2.text(0.08, 0.495, "자체 개발 2D 시뮬레이터(Simulator Engine)의 물리 모사 특징",
-             fontsize=11.5, fontweight='bold', color=COLOR_GREEN)
+    # Draw Catamaran Hull at (0, 0)
+    lh = FancyBboxPatch((-1.6, 0.6), 3.2, 0.45, boxstyle="round,pad=0.08", ec=COLOR_NAVY, fc='#94A3B8', lw=1.5)
+    rh = FancyBboxPatch((-1.6, -1.05), 3.2, 0.45, boxstyle="round,pad=0.08", ec=COLOR_NAVY, fc='#94A3B8', lw=1.5)
+    deck = FancyBboxPatch((-1.1, -0.6), 2.2, 1.2, boxstyle="round,pad=0.05", ec=COLOR_NAVY, fc='#CBD5E1', lw=1.5)
+    ax_hw.add_patch(lh)
+    ax_hw.add_patch(rh)
+    ax_hw.add_patch(deck)
 
-    features = [
-        ("3-자유도 평면 운동학 구현", "Surge(전진 저항), Sway(선미 횡표류 슬립), Yaw(회두 감쇠) 모멘트 반영"),
-        ("액추에이터 물리 한계 모사", "방향타 서보모터 회전 속도 한계(60°/s) 및 1차 시정수 지연(τ=0.08s) 모델링"),
-        ("현실적 센서 노이즈 주입", "YDLIDAR TG15 180도 광선 추적 및 수면 반사 가우시안 거리 오차 반영"),
-        ("밀리초 단위 거동 가시화", "180° 방위각 거리 게이지 및 3차 베지어 궤적 실시간 HUD 대시보드 표출"),
-        ("사전 현실성 체크 목적", "야외 실험 대체가 아닌, 새 알고리즘의 거동 느낌과 제어 안정성 사전 규명")
-    ]
-    fy = 0.445
-    for f_title, f_desc in features:
-        ax2.text(0.08, fy, f"• {f_title}:", fontsize=10.2, fontweight='bold', color=COLOR_NAVY)
-        ax2.text(0.38, fy, f_desc, fontsize=9.8, color=COLOR_TEXT_MUTED)
-        fy -= 0.075
+    # Twin thrusters at stern
+    ax_hw.add_patch(Rectangle((-2.1, 0.65), 0.5, 0.35, ec=COLOR_NAVY, fc='#334155', lw=1.2))
+    ax_hw.add_patch(Rectangle((-2.1, -1.0), 0.5, 0.35, ec=COLOR_NAVY, fc='#334155', lw=1.2))
+    ax_hw.annotate('', xy=(-2.6, 0.82), xytext=(-2.1, 0.82), arrowprops=dict(arrowstyle='<-', color=COLOR_BLUE, lw=2.0))
+    ax_hw.annotate('', xy=(-2.6, -0.82), xytext=(-2.1, -0.82), arrowprops=dict(arrowstyle='<-', color=COLOR_BLUE, lw=2.0))
+    ax_hw.text(-2.7, 0.0, "트윈 추진기\n(2.5kgf 추력)", ha='center', va='center', fontsize=8.5, fontweight='bold', color=COLOR_NAVY)
+
+    # Jetson Orin Nano compute block on deck
+    jetson = FancyBboxPatch((-0.5, -0.35), 1.0, 0.7, boxstyle="round,pad=0.02", ec='#065F46', fc='#10B981', lw=1.4)
+    ax_hw.add_patch(jetson)
+    ax_hw.text(0.0, 0.0, "Jetson Orin\nNano (AI)", ha='center', va='center', fontsize=8.2, fontweight='bold', color='#FFFFFF')
+
+    # YDLIDAR TG15 at bow (x = 1.6, y = 0)
+    lidar_pos = (1.6, 0.0)
+    ax_hw.add_patch(Circle(lidar_pos, 0.25, ec=COLOR_NAVY, fc='#F59E0B', lw=1.5, zorder=8))
+    ax_hw.text(1.6, -0.55, "TG15 LiDAR", ha='center', fontsize=8.5, fontweight='bold', color='#B45309')
+
+    # 180-degree LiDAR Fan Rays shooting forward
+    for ang in np.linspace(-np.pi/2, np.pi/2, 25):
+        ray_len = 6.5
+        rx = lidar_pos[0] + ray_len * np.cos(ang)
+        ry = lidar_pos[1] + ray_len * np.sin(ang)
+        ax_hw.plot([lidar_pos[0], rx], [lidar_pos[1], ry], color='#38BDF8', lw=0.9, alpha=0.45)
+
+    # LiDAR scan envelope arc
+    th_arc = np.linspace(-np.pi/2, np.pi/2, 50)
+    arc_x = lidar_pos[0] + 6.5 * np.cos(th_arc)
+    arc_y = lidar_pos[1] + 6.5 * np.sin(th_arc)
+    ax_hw.plot(arc_x, arc_y, color='#0284C7', lw=1.6, linestyle='--')
+    ax_hw.text(8.3, 0.0, "LiDAR 유효 반경 8.0m\n(전방 180° 광각 스캔)",
+               ha='center', va='center', fontsize=9.2, fontweight='bold', color=COLOR_BLUE)
+
+    # Buoys detected by LiDAR
+    ax_hw.add_patch(Circle((5.5, 2.2), 0.35, ec=COLOR_RED, fc='#EF4444', lw=1.5))
+    ax_hw.add_patch(Circle((5.5, -2.2), 0.35, ec=COLOR_RED, fc='#EF4444', lw=1.5))
+    ax_hw.text(5.5, 2.8, "탐지된 부표 A", ha='center', fontsize=8.8, fontweight='bold', color=COLOR_RED)
+    ax_hw.text(5.5, -2.8, "탐지된 부표 B", ha='center', fontsize=8.8, fontweight='bold', color=COLOR_RED)
+
+    # Hardware Spec Box in Subplot (top-left)
+    hw_spec_box = FancyBboxPatch((-3.2, 2.3), 4.4, 1.8, boxstyle="round,pad=0.08", ec=COLOR_NAVY, fc='#FFFFFF', lw=1.3)
+    ax_hw.add_patch(hw_spec_box)
+    ax_hw.text(-3.0, 3.65, "하드웨어 기준 사양", fontsize=9.5, fontweight='bold', color=COLOR_NAVY)
+    ax_hw.text(-3.0, 3.15, "• 선체: 전장 0.79m, 폭 0.40m (쌍동선)", fontsize=8.5, color=COLOR_TEXT_MAIN)
+    ax_hw.text(-3.0, 2.65, "• 센서: YDLIDAR TG15 + 9축 AHRS", fontsize=8.5, color=COLOR_TEXT_MAIN)
+
+    # Subplot 4 (Bottom-Right): [D] 유체역학적 3-자유도 선체 거동 및 액추에이터 지연 모사
+    # Figure coordinates: [0.535, 0.155, 0.415, 0.310]
+    ax_phys = fig.add_axes([0.535, 0.155, 0.415, 0.310])
+    ax_phys.set_facecolor('#FFFFFF')
+    ax_phys.set_xlim(-1.0, 9.0)
+    ax_phys.set_ylim(-1.5, 7.5)
+    ax_phys.set_aspect('equal')
+    ax_phys.grid(True, color='#E2E8F0', linestyle='--', alpha=0.7)
+    ax_phys.set_xlabel("X 좌표 (m)", fontsize=9.5, color=COLOR_TEXT_MAIN)
+    ax_phys.set_ylabel("Y 좌표 (m)", fontsize=9.5, color=COLOR_TEXT_MAIN)
+    ax_phys.set_title("[D] 유체역학적 3-자유도 선체 거동(Surge, Sway, Yaw) 및 지연 모사",
+                      fontsize=11.5, fontweight='bold', color=COLOR_GREEN, pad=6)
+
+    # Turning boat at (3.5, 3.0) with heading 30 deg
+    boat_x, boat_y = 3.5, 3.0
+    heading_deg = 30.0
+    heading_rad = np.radians(heading_deg)
+    draw_boat_pose(ax_phys, boat_x, boat_y, heading_rad, color=COLOR_BLUE, length=1.8, width=0.85)
+
+    # Heading vector (선수 방향, ψ)
+    head_len = 2.8
+    hx = boat_x + head_len * np.cos(heading_rad)
+    hy = boat_y + head_len * np.sin(heading_rad)
+    ax_phys.annotate('', xy=(hx, hy), xytext=(boat_x, boat_y),
+                     arrowprops=dict(arrowstyle='->', color='#10B981', lw=2.4))
+    ax_phys.text(hx + 0.1, hy + 0.1, "선수 헤딩 방향 (ψ = 30°)", fontsize=9.2, fontweight='bold', color='#047857')
+
+    # Actual velocity vector (진행 방향, U with drift angle β)
+    drift_deg = -18.0  # sideslip angle
+    vel_rad = heading_rad + np.radians(drift_deg)
+    vx = boat_x + head_len * np.cos(vel_rad)
+    vy = boat_y + head_len * np.sin(vel_rad)
+    ax_phys.annotate('', xy=(vx, vy), xytext=(boat_x, boat_y),
+                     arrowprops=dict(arrowstyle='->', color=COLOR_BLUE, lw=2.4))
+    ax_phys.text(vx + 0.2, vy - 0.2, "실제 진행 속도 벡터 (U)", fontsize=9.2, fontweight='bold', color=COLOR_BLUE)
+
+    # Sideslip angle arc (β)
+    th_beta = np.linspace(vel_rad, heading_rad, 20)
+    arc_beta_x = boat_x + 1.8 * np.cos(th_beta)
+    arc_beta_y = boat_y + 1.8 * np.sin(th_beta)
+    ax_phys.plot(arc_beta_x, arc_beta_y, color=COLOR_RED, lw=1.6)
+    ax_phys.text(boat_x + 2.0, boat_y + 0.6, "횡표류각 (Sideslip β = 18°)",
+                 fontsize=9.0, fontweight='bold', color=COLOR_RED)
+
+    # Sway drift vector at stern (outward slip during turning)
+    stern_x = boat_x - 0.9 * np.cos(heading_rad)
+    stern_y = boat_y - 0.9 * np.sin(heading_rad)
+    sway_dx = 1.6 * np.sin(heading_rad)
+    sway_dy = -1.6 * np.cos(heading_rad)
+    ax_phys.annotate('', xy=(stern_x + sway_dx, stern_y + sway_dy), xytext=(stern_x, stern_y),
+                     arrowprops=dict(arrowstyle='->', color=COLOR_RED, lw=2.6))
+    ax_phys.text(stern_x + sway_dx + 0.2, stern_y + sway_dy - 0.1,
+                 "선미 횡표류 슬립 (Sway Drift Slip)\n[선회 시 선미가 바깥으로 크게 밀림!]",
+                 fontsize=9.0, fontweight='bold', color=COLOR_RED)
+
+    # Servo motor rate limit annotation box (clean box at top-left with va='top')
+    servo_box = FancyBboxPatch((-0.8, 4.8), 4.8, 2.3, boxstyle="round,pad=0.1", ec=COLOR_NAVY, fc='#FFFFFF', lw=1.3)
+    ax_phys.add_patch(servo_box)
+    ax_phys.text(-0.6, 6.9, "액추에이터 물리 한계 모사", fontsize=9.8, fontweight='bold', color=COLOR_NAVY, va='top')
+    ax_phys.text(-0.6, 6.35, "• 조타각 회전 한계: |dδ/dt| ≤ 60°/s\n• 서보 1차 지연 시정수: τ = 0.08s\n• 추진 모터 1차 지연: τ = 0.12s",
+                 fontsize=8.8, color=COLOR_TEXT_MAIN, linespacing=1.45, va='top')
+
+    # Bottom Right Summary Banner
+    right_banner = FancyBboxPatch((0.535, 0.032), 0.415, 0.068, boxstyle="round,pad=0.01",
+                                  ec=COLOR_GREEN, fc='#F0FDF4', lw=1.6)
+    fig.add_artist(right_banner)
+    fig.text(0.742, 0.070, "시뮬레이터 구축 의의: 단순 야외 실험 대체 목적이 아님",
+             ha='center', va='center', fontsize=11.8, fontweight='bold', color='#065F46')
+    fig.text(0.742, 0.046, "새로운 제어 아이디어의 유체역학적 거동 느낌과 현실성을 책상 위에서 사전에 정밀 검증",
+             ha='center', va='center', fontsize=10.2, color=COLOR_TEXT_MAIN)
 
     out_path = os.path.join(OUTPUT_DIR, "sheet1_background_and_problem.png")
-    plt.savefig(out_path, dpi=250, bbox_inches='tight')
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"Generated: {out_path}")
+    print(f"Generated: {out_path} (DPI: 300, Aspect Ratio: 1.244)")
 
 
 # =========================================================================
@@ -1000,6 +1224,7 @@ def generate_master_booth_wall():
 
     images = [Image.open(os.path.join(OUTPUT_DIR, fn)) for fn in sheet_files]
     w, h = images[0].size
+    images = [img.resize((w, h), Image.Resampling.LANCZOS) for img in images]
 
     # 3 columns, 2 rows
     margin = 40
