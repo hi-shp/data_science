@@ -477,18 +477,17 @@ class BoatEnv:
             target_fwd = m_thr * 5500.0
             mom = (tR - tL) * self.params['mom_coeff']
         else:
-            # 220도 범위 내 최소 장애물 거리에 따른 연속 속도 제어 (줄어드는 기울기를 완만하게 조정)
+            # 220도 범위 내 최소 장애물 거리에 따른 연속 속도 제어 (선속 멈춤 현상 원천 방지)
             em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-            dist_speed_factor = math.tanh(em_dist / 30.0) ** 0.5
+            dist_speed_factor = 0.35 + 0.65 * math.tanh(em_dist / 40.0)
             
-            # 회전해야 하는 각도(헤딩 오차 및 조향 명령 강도)에 따른 감속 기울기 완화
+            # 회전 각도에 따른 감속 (90도 이상에서도 멈추지 않도록 반각 코사인 연속 함수 적용)
             turn_err = abs(wrap(self.heading_target - self.boat_heading))
             steer_angle_equiv = abs(getattr(self, 'prev_steer', 0.0)) * (math.pi * 0.5)
             effective_turn_angle = max(turn_err, steer_angle_equiv)
             
-            # 완만한 코사인 지수 함수 적용 (최저속도 강제 클램프 없이 자연스러운 감속 곡선 유지)
-            turn_cos = max(0.0, math.cos(min(math.pi * 0.5, effective_turn_angle)))
-            turn_speed_factor = turn_cos ** 0.35
+            turn_cos = math.cos(min(math.pi, effective_turn_angle) * 0.5)
+            turn_speed_factor = 0.30 + 0.70 * turn_cos
             
             speed_factor = dist_speed_factor * turn_speed_factor
             
@@ -767,7 +766,8 @@ class BoatEnv:
                 self.heading_target = math.atan2(self.current_wp["pos"][1] - self.boat_pos[1], self.current_wp["pos"][0] - self.boat_pos[0])
             else:
                 self.heading_target = math.atan2(self.target[1] - self.boat_pos[1], self.target[0] - self.boat_pos[0])
-            return 0
+            heading_error = wrap(self.heading_target - self.boat_heading)
+            return float(np.clip(heading_error * self.params['steer_gain'], -1.0, 1.0))
         px, py = self.pursuit_target
         heading_target = math.atan2(py - self.boat_pos[1], px - self.boat_pos[0])
         self.heading_target = heading_target
