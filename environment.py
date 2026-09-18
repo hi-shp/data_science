@@ -44,7 +44,14 @@ class BoatEnv:
             'width_exp': 4.0,
             'clear_exp': 4.0,
             'wp_switch_thresh': 1.1,
-            'perp_exp': 2.0
+            'perp_exp': 2.0,
+            'obs_r': 17.0,
+            'min_obs': 120.0,
+            'mass': 10.0,
+            'inertia': 4.5,
+            'drag': 0.2,
+            'rot_drag': 0.8,
+            'boat_radius': 25.0
         }
         self.load_params()
          
@@ -52,11 +59,11 @@ class BoatEnv:
         self.lidar_range = 320
         self.rel_angles = np.linspace(-np.pi, np.pi, self.lidar_beams, endpoint=False)
         
-        self.mass = 10
-        self.inertia = 4.5
-        self.drag = 0.2
-        self.rot_drag = 0.8
-        self.boat_radius = 25
+        self.mass = float(self.params.get('mass', 10.0))
+        self.inertia = float(self.params.get('inertia', 4.5))
+        self.drag = float(self.params.get('drag', 0.2))
+        self.rot_drag = float(self.params.get('rot_drag', 0.8))
+        self.boat_radius = float(self.params.get('boat_radius', 25.0))
         
         # 선체 표면 기하 형상 (ui_renderer의 선체 렌더링과 100% 일치하는 정밀 히트박스)
         GAP = 11.0; L = 84.0; W = 16.0
@@ -82,8 +89,8 @@ class BoatEnv:
         self.shadow_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         
         self.obs_n = int(80 * (self.map_w / self.w))   # 맵 확장에 비례하는 장애물 수 (기본 80개)
-        self.obs_r = 17
-        self.min_obs = 120
+        self.obs_r = float(self.params.get('obs_r', 17.0))
+        self.min_obs = float(self.params.get('min_obs', 120.0))
         
         self.grid = init_grid()
         self.clusters = []
@@ -185,13 +192,21 @@ class BoatEnv:
         self.reset()
 
     def load_params(self):
-        json_path = "best_learned_params.json"
-        if os.path.exists(json_path):
-            try:
-                with open(json_path, "r") as f:
-                    self.params.update(json.load(f))
-            except Exception:
-                pass
+        for json_path in ["best_learned_params.json", "params.json"]:
+            if os.path.exists(json_path):
+                try:
+                    with open(json_path, "r") as f:
+                        self.params.update(json.load(f))
+                except Exception:
+                    pass
+        # 물리 동역학 및 장애물 환경 파라미터 실시간 동기화
+        self.mass = float(self.params.get('mass', 10.0))
+        self.inertia = float(self.params.get('inertia', 4.5))
+        self.drag = float(self.params.get('drag', 0.2))
+        self.rot_drag = float(self.params.get('rot_drag', 0.8))
+        self.boat_radius = float(self.params.get('boat_radius', 25.0))
+        self.obs_r = float(self.params.get('obs_r', 17.0))
+        self.min_obs = float(self.params.get('min_obs', 120.0))
 
     def reset(self):
         self.load_params()

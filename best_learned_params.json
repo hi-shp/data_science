@@ -15,5 +15,12 @@
   "width_exp": 4.0,
   "clear_exp": 4.0,
   "wp_switch_thresh": 1.1,
-  "perp_exp": 2.0
+  "perp_exp": 2.0,
+  "obs_r": 17,
+  "min_obs": 130,
+  "mass": 10,
+  "inertia": 4.5,
+  "drag": 0.2,
+  "rot_drag": 0.8,
+  "boat_radius": 25
 }
