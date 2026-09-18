@@ -1,3 +1,4 @@
+from scipy.interpolate import splprep, splev
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -107,338 +108,68 @@ def draw_boat_pose(ax, x, y, heading_rad, color=COLOR_BLUE, length=1.2, width=0.
 # 3:2 Ratio (18.0 x 12.0 inches), 300 DPI (5400 x 3600 px)
 # Humble engineering stance: Background, line-tracing inspiration, merits & real-world limitations
 # =========================================================================
+COLOR_PANEL = '#F8FAFC'
+COLOR_BORDER = '#CBD5E1'
+COLOR_BORDER_STRONG = '#94A3B8'
+COLOR_TEXT_MAIN = '#0F172A'
+COLOR_TEXT_SUB = '#334155'
+COLOR_PRIMARY = '#0284C7'
+COLOR_ACCENT = '#0369A1'
+COLOR_WARN = '#EA580C'
+COLOR_DANGER = '#DC2626'
+COLOR_DANGER_BG = '#FEF2F2'
+COLOR_DANGER_BORDER = '#FCA5A5'
+COLOR_SUCCESS = '#16A34A'
+COLOR_SUCCESS_BG = '#F0FDF4'
+COLOR_SUCCESS_BORDER = '#86EFAC'
+
+def draw_boat(ax, x, y, heading_rad, length=0.85, width=0.42, color='#0284C7', ec='#0F172A', alpha=0.95, zorder=10):
+    hl = length * 0.5
+    hw = width * 0.5
+    dw = width * 0.28
+    
+    p_left = np.array([
+        [-hl, hw - dw],
+        [hl*0.55, hw - dw],
+        [hl, hw],
+        [hl*0.55, hw + dw],
+        [-hl, hw + dw]
+    ])
+    p_right = np.array([
+        [-hl, -hw - dw],
+        [hl*0.55, -hw - dw],
+        [hl, -hw],
+        [hl*0.55, -hw + dw],
+        [-hl, -hw + dw]
+    ])
+    p_deck = np.array([
+        [-hl*0.7, -hw*0.9],
+        [hl*0.35, -hw*0.9],
+        [hl*0.35, hw*0.9],
+        [-hl*0.7, hw*0.9]
+    ])
+    
+    c, s = np.cos(heading_rad), np.sin(heading_rad)
+    R = np.array([[c, -s], [s, c]])
+    
+    for p, fc in [(p_deck, '#E2E8F0'), (p_left, color), (p_right, color)]:
+        p_rot = (R @ p.T).T + np.array([x, y])
+        poly = Polygon(p_rot, closed=True, facecolor=fc, edgecolor=ec, lw=1.3, alpha=alpha, zorder=zorder)
+        ax.add_patch(poly)
+    
+    # Heading arrow
+    ax.annotate('', xy=(x + length*0.65*c, y + length*0.65*s), xytext=(x, y),
+                arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.8), zorder=zorder+2)
+
 def generate_sheet_1():
-    fig = plt.figure(figsize=(18.0, 12.0), dpi=300)
-    fig.patch.set_facecolor(COLOR_BG)
-
-    # =========================================================================
-    # LEFT CARD: [대회 참가 배경 및 초기 발상] 광센서 라인트레이싱 모티브 제어의 착안과 장점
-    # =========================================================================
-    ax_card1 = fig.add_axes([0.015, 0.015, 0.480, 0.970])
-    ax_card1.set_facecolor(COLOR_CARD_BG)
-    ax_card1.axis('off')
-    ax_card1.set_xlim(0, 1)
-    ax_card1.set_ylim(0, 1)
-    frame1 = FancyBboxPatch((0.003, 0.003), 0.994, 0.994, boxstyle="round,pad=0.008",
-                            ec=COLOR_BORDER, fc=COLOR_CARD_BG, lw=1.6)
-    ax_card1.add_patch(frame1)
-
-    # Card 1 Top Text: Storytelling & Rationale
-    ax_card1.text(0.035, 0.966, "1. [대회 참가 배경 및 초기 발상] 광센서 라인트레이싱 모티브 제어의 착안과 장점",
-                  fontsize=15.0, fontweight='bold', color=COLOR_NAVY)
-    ax_card1.text(0.035, 0.932, "• 대회 참가 배경: 전국학생자율운항보트대회(KABOAT) 출전을 위해 복잡한 수로를 자율 주행하는 제어 시스템 개발 착수",
-                  fontsize=10.5, color='#1E293B')
-    ax_card1.text(0.035, 0.902, "• 초기 발상 (라인트레이싱 모티브): 바닥의 검은 선을 따라 좌/우로 조향하는 라인트레이서처럼 센서 감지 시 즉각 반사 조향 착안",
-                  fontsize=10.5, color='#1E293B')
-    ax_card1.text(0.035, 0.868, "• 초기 접근의 장점: 단순한 룰만으로도 넓은 수역에서는 놀랍도록 안정적이고 신뢰성 있게 구불구불한 코너를 회피 주행 가능했음",
-                  fontsize=11.2, fontweight='bold', color=COLOR_BLUE)
-
-    # Subplot 1 (Top-Left): [A] Line-Tracing Control Motive & Boat Reflex Mechanism
-    # Axes rect: [0.045, 0.520, 0.420, 0.290]
-    ax_motive = fig.add_axes([0.045, 0.520, 0.420, 0.290])
-    ax_motive.set_facecolor('#FFFFFF')
-    ax_motive.axis('off')
-    ax_motive.set_xlim(0, 10)
-    ax_motive.set_ylim(0, 7)
-    ax_motive.set_title("[A] 라인트레이싱 제어 모티브와 보트 반사 제어의 기본 메커니즘",
-                        fontsize=11.5, fontweight='bold', color=COLOR_NAVY, pad=8)
-
-    # Left Section: Traditional Line Tracer Robot
-    lt_card = FancyBboxPatch((0.2, 0.35), 4.5, 6.3, boxstyle="round,pad=0.10", ec='#CBD5E1', fc='#F8FAFC', lw=1.4)
-    ax_motive.add_patch(lt_card)
-    ax_motive.text(2.45, 6.25, "광센서 라인트레이서 로봇", ha='center', fontsize=10.5, fontweight='bold', color=COLOR_NAVY)
-
-    # Curved black line positioned cleanly
-    t_line = np.linspace(0, 1, 50)
-    lx = 0.5 + 3.8 * t_line
-    ly = 4.6 + 1.0 * np.sin(t_line * np.pi)
-    ax_motive.plot(lx, ly, color='#0F172A', lw=7.0, zorder=3)
-    ax_motive.text(3.7, 5.80, "검은색 주행선", fontsize=8.6, color='#475569', fontweight='bold')
-
-    # Draw simple 2-wheel line tracer robot on the line
-    r_center = (2.2, 4.4)
-    r_box = FancyBboxPatch((r_center[0]-0.45, r_center[1]-0.35), 0.9, 0.7, boxstyle="round,pad=0.04", ec=COLOR_NAVY, fc='#E2E8F0', lw=1.3, zorder=5)
-    ax_motive.add_patch(r_box)
-    ax_motive.add_patch(Rectangle((r_center[0]-0.55, r_center[1]+0.12), 0.16, 0.26, ec=COLOR_NAVY, fc='#334155', zorder=6))
-    ax_motive.add_patch(Rectangle((r_center[0]-0.55, r_center[1]-0.38), 0.16, 0.26, ec=COLOR_NAVY, fc='#334155', zorder=6))
-    # Sensor at front of robot, place label clearly below the sensor
-    ax_motive.add_patch(Circle((r_center[0]+0.55, r_center[1]), 0.14, ec='#DC2626', fc='#EF4444', lw=1.2, zorder=7))
-    ax_motive.text(r_center[0]+0.55, r_center[1]-0.32, "빛센서 1개", ha='center', va='top', fontsize=8.2, fontweight='bold', color='#DC2626')
-
-    # Line Tracer Rule Box (placed cleanly in lower half, y=0.55 to 2.85)
-    r_rule = FancyBboxPatch((0.4, 0.55), 4.1, 2.3, boxstyle="round,pad=0.08", ec='#94A3B8', fc='#FFFFFF', lw=1.1)
-    ax_motive.add_patch(r_rule)
-    ax_motive.text(0.6, 2.45, "• 센서 = 흑색(선 감지) -> 우회전 조향", fontsize=9.0, fontweight='bold', color='#1E293B')
-    ax_motive.text(0.6, 1.95, "• 센서 = 백색(바탕 감지) -> 좌회전 조향", fontsize=9.0, fontweight='bold', color='#1E293B')
-    ax_motive.text(0.6, 1.15, "핵심 원리: 단 한 줄의 단순 규칙만으로\n급커브와 직각 코너도 안정적으로 추종",
-                   fontsize=8.8, fontweight='bold', color='#0284C7', linespacing=1.3)
-
-    # Right Section: Boat Reflex Avoidance Control
-    bt_card = FancyBboxPatch((5.3, 0.35), 4.5, 6.3, boxstyle="round,pad=0.10", ec=COLOR_BLUE, fc='#EFF6FF', lw=1.4)
-    ax_motive.add_patch(bt_card)
-    ax_motive.text(7.55, 6.25, "보트의 단순 반사식 조향 제어", ha='center', fontsize=10.5, fontweight='bold', color=COLOR_BLUE)
-
-    # Draw boat & obstacle buoy in upper half
-    draw_boat_pose(ax_motive, 6.5, 4.6, np.radians(15), color='#0284C7', length=1.3, width=0.65)
-    ax_motive.text(6.5, 5.45, "자율운항보트", ha='center', fontsize=8.6, fontweight='bold', color=COLOR_NAVY)
-
-    # Obstacle Buoy at (8.7, 5.0)
-    b_pos = (8.7, 5.0)
-    ax_motive.add_patch(Circle(b_pos, 0.32, ec=COLOR_NAVY, fc='#EF4444', lw=1.5, zorder=6))
-    ax_motive.text(b_pos[0], b_pos[1]+0.55, "장애물 부표", ha='center', fontsize=8.6, fontweight='bold', color=COLOR_RED)
-
-    # LiDAR sensing beam hitting buoy
-    ax_motive.plot([6.5 + 0.7*np.cos(np.radians(15)), b_pos[0]], [4.6 + 0.7*np.sin(np.radians(15)), b_pos[1]],
-                   color='#EF4444', lw=1.5, linestyle='--', zorder=4)
-    # Reflex steering arrow
-    ax_motive.annotate('', xy=(7.7, 3.8), xytext=(6.5, 4.4),
-                       arrowprops=dict(arrowstyle='->', color=COLOR_RED, lw=2.4))
-    ax_motive.text(7.9, 3.8, "반대편 즉각 회피", fontsize=8.8, fontweight='bold', color=COLOR_RED)
-
-    # Boat Rule Box (placed cleanly in lower half)
-    b_rule = FancyBboxPatch((5.5, 0.55), 4.1, 2.3, boxstyle="round,pad=0.08", ec=COLOR_BLUE, fc='#FFFFFF', lw=1.1)
-    ax_motive.add_patch(b_rule)
-    ax_motive.text(5.7, 2.45, "• 좌측 장애물 감지 -> 우현(Right) 타각", fontsize=9.0, fontweight='bold', color='#1E293B')
-    ax_motive.text(5.7, 1.95, "• 우측 장애물 감지 -> 좌현(Left) 타각", fontsize=9.0, fontweight='bold', color='#1E293B')
-    ax_motive.text(5.7, 1.15, "핵심 원리: 센서 감지 즉시 반대편 조타\n(연산 부하 극소화, 100Hz 이상 실시간 반응)",
-                   fontsize=8.8, fontweight='bold', color='#1E40AF', linespacing=1.3)
-
-    # Subplot 2 (Bottom-Left): [B] Early Success in Open Water & Isolated Obstacles
-    # Axes rect: [0.045, 0.160, 0.420, 0.290]
-    ax_open = fig.add_axes([0.045, 0.160, 0.420, 0.290])
-    ax_open.set_facecolor('#FFFFFF')
-    ax_open.set_xlim(-1.0, 12.0)
-    ax_open.set_ylim(-1.5, 4.5)
-    ax_open.set_aspect('equal')
-    ax_open.grid(True, color='#E2E8F0', linestyle='--', alpha=0.7)
-    ax_open.set_xlabel("X 좌표 (m)", fontsize=10.0, color=COLOR_TEXT_MAIN)
-    ax_open.set_ylabel("Y 좌표 (m)", fontsize=10.0, color=COLOR_TEXT_MAIN)
-    ax_open.set_title("[B] 초기 접근의 성공 경험: 넓은 수역 및 단일 장애물 회피 주행",
-                      fontsize=11.5, fontweight='bold', color=COLOR_BLUE, pad=8)
-
-    # Two isolated buoys with wide clearance (distance > 4m)
-    b_open1 = (4.2, 3.0)
-    b_open2 = (8.5, 0.8)
-    ax_open.add_patch(Circle(b_open1, 0.32, ec=COLOR_NAVY, fc='#EF4444', lw=1.6, zorder=6))
-    ax_open.add_patch(Circle(b_open2, 0.32, ec=COLOR_NAVY, fc='#EF4444', lw=1.6, zorder=6))
-    ax_open.text(b_open1[0], b_open1[1]+0.60, "단일 부표 1", ha='center', fontsize=9.2, fontweight='bold', color=COLOR_RED)
-    ax_open.text(b_open2[0], b_open2[1]-0.65, "단일 부표 2", ha='center', fontsize=9.2, fontweight='bold', color=COLOR_RED)
-
-    # Safe margin rings around buoys
-    ax_open.add_patch(Circle(b_open1, 1.2, ec=COLOR_BLUE, fc='#E0F2FE', alpha=0.4, lw=1.2, linestyle=':'))
-    ax_open.add_patch(Circle(b_open2, 1.2, ec=COLOR_BLUE, fc='#E0F2FE', alpha=0.4, lw=1.2, linestyle=':'))
-
-    # Smooth S-shaped avoidance trajectory
-    t_tr = np.linspace(0, 1, 60)
-    tr_x = 0.5 + 10.5 * t_tr
-    tr_y = 1.8 + 1.2 * np.sin(t_tr * 2.2 * np.pi)
-    ax_open.plot(tr_x, tr_y, color=COLOR_BLUE, lw=2.8, zorder=4, label='단순 반사 제어 궤적 (개방 수역 회피 성공)')
-
-    # Boat poses along trajectory
-    draw_boat_pose(ax_open, 0.5, 1.8, 0.0, color='#94A3B8', length=1.4, width=0.7)
-    draw_boat_pose(ax_open, 4.2, 1.5, np.radians(-15), color='#0284C7', length=1.3, width=0.65)
-    draw_boat_pose(ax_open, 8.5, 2.4, np.radians(15), color='#0284C7', length=1.3, width=0.65)
-    draw_boat_pose(ax_open, 11.0, 2.5, 0.0, color='#10B981', length=1.4, width=0.7)
-
-    # Success checkmark annotations
-    ax_open.text(4.2, 0.6, "부표 1 우회 성공\n(이격 마진 1.5m)", ha='center', fontsize=8.6, fontweight='bold', color='#0369A1')
-    ax_open.text(8.5, 3.4, "부표 2 우회 성공\n(이격 마진 1.6m)", ha='center', fontsize=8.6, fontweight='bold', color='#0369A1')
-
-    # Early Success Callout Box
-    succ_box = FancyBboxPatch((-0.8, 3.2), 4.2, 1.1, boxstyle="round,pad=0.1", ec=COLOR_BLUE, fc='#FFFFFF', lw=1.2)
-    ax_open.add_patch(succ_box)
-    ax_open.text(-0.6, 3.95, "초기 검증 결과 (장점)", fontsize=9.2, fontweight='bold', color=COLOR_BLUE)
-    ax_open.text(-0.6, 3.45, "• 부표 간격이 넓을 때는 신뢰성 있게 회피\n• 가벼운 연산과 즉각적인 반응성 입증", fontsize=8.5, color=COLOR_TEXT_MAIN)
-
-    ax_open.legend(loc='lower left', fontsize=8.8, framealpha=0.95, facecolor='#FFFFFF')
-
-    # Card 1 Bottom Takeaway Banner
-    banner1 = FancyBboxPatch((0.015, 0.015), 0.970, 0.070, boxstyle="round,pad=0.008",
-                             ec=COLOR_BLUE, fc='#EFF6FF', lw=1.6)
-    ax_card1.add_patch(banner1)
-    ax_card1.text(0.500, 0.057, "[초기 성과] 단순한 반사 규칙만으로 기초 주행과 완만한 장애물 회피에서는 높은 신뢰성과 반응속도 확인",
-                  ha='center', va='center', fontsize=12.2, fontweight='bold', color=COLOR_NAVY)
-    ax_card1.text(0.500, 0.030, "복잡한 연산 장비 없이도 단순 조향 규칙으로 구불구불한 코스 주행이 가능하여 초기 개발 단계에서 신뢰를 얻었습니다.",
-                  ha='center', va='center', fontsize=10.0, color='#334155')
-
-    # =========================================================================
-    # RIGHT CARD: [실제 수조의 벽] 좁은 게이트와 물 위에서 드러난 구조적 한계와 문제 정의
-    # =========================================================================
-    ax_card2 = fig.add_axes([0.505, 0.015, 0.480, 0.970])
-    ax_card2.set_facecolor(COLOR_CARD_BG)
-    ax_card2.axis('off')
-    ax_card2.set_xlim(0, 1)
-    ax_card2.set_ylim(0, 1)
-    frame2 = FancyBboxPatch((0.003, 0.003), 0.994, 0.994, boxstyle="round,pad=0.008",
-                            ec=COLOR_BORDER, fc=COLOR_CARD_BG, lw=1.6)
-    ax_card2.add_patch(frame2)
-
-    # Card 2 Top Text: Problem Definition
-    ax_card2.text(0.035, 0.966, "2. [실제 수조의 벽] 좁은 게이트와 물 위에서 드러난 구조적 한계와 문제 정의",
-                  fontsize=15.0, fontweight='bold', color=COLOR_NAVY)
-    ax_card2.text(0.035, 0.932, "• 마주한 한계 1 (게이트 폐쇄): 좁은 부표 게이트(폭 2.4m) 진입 시 양쪽 척력이 중첩되어 통로를 가상 벽으로 오인",
-                  fontsize=10.5, color='#1E293B')
-    ax_card2.text(0.035, 0.902, "• 마주한 한계 2 (조타 채터링): 장애물 직전 좌/우로 급격히 꺾이며 서보모터가 초당 4~5회 심하게 떨리는 현상 발생",
-                  fontsize=10.5, color='#1E293B')
-    ax_card2.text(0.035, 0.868, "• 마주한 한계 3 (선미 횡표류 슬립): 물 위에서는 지상과 달리 급선회 시 선미가 바깥으로 밀리며 부표를 측면 타격",
-                  fontsize=11.2, fontweight='bold', color=COLOR_RED)
-
-    # Subplot 3 (Top-Right): [C] Limit 1 - Gate Closure & Wall Collision
-    # Axes rect: [0.535, 0.520, 0.420, 0.290]
-    ax_gate = fig.add_axes([0.535, 0.520, 0.420, 0.290])
-    ax_gate.set_facecolor('#FFFFFF')
-    ax_gate.set_xlim(-1.0, 12.0)
-    ax_gate.set_ylim(-1.5, 5.2)
-    ax_gate.set_aspect('equal')
-    ax_gate.grid(True, color='#E2E8F0', linestyle='--', alpha=0.7)
-    ax_gate.set_xlabel("X 좌표 (m)", fontsize=10.0, color=COLOR_TEXT_MAIN)
-    ax_gate.set_ylabel("Y 좌표 (m)", fontsize=10.0, color=COLOR_TEXT_MAIN)
-    ax_gate.set_title("[C] 한계 1: 안전마진 중첩에 의한 게이트 폐쇄(Gate Closure) 및 외곽벽 충돌",
-                      fontsize=11.5, fontweight='bold', color=COLOR_RED, pad=8)
-
-    # Buoy gate (distance = 2.4m)
-    b1_pos = (6.0, 1.3)
-    b2_pos = (6.0, 3.7)
-
-    # Safety Margins (overlapping in corridor)
-    c1 = Circle(b1_pos, 1.45, ec=COLOR_RED, fc=COLOR_RED_LIGHT, alpha=0.50, lw=1.6, linestyle='--')
-    c2 = Circle(b2_pos, 1.45, ec=COLOR_RED, fc=COLOR_RED_LIGHT, alpha=0.50, lw=1.6, linestyle='--')
-    ax_gate.add_patch(c1)
-    ax_gate.add_patch(c2)
-
-    # Buoy patches
-    ax_gate.add_patch(Circle(b1_pos, 0.30, ec=COLOR_NAVY, fc='#EF4444', lw=1.6, zorder=6))
-    ax_gate.add_patch(Circle(b2_pos, 0.30, ec=COLOR_NAVY, fc='#EF4444', lw=1.6, zorder=6))
-    ax_gate.text(6.0, 0.65, "부표 A", ha='center', fontsize=9.5, fontweight='bold', color=COLOR_RED)
-    ax_gate.text(6.0, 4.45, "부표 B", ha='center', fontsize=9.5, fontweight='bold', color=COLOR_RED)
-
-    # Gate width annotation
-    ax_gate.annotate('', xy=(6.0, 3.7), xytext=(6.0, 1.3),
-                     arrowprops=dict(arrowstyle='<->', color=COLOR_NAVY, lw=1.6))
-    ax_gate.text(6.75, 2.50, "통로 폭: 2.4m\n(선폭 0.8m 대비 충분)",
-                 va='center', fontsize=9.0, fontweight='bold', color=COLOR_NAVY)
-
-    # Overlapped Virtual Wall Box
-    ax_gate.text(3.9, 2.50, "마진 중첩 구간\n(가상 차폐벽 형성)",
-                 ha='center', va='center', fontsize=9.2, fontweight='bold', color=COLOR_RED,
-                 bbox=dict(boxstyle='round,pad=0.22', fc='#FEF2F2', ec=COLOR_RED, lw=1.4))
-
-    # Boat start position
-    draw_boat_pose(ax_gate, 0.8, 2.5, 0.0, color='#94A3B8', length=1.4, width=0.7)
-    ax_gate.text(0.8, 1.65, "보트 (선폭 0.8m)", ha='center', fontsize=9.0, fontweight='bold', color=COLOR_NAVY)
-
-    # Repulsive vector acting on boat
-    ax_gate.annotate('', xy=(2.0, 1.6), xytext=(1.2, 2.3),
-                     arrowprops=dict(arrowstyle='->', color=COLOR_RED, lw=2.4))
-    ax_gate.text(2.2, 1.2, "합산 척력 (우회 회피)", fontsize=9.0, fontweight='bold', color=COLOR_RED)
-
-    # Erroneous steering trajectory
-    t = np.linspace(0, 1, 50)
-    err_x = 0.8 + 7.5 * t
-    err_y = 2.5 - 3.5 * (t**1.5)
-    ax_gate.plot(err_x, err_y, color=COLOR_RED, lw=2.8, linestyle='-', label='단순 반사 제어 궤적 (게이트 진입 포기)')
-
-    # Destination Target WP
-    ax_gate.plot(10.5, 2.5, marker='s', markersize=10, color=COLOR_GREEN, markeredgecolor=COLOR_NAVY, label='목표 게이트 출구')
-    ax_gate.text(10.5, 3.1, "목표 게이트 출구", ha='center', fontsize=9.2, fontweight='bold', color=COLOR_GREEN)
-
-    # Wall at y = -1.0
-    ax_gate.axhline(-1.0, color='#334155', lw=3.0)
-    ax_gate.fill_between([-1.0, 12.0], -1.5, -1.0, color='#CBD5E1', hatch='//')
-    ax_gate.plot(8.3, -1.0, marker='X', markersize=13, color=COLOR_RED, markeredgecolor='#FFFFFF', markeredgewidth=1.8)
-    ax_gate.text(8.3, -0.60, "수조 외곽벽 접촉 충돌", color=COLOR_RED, fontsize=9.5, fontweight='bold', ha='center')
-
-    ax_gate.legend(loc='upper left', fontsize=8.8, framealpha=0.95, facecolor='#FFFFFF')
-
-    # Subplot 4 (Bottom-Right): [D] Limits 2 & 3 - Chattering & Stern Sway Slip
-    # Axes rect: [0.535, 0.160, 0.420, 0.290]
-    ax_limits = fig.add_axes([0.535, 0.160, 0.420, 0.290])
-    ax_limits.set_facecolor('#FFFFFF')
-    ax_limits.axis('off')
-    ax_limits.set_xlim(0, 10)
-    ax_limits.set_ylim(0, 7)
-    ax_limits.set_title("[D] 한계 2 & 3: 조타 서보모터 채터링(진동) 및 선미 횡표류 슬립 접촉",
-                        fontsize=11.5, fontweight='bold', color=COLOR_RED, pad=8)
-
-    # Left Container: Steering Chattering Graph
-    chat_box = FancyBboxPatch((0.2, 0.35), 4.6, 6.3, boxstyle="round,pad=0.10", ec=COLOR_RED, fc='#FFFFFF', lw=1.3)
-    ax_limits.add_patch(chat_box)
-    ax_limits.text(2.5, 6.25, "[한계 2] 조타 채터링 (Chattering)", ha='center', fontsize=10.0, fontweight='bold', color=COLOR_RED)
-
-    # Mini plot inside left container positioned higher up to clear the text below
-    ax_mini_chat = fig.add_axes([0.550, 0.255, 0.175, 0.155])
-    ax_mini_chat.set_facecolor('#F8FAFC')
-    ax_mini_chat.grid(True, color='#E2E8F0', linestyle=':', alpha=0.8)
-    time_pts = np.linspace(0, 5, 120)
-    np.random.seed(42)
-    j_rudder = 30.0 * np.sign(np.sin(time_pts * 4.2)) + np.random.normal(0, 3.0, len(time_pts))
-    j_rudder = np.clip(j_rudder, -35, 35)
-    ax_mini_chat.plot(time_pts, j_rudder, color=COLOR_RED, lw=1.4)
-    ax_mini_chat.axhline(0, color='#94A3B8', linestyle='--', lw=0.8)
-    ax_mini_chat.set_ylim(-45, 45)
-    ax_mini_chat.set_xlabel("시간 (s)", fontsize=8.0, labelpad=2)
-    ax_mini_chat.set_ylabel("조타각 (°)", fontsize=8.0, labelpad=2)
-    ax_mini_chat.tick_params(labelsize=7.0, pad=2)
-
-    # Explanatory card below mini plot (comfortably low at y=0.40 to 1.50)
-    ch_info = FancyBboxPatch((0.4, 0.40), 4.2, 1.15, boxstyle="round,pad=0.08", ec=COLOR_RED, fc='#FEF2F2', lw=1.0)
-    ax_limits.add_patch(ch_info)
-    ax_limits.text(2.5, 0.98, "조타 지터: 12.8° (초당 4~5회 널뛰기)\n서보모터 과열 및 기계적 피로 누적",
-                   ha='center', va='center', fontsize=8.6, fontweight='bold', color='#991B1B', linespacing=1.3)
-
-    # Right Container: Stern Sway Slip Mechanism
-    sway_box = FancyBboxPatch((5.2, 0.35), 4.6, 6.3, boxstyle="round,pad=0.10", ec=COLOR_RED, fc='#FFFFFF', lw=1.3)
-    ax_limits.add_patch(sway_box)
-    ax_limits.text(7.5, 6.25, "[한계 3] 선미 횡표류 슬립 (Sway Slip)", ha='center', fontsize=10.0, fontweight='bold', color=COLOR_RED)
-
-    # Turning Boat with Stern Slip Diagram in upper portion
-    b_sway_pos = (6.8, 4.4)
-    th_turn = np.radians(25)
-    draw_boat_pose(ax_limits, b_sway_pos[0], b_sway_pos[1], th_turn, color='#94A3B8', length=1.7, width=0.8)
-
-    # Heading vector (선수 방향)
-    ax_limits.annotate('', xy=(b_sway_pos[0]+1.5*np.cos(th_turn), b_sway_pos[1]+1.5*np.sin(th_turn)),
-                       xytext=(b_sway_pos[0], b_sway_pos[1]), arrowprops=dict(arrowstyle='->', color='#0284C7', lw=2.0))
-    ax_limits.text(b_sway_pos[0]+1.6*np.cos(th_turn), b_sway_pos[1]+1.6*np.sin(th_turn), "선수 회전", fontsize=8.2, fontweight='bold', color='#0284C7')
-
-    # Stern Sway Slip Arrow
-    stern_pt = (b_sway_pos[0] - 0.85*np.cos(th_turn), b_sway_pos[1] - 0.85*np.sin(th_turn))
-    sway_vec = (1.5*np.sin(th_turn), -1.5*np.cos(th_turn))
-    ax_limits.annotate('', xy=(stern_pt[0]+sway_vec[0], stern_pt[1]+sway_vec[1]),
-                       xytext=stern_pt, arrowprops=dict(arrowstyle='->', color=COLOR_RED, lw=2.4))
-
-    # Buoy struck by stern
-    hit_buoy = (stern_pt[0]+sway_vec[0]+0.15, stern_pt[1]+sway_vec[1]-0.1)
-    ax_limits.add_patch(Circle(hit_buoy, 0.32, ec=COLOR_NAVY, fc='#EF4444', lw=1.5, zorder=7))
-    ax_limits.plot(hit_buoy[0], hit_buoy[1], marker='x', markersize=14, color='#FBBF24', markeredgewidth=2.4, zorder=8)
-    ax_limits.text(hit_buoy[0]+0.45, hit_buoy[1], "선미 충돌 부표", ha='left', va='center', fontsize=8.2, fontweight='bold', color=COLOR_RED)
-
-    # Explanatory card below sway visual (comfortably low at y=0.40 to 1.50)
-    sw_info = FancyBboxPatch((5.4, 0.40), 4.2, 1.15, boxstyle="round,pad=0.08", ec=COLOR_RED, fc='#FEF2F2', lw=1.0)
-    ax_limits.add_patch(sw_info)
-    ax_limits.text(7.5, 0.98, "물 위에서의 유체역학적 횡미끄러짐\n선회 시 선미가 밀려 부표 측면 타격",
-                   ha='center', va='center', fontsize=8.6, fontweight='bold', color='#991B1B', linespacing=1.3)
-
-    # Card 2 Bottom Takeaway Banner
-    banner2 = FancyBboxPatch((0.015, 0.015), 0.970, 0.070, boxstyle="round,pad=0.008",
-                             ec=COLOR_RED, fc='#FEF2F2', lw=1.6)
-    ax_card2.add_patch(banner2)
-    ax_card2.text(0.500, 0.057, "[문제 정의] 단순 반사 제어는 좁은 게이트 통과 미션과 선박의 유체역학적 특성에 본질적 한계를 드러냄",
-                  ha='center', va='center', fontsize=12.2, fontweight='bold', color='#991B1B')
-    ax_card2.text(0.500, 0.030, "장애물을 단순히 밀어내는 방식만으로는 게이트 통과와 부드러운 선체 제어를 양립할 수 없음을 규명했습니다.",
-                  ha='center', va='center', fontsize=10.0, color='#334155')
-
-    out_path = os.path.join(OUTPUT_DIR, "sheet1_background_and_problem.png")
-    plt.savefig(out_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"Generated: {out_path} (3:2 Aspect Ratio, 300 DPI, 5400x3600 px)")
+    import sys
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    from generate_sheet1_master import generate_sheet_1 as gen1
+    gen1()
 
 
-# =========================================================================
-# SHEET 2: Limitations of Legacy Control & Rationale for Gap Navigation
-# 3:2 Ratio (18.0 x 12.0 inches), 300 DPI (5400 x 3600 px)
-# Humble stance: Root cause analysis of legacy dilemmas & practical trade-offs
-# =========================================================================
 def generate_sheet_2():
     fig = plt.figure(figsize=(18.0, 12.0), dpi=300)
     fig.patch.set_facecolor(COLOR_BG)
