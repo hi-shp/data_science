@@ -568,7 +568,7 @@ def line_trace_steering(boat_pos, boat_heading, target_pos, dists, rel_angles, b
     min_wide = float(np.min(dists[wide_mask])) if np.any(wide_mask) else 999.0
     
     SAFE_DIST = 220.0       # 장애물 감지 및 회피 개시 거리 (px)
-    CRIT_DIST = 85.0        # 긴급 완전 회피 기준 거리 (px)
+    CRIT_DIST = 70.0        # 긴급 완전 회피 기준 거리 (px)
     
     if len(fwd_indices) > 0:
         fwd_dists = dists[fwd_indices]
@@ -607,8 +607,8 @@ def line_trace_steering(boat_pos, boat_heading, target_pos, dists, rel_angles, b
         urgency = float(np.clip((SAFE_DIST - min_dist) / (SAFE_DIST - CRIT_DIST), 0.0, 1.0))
         
         # 긴급도에 따른 적극적인 회피 조향
-        avoid_steer = avoid_dir * (0.75 + 0.25 * urgency)
-        avoid_weight = urgency * front_f
+        avoid_steer = avoid_dir * (0.25 + 0.2 * urgency)
+        avoid_weight = urgency * front_f * 0.6
         
         # 근접 위험 시 급선회(100% 회피 조향) 허용
         if min_dist < CRIT_DIST + 15.0:
@@ -623,7 +623,7 @@ def line_trace_steering(boat_pos, boat_heading, target_pos, dists, rel_angles, b
     if np.any(flank_mask):
         f_dists = dists[flank_mask]
         f_min = float(np.min(f_dists))
-        if f_min < 52.0:
+        if f_min < 40.0:
             f_idx = np.where(flank_mask)[0][np.argmin(f_dists)]
             f_ang = float(rel_angles[f_idx])
             f_dir = -float(np.sign(f_ang))

@@ -52,10 +52,10 @@ class BoatEnv:
         self.lidar_range = 320
         self.rel_angles = np.linspace(-np.pi, np.pi, self.lidar_beams, endpoint=False)
         
-        self.mass = 20
-        self.inertia = 16
+        self.mass = 10
+        self.inertia = 10
         self.drag = 0.2
-        self.rot_drag = 0.8
+        self.rot_drag = 15
         self.boat_radius = 25
         
         # 선체 표면 기하 형상 (ui_renderer의 선체 렌더링과 100% 일치하는 정밀 히트박스)
@@ -83,7 +83,7 @@ class BoatEnv:
         
         self.obs_n = int(80 * (self.map_w / self.w))   # 맵 확장에 비례하는 장애물 수 (기본 80개)
         self.obs_r = 17
-        self.min_obs = 150
+        self.min_obs = 130
         
         self.grid = init_grid()
         self.clusters = []
@@ -470,7 +470,7 @@ class BoatEnv:
         else:
             # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어
             em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-            dist_speed_factor = (math.tanh(em_dist / 170.0)) ** 1.35
+            dist_speed_factor = (math.tanh(em_dist / 50.0)) ** 1.35
             # 전방 85px 이내 초근접 시 선속 추가 안전 제한 (관성 슬립 충돌 차단)
             if em_dist < 85.0:
                 dist_speed_factor = min(dist_speed_factor, 0.15 + 0.15 * (em_dist / 85.0))
@@ -482,7 +482,7 @@ class BoatEnv:
             
             # 각도가 0도일 때 1.0, 45도일 때 ~0.46, 75도 이상일 때 ~0.10으로 급격히 감속하여 제자리 선회력 확보
             turn_cos = max(0.0, math.cos(min(math.pi * 0.5, effective_turn_angle)))
-            turn_speed_factor = max(0.10, turn_cos ** 2.2)
+            turn_speed_factor = max(0.10, turn_cos ** 1.2)
             
             speed_factor = dist_speed_factor * turn_speed_factor
             
