@@ -291,9 +291,9 @@ def generate_subfig3():
     ax3.axhline(7.0, color='#64748B', lw=4.0, zorder=5)
     ax3.text(0.4, 7.15, "수조 외곽 콘크리트 벽", fontsize=11.5, fontweight='bold', color='#475569')
     
-    b1_x, b1_y = 4.0, 4.0
-    b2_x, b2_y = 4.0, 3.2
-    margin_r = 0.5
+    b1_x, b1_y = 4.0, 4.4
+    b2_x, b2_y = 4.0, 2.8
+    margin_r = 1.0
     
     c1 = Circle((b1_x, b1_y), margin_r, fc='#FEE2E2', ec='#EF4444', lw=1.2, ls='--', alpha=0.6, zorder=2)
     c2 = Circle((b2_x, b2_y), margin_r, fc='#FEE2E2', ec='#EF4444', lw=1.2, ls='--', alpha=0.6, zorder=2)
@@ -301,27 +301,27 @@ def generate_subfig3():
     ax3.add_patch(c2)
     
     # Overlap Hatch
-    ax3.fill_between([3.7, 4.0, 4.3], [3.6, 3.7, 3.6], [3.6, 3.5, 3.6], 
+    ax3.fill_between([3.4, 4.0, 4.6], [3.6, 3.8, 3.6], [3.6, 3.4, 3.6], 
                      color='#DC2626', alpha=0.35, hatch='///', zorder=3)
     
-    ax3.add_patch(Circle((b1_x, b1_y), 0.16, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
-    ax3.add_patch(Circle((b2_x, b2_y), 0.16, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
-    ax3.text(b1_x + 0.22, b1_y, "부표 A", ha='left', va='center', fontsize=11.5, fontweight='bold', color='#9A3412')
-    ax3.text(b2_x + 0.22, b2_y, "부표 B", ha='left', va='center', fontsize=11.5, fontweight='bold', color='#9A3412')
+    ax3.add_patch(Circle((b1_x, b1_y), 0.22, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
+    ax3.add_patch(Circle((b2_x, b2_y), 0.22, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
+    ax3.text(b1_x, b1_y + 0.35, "부표 A", ha='center', va='bottom', fontsize=12.0, fontweight='bold', color='#9A3412')
+    ax3.text(b2_x, b2_y - 0.35, "부표 B", ha='center', va='top', fontsize=12.0, fontweight='bold', color='#9A3412')
     
-    ax3.annotate('안전마진 중첩 구간\n(0.2m 겹침 발생)', xy=(3.9, 3.6), xytext=(2.2, 2.7),
+    ax3.annotate('안전마진 중첩 구간\n(0.2m 겹침 발생)', xy=(3.8, 3.6), xytext=(2.2, 2.6),
                  arrowprops=dict(arrowstyle='->', color='#991B1B', lw=1.4),
                  ha='center', va='center', fontsize=10.8, fontweight='bold', color='#991B1B',
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_DANGER_BORDER, lw=0.9), zorder=15)
     
-    ax3.annotate('', xy=(4.0, 3.95), xytext=(4.0, 3.25),
+    ax3.annotate('', xy=(4.0, 4.18), xytext=(4.0, 3.02),
                  arrowprops=dict(arrowstyle='<->', color='#0F172A', lw=1.5), zorder=10)
-    ax3.text(4.85, 3.6, "실제 통로\n폭 0.8m", ha='left', va='center', fontsize=11.0, fontweight='bold', color='#0F172A')
+    ax3.text(4.25, 3.6, "실제 통로\n폭 0.8m", ha='left', va='center', fontsize=11.0, fontweight='bold', color='#0F172A')
 
-    # Margin dimension arrow
-    ax3.annotate('', xy=(3.5, 4.0), xytext=(4.0, 4.0),
+    # Margin dimension arrow (on Buoy B)
+    ax3.annotate('', xy=(5.0, 2.8), xytext=(4.0, 2.8),
                  arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.2), zorder=10)
-    ax3.text(3.75, 4.22, "안전마진 0.5m", ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#DC2626')
+    ax3.text(5.08, 2.8, "안전마진 0.5m", ha='left', va='center', fontsize=9.8, fontweight='bold', color='#DC2626')
     
     # Abort Trajectory
     pts = np.array([
@@ -785,9 +785,9 @@ def generate_sheet_1():
     ax3.axhline(7.0, color='#64748B', lw=4.0, zorder=5)
     ax3.text(0.4, 7.15, "수조 외곽 콘크리트 벽", fontsize=10.8, fontweight='bold', color='#475569')
     
-    b1_x, b1_y = 4.0, 4.0
-    b2_x, b2_y = 4.0, 3.2
-    margin_r = 0.5
+    b1_x, b1_y = 4.0, 4.4
+    b2_x, b2_y = 4.0, 2.8
+    margin_r = 1.0
     
     c1 = Circle((b1_x, b1_y), margin_r, fc='#FEE2E2', ec='#EF4444', lw=1.2, ls='--', alpha=0.6, zorder=2)
     c2 = Circle((b2_x, b2_y), margin_r, fc='#FEE2E2', ec='#EF4444', lw=1.2, ls='--', alpha=0.6, zorder=2)
@@ -795,27 +795,27 @@ def generate_sheet_1():
     ax3.add_patch(c2)
     
     # Overlap Hatch
-    ax3.fill_between([3.7, 4.0, 4.3], [3.6, 3.7, 3.6], [3.6, 3.5, 3.6], 
+    ax3.fill_between([3.4, 4.0, 4.6], [3.6, 3.8, 3.6], [3.6, 3.4, 3.6], 
                      color='#DC2626', alpha=0.35, hatch='///', zorder=3)
     
-    ax3.add_patch(Circle((b1_x, b1_y), 0.16, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
-    ax3.add_patch(Circle((b2_x, b2_y), 0.16, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
-    ax3.text(b1_x + 0.22, b1_y, "부표 A", ha='left', va='center', fontsize=11.2, fontweight='bold', color='#9A3412')
-    ax3.text(b2_x + 0.22, b2_y, "부표 B", ha='left', va='center', fontsize=11.2, fontweight='bold', color='#9A3412')
+    ax3.add_patch(Circle((b1_x, b1_y), 0.22, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
+    ax3.add_patch(Circle((b2_x, b2_y), 0.22, fc=COLOR_WARN, ec='#9A3412', lw=1.5, zorder=8))
+    ax3.text(b1_x, b1_y + 0.35, "부표 A", ha='center', va='bottom', fontsize=11.2, fontweight='bold', color='#9A3412')
+    ax3.text(b2_x, b2_y - 0.35, "부표 B", ha='center', va='top', fontsize=11.2, fontweight='bold', color='#9A3412')
     
-    ax3.annotate('안전마진 중첩 구간\n(0.2m 겹침 발생)', xy=(3.9, 3.6), xytext=(2.2, 2.7),
+    ax3.annotate('안전마진 중첩 구간\n(0.2m 겹침 발생)', xy=(3.8, 3.6), xytext=(2.2, 2.6),
                  arrowprops=dict(arrowstyle='->', color='#991B1B', lw=1.4),
                  ha='center', va='center', fontsize=9.8, fontweight='bold', color='#991B1B',
                  bbox=dict(boxstyle='round,pad=0.2', fc='#FFFFFF', ec=COLOR_DANGER_BORDER, lw=0.9), zorder=15)
     
-    ax3.annotate('', xy=(4.0, 3.95), xytext=(4.0, 3.25),
+    ax3.annotate('', xy=(4.0, 4.18), xytext=(4.0, 3.02),
                  arrowprops=dict(arrowstyle='<->', color='#0F172A', lw=1.5), zorder=10)
-    ax3.text(4.85, 3.6, "실제 통로\n폭 0.8m", ha='left', va='center', fontsize=10.2, fontweight='bold', color='#0F172A')
+    ax3.text(4.25, 3.6, "실제 통로\n폭 0.8m", ha='left', va='center', fontsize=10.2, fontweight='bold', color='#0F172A')
 
-    # Margin dimension arrow
-    ax3.annotate('', xy=(3.5, 4.0), xytext=(4.0, 4.0),
+    # Margin dimension arrow (on Buoy B)
+    ax3.annotate('', xy=(5.0, 2.8), xytext=(4.0, 2.8),
                  arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.2), zorder=10)
-    ax3.text(3.75, 4.22, "안전마진 0.5m", ha='center', va='bottom', fontsize=9.2, fontweight='bold', color='#DC2626')
+    ax3.text(5.08, 2.8, "안전마진 0.5m", ha='left', va='center', fontsize=9.2, fontweight='bold', color='#DC2626')
     
     # Abort Trajectory
     pts = np.array([
