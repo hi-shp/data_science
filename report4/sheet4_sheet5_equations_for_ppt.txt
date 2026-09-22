@@ -1,0 +1,281 @@
+================================================================================
+KABOAT 자율운항 USV 알고리즘 전시 시트 4 & 시트 5 수식 모음집 (PPT 수식 입력용)
+================================================================================
+
+[안내: 파워포인트(PowerPoint) 수식 입력 방법]
+방법 1 (LaTeX 모드):
+  1. PPT 슬라이드에서 단축키 [Alt] + [=] 를 눌러 수식 상자를 생성합니다.
+  2. 상단 [수식] 탭에서 구문을 [LaTeX]로 선택합니다.
+  3. 아래 [LaTeX 입력 수식] 항목의 수식을 복사하여 붙여넣고 [Enter]를 누르면 정밀 수식으로 자동 변환됩니다.
+
+방법 2 (유니코드/기본 선형 모드):
+  1. PPT 슬라이드에서 단축키 [Alt] + [=] 를 누릅니다.
+  2. 아래 [PPT 선형(Linear) 수식] 항목을 복사하여 붙여넣고 [Enter]를 누릅니다.
+
+
+================================================================================
+제1부. 시트 4 [해결 방법 1: 인지 및 공간 탐색]
+================================================================================
+
+--------------------------------------------------------------------------------
+1. 기술 1: DBSCAN 밀도 기반 군집화 및 잡음 제거 (DBSCAN Clustering & Noise Filtering)
+--------------------------------------------------------------------------------
+
+[수식 1-1] Epsilon 이웃 영역 정의 (Epsilon-Neighborhood)
+- 설명: 점 p를 중심으로 반경 epsilon 이내에 존재하는 모든 점 q의 집합을 정의합니다.
+- LaTeX 입력 수식:
+  N_{\epsilon}(p) = \{ q \in D \mid \text{dist}(p, q) \le \epsilon \}
+- PPT 선형(Linear) 수식:
+  N_\epsilon(p) = {q \in D | dist(p, q) <= \epsilon}
+- 주요 변수 및 파라미터:
+  epsilon = 0.60 m (부표 직경 0.48m 결속에 최적화된 탐색 반경)
+  D: 120도 전방 라이다로부터 취득된 2D 포인트 클라우드 전체 데이터셋
+
+
+[수식 1-2] 2차원 유클리드 거리 척도 (Euclidean Distance Metric)
+- 설명: 직교좌표계 상에서 두 라이다 점 p와 q 사이의 직선 거리를 계산합니다.
+- LaTeX 입력 수식:
+  \text{dist}(p, q) = \sqrt{(x_p - x_q)^2 + (y_p - y_q)^2}
+- PPT 선형(Linear) 수식:
+  dist(p, q) = \sqrt((x_p - x_q)^2 + (y_p - y_q)^2)
+- 주요 변수:
+  (x_p, y_p), (x_q, y_q): 각 점의 국소 항법 좌표계(Local Frame) 위치
+
+
+[수식 1-3] 밀도 코어 포인트 판정 조건 (Core Point Condition)
+- 설명: 탐색 반경 epsilon 내의 이웃 점 개수가 MinPts 이상일 때 해당 점을 코어 포인트로 지정합니다.
+- LaTeX 입력 수식:
+  |N_{\epsilon}(p)| \ge \text{MinPts}
+- PPT 선형(Linear) 수식:
+  |N_\epsilon(p)| >= MinPts
+- 주요 파라미터:
+  MinPts = 3 (수면 난반사로 인한 1~2개 단위 고립 점군을 즉각 필터링)
+
+
+[수식 1-4] 수면 난반사 잡음 필터링 조건 (Noise Filtering Condition)
+- 설명: 점 p의 이웃 수가 MinPts 미만이고 어떠한 코어 포인트의 반경에도 포함되지 않으면 잡음(Noise)으로 분류하여 즉시 폐기합니다.
+- LaTeX 입력 수식:
+  p \in \text{Noise} \iff \left( |N_{\epsilon}(p)| < \text{MinPts} \right) \;\land\; \left( \forall c \in \text{Core},\; p \notin N_{\epsilon}(c) \right)
+- PPT 선형(Linear) 수식:
+  p \in Noise \iff (|N_\epsilon(p)| < MinPts) \land (\forall c \in Core, p \notin N_\epsilon(c))
+- 처리 결과:
+  Label = -1 (수면 반사파 및 물보라 잡음 완전 제거, 연산 소요 시간 3.8ms 이내)
+
+
+[수식 1-5] 장애물 안전 팽창 버퍼 반경 (Obstacle Inflation Buffer)
+- 설명: 선체 충돌을 방지하기 위해 인식된 부표 반경에 안전 여유거리와 선폭 절반을 합산하여 유효 점유 영역을 설정합니다.
+- LaTeX 입력 수식:
+  R_{\text{obs, eff}} = R_{\text{buoy}} + d_{\text{margin}} + \frac{B_{\text{ship}}}{2}
+- PPT 선형(Linear) 수식:
+  R_(obs, eff) = R_buoy + d_margin + B_ship / 2
+- 주요 수치:
+  R_buoy = 0.48 m (부표 물리 반경)
+  d_margin = 0.50 m (외란 대응 동적 안전 여유 폭)
+  B_ship = 0.42 m (USV 선폭, 절반 폭 = 0.21 m)
+  R_obs, eff = 1.19 m (총 팽창 반경)
+
+
+
+--------------------------------------------------------------------------------
+2. 기술 2: 안전 갭(Gap) 후보 추출 및 6대 가중치 평가 (Safe Gap & Multi-Objective Scoring)
+--------------------------------------------------------------------------------
+
+[수식 2-1] 게이트 유효 통과 폭 계산 (Effective Gap Clearance Width)
+- 설명: 인접한 두 부표 중심 사이의 거리에서 양측 부표 반경, 안전 마진, 선폭을 차감하여 선박이 통과할 수 있는 실질 여유 공간을 도출합니다.
+- LaTeX 입력 수식:
+  W_{\text{eff}} = W_{\text{raw}} - (R_A + R_B) - 2 \cdot \left( d_{\text{margin}} + \frac{B_{\text{ship}}}{2} \right)
+- PPT 선형(Linear) 수식:
+  W_eff = W_raw - (R_A + R_B) - 2(d_margin + B_ship / 2)
+- 실측 예시 수치:
+  W_raw = 3.00 m (부표 중심 간 거리)
+  R_A = R_B = 0.48 m
+  2 * (0.50 + 0.21) m = 1.42 m 차감
+  W_eff = 1.82 m (통과 가능)
+
+
+[수식 2-2] 안전 통과 게이트 유효성 판정 조건 (Gate Validity Check)
+- 설명: 유효 통과 폭 W_eff가 최소 임계 폭 W_min 이상일 때만 주행 가능한 유효 갭으로 채택합니다.
+- LaTeX 입력 수식:
+  W_{\text{eff}} \ge W_{\text{min}} \quad (W_{\text{min}} = 0.50\,\text{m})
+- PPT 선형(Linear) 수식:
+  W_eff >= W_min  (W_min = 0.50 m)
+
+
+[수식 2-3] 게이트 중심 목표점 좌표 (Gap Midpoint Coordinate)
+- 설명: 선택된 최적 게이트의 양측 장애물 경계점의 기하학적 중심점을 목표 통과 위치 P_gap으로 산출합니다.
+- LaTeX 입력 수식:
+  \mathbf{P}_{\text{gap}} = \frac{\mathbf{P}_A + \mathbf{P}_B}{2}
+- PPT 선형(Linear) 수식:
+  P_gap = (P_A + P_B) / 2
+
+
+[수식 2-4] 정규화된 선박 접근 벡터 (Normalized Approach Vector)
+- 설명: 선박 현재 위치에서 게이트 중심점을 향하는 단위 방향 벡터를 생성합니다.
+- LaTeX 입력 수식:
+  \mathbf{V}_{\text{approach}} = \frac{\mathbf{P}_{\text{gap}} - \mathbf{P}_{\text{ship}}}{\|\mathbf{P}_{\text{gap}} - \mathbf{P}_{\text{ship}}\|}
+- PPT 선형(Linear) 수식:
+  V_approach = (P_gap - P_ship) / ||P_gap - P_ship||
+
+
+[수식 2-5] 다중 목적 종합 우선순위 평가 수식 (Multi-Objective Priority Score)
+- 설명: 6대 기하학적 목적 함수를 정규화하고 사전에 최적화된 가중치 벡터와의 내적을 통해 최고 점수의 갭을 선정합니다.
+- LaTeX 입력 수식:
+  \text{Score}(\text{Gap}_k) = \sum_{i=1}^6 w_i \cdot f_i(\text{Gap}_k) \quad \left( \sum_{i=1}^6 w_i = 1.0 \right)
+- PPT 선형(Linear) 수식:
+  Score(Gap_k) = \sum_(i=1)^6 w_i f_i(Gap_k)  (\sum w_i = 1.0)
+
+
+[수식 2-6] 6대 가중치 세부 평가 함수 전개식 (6-Criteria Formulations)
+- 설명: 6대 평가 항목의 정량적 수식과 각각의 가중 비율입니다.
+- LaTeX 입력 수식:
+  \begin{aligned}
+  \text{Score} &= 0.23 \cdot \cos(\theta_{\text{goal}}) + 0.22 \cdot \cos(\theta_{\text{fwd}}) + 0.16 \cdot \min\left(1, \frac{W_{\text{eff}}}{W_{\text{ref}}}\right) \\
+  &\quad + 0.16 \cdot \min\left(1, \frac{d_{\text{obs}}}{d_{\text{safe, max}}}\right) + 0.15 \cdot \cos(\psi_{\text{ship}} - \psi_{\text{gap}}) + 0.08 \cdot |\mathbf{n}_{\text{gate}} \cdot \mathbf{V}_{\text{approach}}|
+  \end{aligned}
+- PPT 선형(Linear) 수식:
+  Score = 0.23 \cos(\theta_goal) + 0.22 \cos(\theta_fwd) + 0.16 \min(1, W_eff / W_ref) + 0.16 \min(1, d_obs / d_(safe,max)) + 0.15 \cos(\psi_ship - \psi_gap) + 0.08 |n_gate \cdot V_approach|
+- 세부 가중치 체계:
+  1) w1 = 0.23 (23%) : 목표 진행성 (Target Alignment, 전체 경로 단축)
+  2) w2 = 0.22 (22%) : 전방 지향성 (Forwardness, 불필요한 후진/급선회 방지)
+  3) w3 = 0.16 (16%) : 통로 안전폭 (Effective Gap Width, 넓은 개구부 선호)
+  4) w4 = 0.16 (16%) : 장애물 이격 (Obstacle Clearance, 안전 거리 극대화)
+  5) w5 = 0.15 (15%) : 선박 헤딩 적합도 (Heading Alignment, 조타각 변화 최소화)
+  6) w6 = 0.08 (8%)  : 통로 수직 진입도 (Perpendicular Gate Entry, 게이트 통과 안정성)
+
+
+
+================================================================================
+제2부. 시트 5 [해결 방법 2: 궤적 생성 및 운동 제어]
+================================================================================
+
+--------------------------------------------------------------------------------
+3. 기술 3: 3차 베지어 곡선 기반 C2 곡률 연속 궤적 합성 (Cubic Bézier Trajectory)
+--------------------------------------------------------------------------------
+
+[수식 3-1] 3차 베지어 곡선 매개변수 방정식 (Cubic Bézier Parametric Equation)
+- 설명: 4개의 제어점(P0, P1, P2, P3)을 3차 번스타인 기저 함수로 결합하여 매끄러운 평면 경로를 생성합니다.
+- LaTeX 입력 수식:
+  \mathbf{B}(t) = (1-t)^3 \mathbf{P}_0 + 3(1-t)^2 t \mathbf{P}_1 + 3(1-t) t^2 \mathbf{P}_2 + t^3 \mathbf{P}_3, \quad t \in [0, 1]
+- PPT 선형(Linear) 수식:
+  B(t) = (1-t)^3 P_0 + 3(1-t)^2 t P_1 + 3(1-t) t^2 P_2 + t^3 P_3,  t \in [0, 1]
+- 제어점의 물리적 의미:
+  P0: 현재 선박 위치 (x0, y0)
+  P1: 현재 선박 헤딩 벡터를 따라 연장된 시작 접선 제어점
+  P2: 목표 게이트 통과 법선 벡터를 따라 배치된 종점 정렬 제어점
+  P3: 목표 게이트 중심 좌표 (x3, y3)
+
+
+[수식 3-2] 1계 도함수 및 경계 접선 구속 조건 (1st Derivative & Boundary Tangents)
+- 설명: 경로의 시작점과 끝점에서 선박의 현재 주행 방향 및 게이트 진입 각도와의 접선 일치를 보장합니다.
+- LaTeX 입력 수식:
+  \mathbf{B}'(t) = 3(1-t)^2 (\mathbf{P}_1 - \mathbf{P}_0) + 6(1-t)t (\mathbf{P}_2 - \mathbf{P}_1) + 3t^2 (\mathbf{P}_3 - \mathbf{P}_2)
+- PPT 선형(Linear) 수식:
+  B'(t) = 3(1-t)^2 (P_1 - P_0) + 6(1-t)t (P_2 - P_1) + 3t^2 (P_3 - P_2)
+- 경계 접선 조건 수식:
+  LaTeX: \mathbf{B}'(0) = 3(\mathbf{P}_1 - \mathbf{P}_0) \parallel \mathbf{v}_{\text{USV}}, \quad \mathbf{B}'(1) = 3(\mathbf{P}_3 - \mathbf{P}_2) \parallel \mathbf{n}_{\text{gap}}
+  PPT Linear: B'(0) = 3(P_1 - P_0) || v_USV,  B'(1) = 3(P_3 - P_2) || n_gap
+
+
+[수식 3-3] 2계 도함수 (2nd Derivative / Acceleration Vector)
+- 설명: 곡선의 가속도 벡터를 산출하여 곡률 계산의 기초를 제공합니다.
+- LaTeX 입력 수식:
+  \mathbf{B}''(t) = 6(1-t)(\mathbf{P}_2 - 2\mathbf{P}_1 + \mathbf{P}_0) + 6t(\mathbf{P}_3 - 2\mathbf{P}_2 + \mathbf{P}_1)
+- PPT 선형(Linear) 수식:
+  B''(t) = 6(1-t)(P_2 - 2P_1 + P_0) + 6t(P_3 - 2P_2 + P_1)
+
+
+[수식 3-4] 평면 곡률 계산 공식 (Path Curvature Formulation)
+- 설명: 궤적 상 임의의 매개변수 t 지점에서의 기하학적 곡률 kappa를 연산합니다.
+- LaTeX 입력 수식:
+  \kappa(t) = \frac{x'(t)y''(t) - y'(t)x''(t)}{\left( x'(t)^2 + y'(t)^2 \right)^{3/2}}
+- PPT 선형(Linear) 수식:
+  \kappa(t) = (x'(t)y''(t) - y'(t)x''(t)) / ((x'(t)^2 + y'(t)^2)^(3/2))
+
+
+[수식 3-5] 선박 동역학적 최대 곡률 및 최소 회전반경 한계 구속 (Dynamic Curvature Constraint)
+- 설명: 선박의 최대 조타 한계 및 회전 성능을 초과하지 않도록 궤적의 최대 곡률을 제한합니다.
+- LaTeX 입력 수식:
+  \kappa_{\max} \le \frac{1}{R_{\min}} = \frac{\tan \delta_{\max}}{L_{\text{ship}}}
+- PPT 선형(Linear) 수식:
+  \kappa_max <= 1 / R_min = (tan \delta_max) / L_ship
+- 주요 수치:
+  R_min = 1.50 m (물리적 최소 선회 반경)
+  delta_max = 28.5 deg (등가 최대 조타각)
+  L_ship = 1.10 m (선체 전장)
+  kappa_max <= 0.67 1/m (허용 최대 곡률 한계)
+
+
+
+--------------------------------------------------------------------------------
+4. 기술 4: 순수추종(Pure Pursuit) 및 좌우 차등 추진 제어 (Pure Pursuit & Differential Thrust)
+--------------------------------------------------------------------------------
+
+[수식 4-1] 순수추종 기하학적 조타 곡률 수식 (Pure Pursuit Steering Curvature)
+- 설명: 선체 중심과 전방 주시점 Pt 사이의 거리 L_fw 및 헤딩 오차각 alpha로부터 요구 선회 곡률을 산출합니다.
+- LaTeX 입력 수식:
+  \kappa = \frac{2 \sin \alpha}{L_{\text{fw}}}
+- PPT 선형(Linear) 수식:
+  \kappa = (2 \sin \alpha) / L_fw
+- 주요 변수:
+  alpha: 현재 선박 헤딩선과 목표 주시점(Pt) 방향 벡터 사이의 사잇각 (조향 오차각)
+  L_fw: 전방주시 거리 (Lookahead Distance)
+
+
+[수식 4-2] 등가 조타각 변환 공식 (Acker/Bicycle Equivalent Steering Angle)
+- 설명: 산출된 경로 곡률을 선박 전장 L_ship에 기초한 가상 조타각 delta_cmd로 변환합니다.
+- LaTeX 입력 수식:
+  \delta_{\text{cmd}} = \arctan(\kappa \cdot L_{\text{ship}}) = \arctan\left( \frac{2 L_{\text{ship}} \sin \alpha}{L_{\text{fw}}} \right)
+- PPT 선형(Linear) 수식:
+  \delta_cmd = \arctan(\kappa * L_ship) = \arctan((2 L_ship \sin \alpha) / L_fw)
+
+
+[수식 4-3] 선속 연동형 가변 전방주시 거리 수식 (Speed-Adaptive Lookahead Distance)
+- 설명: 선속이 증가하면 전방주시 거리를 확장하여 주행 안정성을 확보하고, 저속에서는 축소하여 민첩성을 증대합니다.
+- LaTeX 입력 수식:
+  L_{\text{fw}} = \max\left( L_{\min}, \; k_v \cdot V_x \right) \quad (L_{\min} = 2.0\,\text{m}, \; k_v = 1.2\,\text{s})
+- PPT 선형(Linear) 수식:
+  L_fw = \max(L_min, k_v * V_x)  (L_min = 2.0 m, k_v = 1.2 s)
+- 실측 예시:
+  Vx = 0.75 m/s 주행 시 L_fw = 2.90 m 로 동적 설정
+
+
+[수식 4-4] 요구 회두 모멘트 제어 수식 (Yaw Torque Demand)
+- 설명: 조향 오차각 alpha 및 오차 변화율로부터 선박을 정렬하기 위한 회두 모멘트 tau_yaw를 생성합니다.
+- LaTeX 입력 수식:
+  \tau_{\text{yaw}} = K_p \alpha + K_d \dot{\alpha}
+- PPT 선형(Linear) 수식:
+  \tau_yaw = K_p \alpha + K_d \dot{\alpha}
+
+
+[수식 4-5] 좌우 듀얼 트러스터 차등 추력 분배 방정식 (Differential Thrust Allocation)
+- 설명: 물리적 타(Rudder)가 없는 선박에서 좌현(TL)과 우현(TR) 추진기의 추력 차이를 통해 선회 모멘트를 직접 구현합니다.
+- LaTeX 입력 수식:
+  T_L = \frac{T_{\text{base}}}{2} + \frac{\tau_{\text{yaw}}}{B_{\text{prop}}}, \quad T_R = \frac{T_{\text{base}}}{2} - \frac{\tau_{\text{yaw}}}{B_{\text{prop}}}
+- PPT 선형(Linear) 수식:
+  T_L = T_base / 2 + \tau_yaw / B_prop,  T_R = T_base / 2 - \tau_yaw / B_prop
+- 관계식 (선회 모멘트 M_z):
+  LaTeX: M_z = (T_L - T_R) \cdot \frac{B_{\text{prop}}}{2} = \Delta T \cdot \frac{B_{\text{prop}}}{2}
+  PPT Linear: M_z = (T_L - T_R) * (B_prop / 2) = \Delta T * (B_prop / 2)
+- 실측 제어 파라미터 및 수치:
+  B_prop = 0.64 m (트러스터 간격)
+  TL = 48.5 N (좌현 전진 추력)
+  TR = 21.3 N (우현 감속 추력)
+  Delta T = TL - TR = 27.2 N (차등 추력 편차)
+  Mz = 27.2 N * 0.32 m = +8.7 N·m (순수 선회 토크 형성)
+
+
+[수식 4-6] 추력-PWM 제어 신호 변환 관계식 (Thrust to PWM Mapping)
+- 설명: 요구 추력 뉴턴(N) 값을 트러스터 ESC 입력 펄스폭 PWM(마이크로초, µs)으로 변환합니다.
+- LaTeX 입력 수식:
+  \text{PWM}_{L,R} = 1500 + \text{sgn}(T_{L,R}) \cdot \left( c_1 |T_{L,R}| + c_2 T_{L,R}^2 \right)
+- PPT 선형(Linear) 수식:
+  PWM_(L,R) = 1500 + sgn(T_(L,R)) * (c_1 |T_(L,R)| + c_2 T_(L,R)^2)
+- 신호 범위:
+  중립 정지: 1500 µs
+  좌현 트러스터: 1680 µs (48.5 N 발생)
+  우현 트러스터: 1420 µs (21.3 N 발생)
+  추진 응답 주기: 50 Hz (20 ms 실시간 PWM 제어)
+
+================================================================================
+(파일 끝)
+================================================================================
