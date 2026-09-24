@@ -109,26 +109,29 @@ Estimated ETA:   {eta_str}
                         env.clusters, env.cluster_ids, new_c
                     )
 
-                    # [Gaps 버튼 전용 데이터] 전방 180도(헤딩 기준 좌우 ±90도: 전방 내적 >= 0) 장애물만 기준으로 모든 갭(N C 2) 생성
+                    # [Gaps 버튼 전용 데이터] 평소에는 O(1)로 총 개수만 산출하고, Gaps 버튼이 활성화된 경우에만 렌더링용 객체를 생성하여 지연 평가(Lazy Evaluation) 최적화
                     bx, by = env.boat_pos
                     ch = math.cos(env.boat_heading)
                     sh = math.sin(env.boat_heading)
                     front_clusters = [c for c in env.clusters if (c[0] - bx) * ch + (c[1] - by) * sh >= 0]
-
-                    gui_all_gaps = []
                     n_fc = len(front_clusters)
-                    for i in range(n_fc):
-                        c1 = front_clusters[i]
-                        for j in range(i + 1, n_fc):
-                            c2 = front_clusters[j]
-                            mid_pt = (c1 + c2) / 2.0
-                            gui_all_gaps.append({
-                                "pos": mid_pt.copy(),
-                                "c1": c1.copy(),
-                                "c2": c2.copy()
-                            })
-                    env.all_gaps = gui_all_gaps
-                    env.total_gaps_count = len(gui_all_gaps)
+                    env.total_gaps_count = n_fc * (n_fc - 1) // 2 if n_fc >= 2 else 0
+
+                    if getattr(env, 'show_all_gaps', False) and n_fc >= 2:
+                        gui_all_gaps = []
+                        for i in range(n_fc):
+                            c1 = front_clusters[i]
+                            for j in range(i + 1, n_fc):
+                                c2 = front_clusters[j]
+                                mid_pt = (c1 + c2) / 2.0
+                                gui_all_gaps.append({
+                                    "pos": mid_pt.copy(),
+                                    "c1": c1.copy(),
+                                    "c2": c2.copy()
+                                })
+                        env.all_gaps = gui_all_gaps
+                    else:
+                        env.all_gaps = []
 
                     dist_to_target = math.hypot(env.target[0] - env.boat_pos[0], env.target[1] - env.boat_pos[1])
                     boat_spd = math.hypot(env.boat_vel[0], env.boat_vel[1])

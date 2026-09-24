@@ -1120,14 +1120,8 @@ class EnvRenderer:
         is_lt = getattr(env, 'linetrace_mode', False)
 
         if not is_lt:
-            # 현재 고려 중인 모든 갭의 개수 표시 HUD 토글 버튼 (전방 180도 기준)
-            front_gaps_count = 0
-            if getattr(env, 'all_gaps', None):
-                for g in env.all_gaps:
-                    mid = g["pos"]
-                    if (mid[0] - bx) * f_vec[0] + (mid[1] - by) * f_vec[1] >= 0:
-                        front_gaps_count += 1
-            total_gaps = front_gaps_count
+            # 현재 고려 중인 모든 갭의 개수 표시 HUD 토글 버튼 (전방 180도 기준, O(1) 고속 참조)
+            total_gaps = getattr(env, 'total_gaps_count', 0)
             show_all = getattr(env, 'show_all_gaps', False)
 
             # 자리수 변화(1자리, 2자리)에 관계없이 버튼 크기 고정 (Fixed Width)
