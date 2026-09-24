@@ -65,20 +65,21 @@ def run():
 
         if getattr(env, 'paused', False):
             map_bounds = (0, 0, env.map_w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
-            dists, hits = lidar_hits_np(
+            dists, hits_x, hits_y = lidar_hits_np(
                 env.boat_pos, env.boat_heading,
                 env.rel_angles, env.dynamic_obstacles,
                 env.lidar_range,
                 map_bounds=map_bounds
             )
-            env.render(hits)
+            env.render(hits_x, hits_y)
             env.clock.tick(120)
             continue
 
         # 실시간 배속 설정에 따른 서브스텝 반복 실행 (120 FPS 타겟: 4배속까지 물리 연산 100% 보존 및 적응형 인지/탐색 주기)
         sub_steps = max(1, int(getattr(env, 'sim_speed', 1)))
         plan_interval = sub_steps
-        hits = None
+        hits_x = None
+        hits_y = None
         new_wp = None
         
         for step_idx in range(sub_steps):
@@ -86,14 +87,14 @@ def run():
             env.update_dynamic_obstacles()
 
             map_bounds = (0, 0, env.map_w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
-            dists, hits = lidar_hits_np(
+            dists, hits_x, hits_y = lidar_hits_np(
                 env.boat_pos, env.boat_heading,
                 env.rel_angles, env.dynamic_obstacles,
                 env.lidar_range,
                 map_bounds=map_bounds
             )
 
-            update_grid(env.grid, hits)
+            update_grid(env.grid, hits_x, hits_y)
             env.grid *= 0.945
 
             # 연산 부하 절감을 위한 적응형 인지/탐색 주기 (4배속 이하는 매 스텝 100% 실행)
@@ -407,16 +408,16 @@ def run():
                             pass
                     p = os.path.join(outdir, f"{ts}_{tag}.png")
                     try:
-                        if hits is not None:
-                            env.render(hits)
+                        if hits_x is not None:
+                            env.render(hits_x, hits_y)
                         pygame.image.save(env.screen, p)
                     except:
                         pass
                     env.reset()
                     break
 
-        if hits is not None:
-            env.render(hits)
+        if hits_x is not None:
+            env.render(hits_x, hits_y)
         env.clock.tick(120)
 
 if __name__ == "__main__":

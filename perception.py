@@ -59,31 +59,38 @@ def lidar_hits_np(boat_pos, boat_heading, rel_angles, obstacles, lidar_range, ma
         t_wall = np.minimum(t_left, np.minimum(t_top, t_bottom))
         d_final = np.minimum(d_final, t_wall[:, 0].astype(np.float32))
     
+    # 벡터화된 히트 좌표 연산 (Python for 루프 제거)
+    vx_flat = vx[:, 0]
+    vy_flat = vy[:, 0]
+    hits_x = x0 + vx_flat * d_final
+    hits_y = y0 + vy_flat * d_final
     valid = d_final < lidar_range
-    hits_x = x0 + vx[:, 0] * d_final
-    hits_y = y0 + vy[:, 0] * d_final
-    hits = [None] * len(d_final)
-    for idx in np.where(valid)[0]:
-        hits[idx] = (float(hits_x[idx]), float(hits_y[idx]))
+    # 유효하지 않은 히트점은 NaN으로 마스킹 (렌더러에서 None 대신 NaN 검사)
+    hits_x_out = np.where(valid, hits_x, np.nan).astype(np.float32)
+    hits_y_out = np.where(valid, hits_y, np.nan).astype(np.float32)
 
-    return d_final, hits
+    return d_final, hits_x_out, hits_y_out
 
 def init_grid():
     return np.zeros((GRID_H, GRID_W), dtype=np.float32)
 
-def update_grid(grid, hits):
-    coords = [p for p in hits if p is not None]
-    if not coords:
+def update_grid(grid, hits_x, hits_y):
+    # 벡터화 입력: hits_x, hits_y는 numpy float32 배열이며 유효하지 않은 인덱스는 NaN
+    valid_mask = np.isfinite(hits_x)
+    if not np.any(valid_mask):
         return
-    arr = np.array(coords, dtype=np.float32)
-    gx = (arr[:, 0] / GRID).astype(np.intp)
-    gy = (arr[:, 1] / GRID).astype(np.intp)
-    valid = (gx >= 0) & (gx < GRID_W) & (gy >= 0) & (gy < GRID_H)
-    gx = gx[valid]
-    gy = gy[valid]
-    for k in range(len(gx)):
-        if grid[gy[k], gx[k]] < 20.0:
-            grid[gy[k], gx[k]] += 1.0
+    hx = hits_x[valid_mask]
+    hy = hits_y[valid_mask]
+    gx = (hx / GRID).astype(np.intp)
+    gy = (hy / GRID).astype(np.intp)
+    bounds = (gx >= 0) & (gx < GRID_W) & (gy >= 0) & (gy < GRID_H)
+    gx = gx[bounds]
+    gy = gy[bounds]
+    if len(gx) == 0:
+        return
+    # Python for 루프 제거: np.add.at 벡터화 누적 후 상한 클램핑
+    np.add.at(grid, (gy, gx), 1.0)
+    np.minimum(grid, 20.0, out=grid)
 
 def extract_clusters_from_grid(grid):
     OCC = 1.0
@@ -136,26 +143,31 @@ def match_clusters(prev_clusters, prev_ids, new_clusters, max_dist=28.0):
     new_arr = np.array(new_clusters).reshape(n_new, 2)
     prev_arr = np.array(prev_clusters).reshape(n_prev, 2)
     diff = new_arr[:, None, :] - prev_arr[None, :, :]
-    dist_mat = np.sqrt(np.sum(diff * diff, axis=2))
+    dist_mat = np.sum(diff * diff, axis=2)  # 제곱 거리로 비교하여 sqrt 연산 제거
+    max_dist_sq = max_dist * max_dist
     
     new_ids = [0] * n_new
-    used_prev = set()
     maxid = max(prev_ids) + 1 if prev_ids else 0
     
+    # 탐욕적 매칭: 전역 최소 거리 순서로 할당 (Python 내부 루프 최소화)
+    flat_order = np.argsort(dist_mat, axis=None)
+    assigned_new = np.zeros(n_new, dtype=bool)
+    assigned_prev = np.zeros(n_prev, dtype=bool)
+    
+    for flat_idx in flat_order:
+        i = int(flat_idx // n_prev)
+        j = int(flat_idx % n_prev)
+        if assigned_new[i] or assigned_prev[j]:
+            continue
+        if dist_mat[i, j] >= max_dist_sq:
+            break  # 이후 모든 거리는 max_dist 이상이므로 중단
+        new_ids[i] = prev_ids[j]
+        assigned_new[i] = True
+        assigned_prev[j] = True
+    
+    # 미매칭된 새 클러스터에 고유 ID 할당
     for i in range(n_new):
-        row = dist_mat[i]
-        best_idx = None
-        best_d = max_dist
-        for j in range(n_prev):
-            if j in used_prev:
-                continue
-            if row[j] < best_d:
-                best_d = row[j]
-                best_idx = j
-        if best_idx is not None:
-            new_ids[i] = prev_ids[best_idx]
-            used_prev.add(best_idx)
-        else:
+        if not assigned_new[i]:
             new_ids[i] = maxid
             maxid += 1
             

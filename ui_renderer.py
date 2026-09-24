@@ -5,7 +5,7 @@ import time
 import os
 import leaderboard
 from engine_3d import Engine3D
-from config import get_dashboard_layout
+from config import get_dashboard_layout, GRID
 
 class EnvRenderer:
     def __init__(self, env):
@@ -79,7 +79,7 @@ class EnvRenderer:
             self._text_cache[key] = surf
         return surf
 
-    def render(self, hits):
+    def render(self, hits_x, hits_y):
         env = self.env
         cam_x = env.cam_x  # 카메라 X 오프셋
         
@@ -93,18 +93,19 @@ class EnvRenderer:
             # 전체화면 3D 모드 활성화 시:
             # 1. 상단 메인 화면(0, 0, 1800, 630)에 고해상도 3D 엔진 버퍼 렌더링
             try:
-                main_3d = self.engine_3d.render(env, hits, env.w, env.sim_h)
+                hits_legacy = self._hits_to_legacy(hits_x, hits_y)
+                main_3d = self.engine_3d.render(env, hits_legacy, env.w, env.sim_h)
                 env.screen.blit(main_3d, (0, 0))
             except Exception as e:
                 print(f"[Warning] Fullscreen 3D render failed: {e}")
             # 2. 하단 슬롯에 스왑 표출할 2D 월드를 전용 버퍼(world_2d_surf)에 사전 렌더링
-            self._draw_2d_world(hits, sx, cam_x, target_surf=self.world_2d_surf)
+            self._draw_2d_world(hits_x, hits_y, sx, cam_x, target_surf=self.world_2d_surf)
         else:
             # 기본 2D 모드: 상단 메인 화면에 2D 월드 직접 렌더링
-            self._draw_2d_world(hits, sx, cam_x, target_surf=env.screen)
+            self._draw_2d_world(hits_x, hits_y, sx, cam_x, target_surf=env.screen)
 
         # 7. 하단 대시보드 UI (320x220 슬롯에 3D 또는 스왑된 2D 전술 맵 표출)
-        self._draw_dashboard(hits, sx)
+        self._draw_dashboard(hits_x, hits_y, sx)
 
         # 8. 실시간 텔레메트리 HUD
         self._draw_telemetry()
@@ -202,7 +203,18 @@ class EnvRenderer:
 
         pygame.display.flip()
 
-    def _draw_2d_world(self, hits, sx, cam_x, target_surf=None):
+    @staticmethod
+    def _hits_to_legacy(hits_x, hits_y):
+        """numpy hits_x/hits_y 배열을 engine_3d 워커 호환 레거시 형식으로 변환 (3D 렌더링 요청 시에만 호출)"""
+        valid = np.isfinite(hits_x)
+        n = len(hits_x)
+        result = [None] * n
+        indices = np.where(valid)[0]
+        for idx in indices:
+            result[idx] = (float(hits_x[idx]), float(hits_y[idx]))
+        return result
+
+    def _draw_2d_world(self, hits_x, hits_y, sx, cam_x, target_surf=None):
         env = self.env
         if target_surf is None:
             target_surf = env.screen
@@ -215,27 +227,46 @@ class EnvRenderer:
         # 1. 밝고 맑은 마린 오션 수면 배경 (Brighter Clean Ocean)
         target_surf.fill((40, 118, 178))
         
-        # 아주 은은하고 자연스러운 해양 잔물결 파도 (Gentle Natural Ocean Swell Waves)
+        # 아주 은은하고 자연스러운 해양 잔물결 파도 (Gentle Natural Ocean Swell Waves) - numpy 벡터화 고속 연산
         wave_t = env.frame * 0.016
         wave_start_j = int(cam_x // 80) * 80
-        for i in range(25, env.sim_h, 60):
-            for j in range(wave_start_j, int(cam_x + env.w + 80), 80):
-                wj = j - cam_x
-                wx = wj + math.cos(wave_t + i * 0.025 + j * 0.01) * 9
-                wy = i + math.sin(wave_t * 0.7 + j * 0.025) * 5
-                w_len = 16 + math.sin(wave_t + j * 0.02) * 6
-                pygame.draw.line(target_surf, (55, 134, 196), (int(wx), int(wy)), (int(wx + w_len), int(wy)), 1)
-                if (i + j) % 160 == 0:
-                    pygame.draw.circle(target_surf, (210, 235, 255), (int(wx + w_len * 0.5), int(wy - 1)), 1)
+        wave_i_arr = np.arange(25, env.sim_h, 60, dtype=np.float32)
+        wave_j_arr = np.arange(wave_start_j, cam_x + env.w + 80, 80, dtype=np.float32)
+        if len(wave_i_arr) > 0 and len(wave_j_arr) > 0:
+            ii, jj = np.meshgrid(wave_i_arr, wave_j_arr, indexing='ij')
+            ii_flat = ii.ravel()
+            jj_flat = jj.ravel()
+            wj_flat = jj_flat - cam_x
+            wx_flat = wj_flat + np.cos(wave_t + ii_flat * 0.025 + jj_flat * 0.01) * 9
+            wy_flat = ii_flat + np.sin(wave_t * 0.7 + jj_flat * 0.025) * 5
+            wl_flat = 16 + np.sin(wave_t + jj_flat * 0.02) * 6
+            wx_int = wx_flat.astype(int)
+            wy_int = wy_flat.astype(int)
+            wxe_int = (wx_flat + wl_flat).astype(int)
+            sparkle_mask = ((ii_flat.astype(int) + jj_flat.astype(int)) % 160 == 0)
+            draw_line = pygame.draw.line
+            wave_color = (55, 134, 196)
+            for k in range(len(wx_int)):
+                draw_line(target_surf, wave_color, (wx_int[k], wy_int[k]), (wxe_int[k], wy_int[k]), 1)
+            if np.any(sparkle_mask):
+                sparkle_x = (wx_flat[sparkle_mask] + wl_flat[sparkle_mask] * 0.5).astype(int)
+                sparkle_y = (wy_flat[sparkle_mask] - 1).astype(int)
+                draw_circle = pygame.draw.circle
+                sparkle_color = (210, 235, 255)
+                for k in range(len(sparkle_x)):
+                    draw_circle(target_surf, sparkle_color, (int(sparkle_x[k]), int(sparkle_y[k])), 1)
 
-        # 2. 360도 라이다 범위
+        # 2. 360도 라이다 범위 - 벡터화 고속 렌더링
         if env.show_lidar_range:
             pygame.draw.circle(target_surf, (80, 175, 140), (int(sbx), int(sby)), int(env.lidar_range), 1)
-            for ang in env.rel_angles:
-                ray_ang = h + ang
-                rx = sbx + math.cos(ray_ang) * env.lidar_range
-                ry = sby + math.sin(ray_ang) * env.lidar_range
-                pygame.draw.line(target_surf, (55, 115, 90), (int(sbx), int(sby)), (int(rx), int(ry)), 1)
+            ray_angs = h + env.rel_angles
+            rx_arr = (sbx + np.cos(ray_angs) * env.lidar_range).astype(int)
+            ry_arr = (sby + np.sin(ray_angs) * env.lidar_range).astype(int)
+            sbx_i, sby_i = int(sbx), int(sby)
+            draw_line = pygame.draw.line
+            ray_color = (55, 115, 90)
+            for k in range(len(rx_arr)):
+                draw_line(target_surf, ray_color, (sbx_i, sby_i), (int(rx_arr[k]), int(ry_arr[k])), 1)
 
         # 3. 실제 선박 유체역학 항적 웨이크 + 장애물 반사/산란 미세 거품 (120 FPS 고속 더티 렉트 최적화)
         wake_draw_list = []
@@ -315,7 +346,7 @@ class EnvRenderer:
             pygame.draw.circle(target_surf, (255, 255, 255), (osx - 1, int(oy - 1)), int(r * 0.40))
             pygame.draw.circle(target_surf, (255, 255, 255), (osx, int(oy)), int(r * 0.20))
             
-        from config import GRID
+        # GRID는 모듈 레벨 import 사용
         occ_y, occ_x = np.where(env.grid >= 3)
         if len(occ_x) > 0:
             min_gx = max(0, int(occ_x.min() * GRID - cam_x) - 4)
@@ -337,11 +368,15 @@ class EnvRenderer:
             self._prev_occ_rect = None
             
         if env.show_lidar:
-            for p in hits:
-                if p is not None:
-                    psx = int(sx(p[0]))
-                    if -10 < psx < env.w + 10:
-                        pygame.draw.circle(target_surf, (225, 220, 130), (psx, int(p[1])), 2)
+            valid_mask = np.isfinite(hits_x)
+            if np.any(valid_mask):
+                hx_v = hits_x[valid_mask]
+                hy_v = hits_y[valid_mask]
+                psx_arr = hx_v - cam_x
+                screen_mask = (psx_arr > -10) & (psx_arr < env.w + 10)
+                if np.any(screen_mask):
+                    for k in np.where(screen_mask)[0]:
+                        pygame.draw.circle(target_surf, (225, 220, 130), (int(psx_arr[k]), int(hy_v[k])), 2)
 
         # 라인트레이싱 모드: 회피 장애물 히트지점
         if getattr(env, 'linetrace_mode', False) and getattr(env, 'show_closest_obstacle', True):
@@ -766,7 +801,7 @@ class EnvRenderer:
         pygame.draw.line(target_surf, (0, 255, 200), Lidar_pos, (sp_x, sp_y), 2)
         pygame.draw.circle(target_surf, (0, 255, 200), (sp_x, sp_y), 2)
 
-    def _draw_dashboard(self, hits, sx=None):
+    def _draw_dashboard(self, hits_x, hits_y, sx=None):
         env = self.env
         if sx is None:
             sx = lambda wx: wx - env.cam_x
@@ -969,15 +1004,21 @@ class EnvRenderer:
                     ry = pcy - math.cos(ang) * (env.lidar_range * scale_r)
                     pygame.draw.line(self.pov_surf, (55, 120, 95), (pcx, pcy), (int(rx), int(ry)), 1)
 
-        # 라이다 히트 포인트 렌더링 (저채도 소프트 옐로우)
+        # 라이다 히트 포인트 렌더링 (저채도 소프트 옐로우) - 벡터화 연산
         if env.show_lidar:
-            for hp in hits:
-                if hp is not None:
-                    hdx = hp[0] - bx; hdy = hp[1] - by
-                    hlf = hdx * f_vec[0] + hdy * f_vec[1]
-                    hlr = hdx * r_vec[0] + hdy * r_vec[1]
-                    if hlf >= -10:
-                        pygame.draw.circle(self.pov_surf, (225, 220, 130), (int(pcx + hlr * scale_r), int(pcy - hlf * scale_r)), 2)
+            valid_h = np.isfinite(hits_x)
+            if np.any(valid_h):
+                hx_v = hits_x[valid_h]
+                hy_v = hits_y[valid_h]
+                hdx = hx_v - bx; hdy = hy_v - by
+                hlf = hdx * f_vec[0] + hdy * f_vec[1]
+                hlr = hdx * r_vec[0] + hdy * r_vec[1]
+                front_mask = hlf >= -10
+                if np.any(front_mask):
+                    px_arr = (pcx + hlr[front_mask] * scale_r).astype(int)
+                    py_arr = (pcy - hlf[front_mask] * scale_r).astype(int)
+                    for k in range(len(px_arr)):
+                        pygame.draw.circle(self.pov_surf, (225, 220, 130), (int(px_arr[k]), int(py_arr[k])), 2)
 
         # 라인트레이싱 모드: POV 뷰에서 가장 가까운 장애물 히트지점 및 연결선 표출
         if getattr(env, 'linetrace_mode', False) and getattr(env, 'show_closest_obstacle', True):
@@ -1047,14 +1088,13 @@ class EnvRenderer:
         pygame.draw.rect(self.cam_surf, (0, 180, 255), (0, 0, cam_w, cam_h), 2)
 
         n_slices = 180
-        # 180개 각도 세로 직사각형 게이지 렌더링 (사전 연산 캐시 테이블 활용)
+        # 180개 각도 세로 직사각형 게이지 렌더링 (사전 연산 캐시 테이블 활용) - 벡터화
+        n_hits = len(hits_x)
         for idx, x1, w_s in self._cached_gauge_slices:
-            hp = hits[idx] if idx < len(hits) else None
-            
-            if hp is not None:
-                hdx = hp[0] - bx
-                hdy = hp[1] - by
-                d = math.hypot(hdx, hdy)
+            if idx < n_hits and np.isfinite(hits_x[idx]):
+                hdx = hits_x[idx] - bx
+                hdy = hits_y[idx] - by
+                d = math.sqrt(hdx * hdx + hdy * hdy)
             else:
                 d = env.lidar_range
 
@@ -1302,7 +1342,8 @@ class EnvRenderer:
                     env.screen.blit(panel_surf, (p3_x, p_y))
                 else:
                     # 기본 2D 모드: 하단 슬롯에 320x220 3D 뷰포트 표출 (패널 상에 어떤 버튼도 배치하지 않음)
-                    surf_3d = self.engine_3d.render(env, hits, 320, 220)
+                    hits_legacy = self._hits_to_legacy(hits_x, hits_y)
+                    surf_3d = self.engine_3d.render(env, hits_legacy, 320, 220)
                     env.screen.blit(surf_3d, (p3_x, p_y))
             except Exception as e:
                 print(f"[Warning] 3D render failed: {e}")

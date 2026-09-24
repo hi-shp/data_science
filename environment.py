@@ -448,12 +448,11 @@ class BoatEnv:
         self.dynamic_obstacles[:, 0] = ox + np.sin(phase) * (r * 0.2)
         self.dynamic_obstacles[:, 1] = oy + np.cos(phase * 1.2) * (r * 0.2)
         
-        # 부표 중앙을 기준으로 부드러운 백색 원형 구름 파도가 주기적으로 퍼져나감
+        # 부표 중앙을 기준으로 부드러운 백색 원형 구름 파도가 주기적으로 퍼져나감 (벡터화 일괄 생성)
         if self.frame % 36 == 0:
-            for i in range(len(self.obstacles)):
-                self.reflected_wakes.append([
-                    self.dynamic_obstacles[i, 0], self.dynamic_obstacles[i, 1], r[i] + 1.0, 72
-                ])
+            n_obs = len(self.obstacles)
+            new_rw = [[float(self.dynamic_obstacles[i, 0]), float(self.dynamic_obstacles[i, 1]), float(r[i]) + 1.0, 72] for i in range(n_obs)]
+            self.reflected_wakes.extend(new_rw)
 
     def pwm_to_thrust(self, p):
         return p * 10
@@ -580,37 +579,49 @@ class BoatEnv:
             near_mask = dx_b * dx_b + dy_b * dy_b < 32400.0  # 180.0**2
             if np.any(near_mask):
                 near_obs = self.dynamic_obstacles[near_mask]
-                near_list = [(float(row[0]), float(row[1]), float(row[2])) for row in near_obs]
+                near_ox = near_obs[:, 0]
+                near_oy = near_obs[:, 1]
+                near_or = near_obs[:, 2]
+                n_near = len(near_ox)
+                new_reflected = []
                 for w in self.wakes:
                     if w[3] <= 0:
                         continue
                     wx, wy = w[0], w[1]
-                    absorbed = False
-                    for ox, oy, orad in near_list:
-                        dx = wx - ox
-                        dy = wy - oy
-                        d = math.hypot(dx, dy)
-                        
-                        # 1. 장애물 내부로 들어간 파도는 완전히 소멸/흡수 (Absorption)
-                        if d < orad + 2.0:
-                            w[3] = 0
-                            absorbed = True
-                            break
-                        
-                        # 2. 장애물 둘레에 파도가 닿으면 나노 거품 반사 산란
-                        if w[3] > 35 and abs(d - (w[2] + orad)) < 5.0:
-                            if random.random() < 0.35:
-                                for _ in range(random.randint(2, 4)):
-                                    angle = math.atan2(dy, dx) + random.uniform(-0.8, 0.8)
-                                    spd = random.uniform(0.8, 1.8)
-                                    fx = ox + math.cos(angle) * (orad + random.uniform(0.8, 2.2))
-                                    fy = oy + math.sin(angle) * (orad + random.uniform(0.8, 2.2))
-                                    self.reflected_wakes.append([
-                                        fx, fy, random.uniform(0.3, 0.65), w[3] * 0.85,
-                                        math.cos(angle) * spd, math.sin(angle) * spd
-                                    ])
-                    if absorbed:
+                    # 벡터화 거리 계산: 모든 근접 장애물과의 거리를 한 번에 연산
+                    ddx = wx - near_ox
+                    ddy = wy - near_oy
+                    dd = np.sqrt(ddx * ddx + ddy * ddy)
+                    
+                    # 1. 장애물 내부로 들어간 파도는 완전히 소멸/흡수 (Absorption)
+                    absorb_mask = dd < (near_or + 2.0)
+                    if np.any(absorb_mask):
+                        w[3] = 0
                         continue
+                    
+                    # 2. 장애물 둘레에 파도가 닿으면 나노 거품 반사 산란
+                    if w[3] > 35:
+                        scatter_mask = np.abs(dd - (w[2] + near_or)) < 5.0
+                        if np.any(scatter_mask):
+                            scatter_indices = np.where(scatter_mask)[0]
+                            for si in scatter_indices:
+                                if random.random() < 0.35:
+                                    ox_s = float(near_ox[si])
+                                    oy_s = float(near_oy[si])
+                                    orad_s = float(near_or[si])
+                                    base_angle = math.atan2(float(ddy[si]), float(ddx[si]))
+                                    for _ in range(random.randint(2, 4)):
+                                        angle = base_angle + random.uniform(-0.8, 0.8)
+                                        spd = random.uniform(0.8, 1.8)
+                                        r_off = orad_s + random.uniform(0.8, 2.2)
+                                        ca, sa = math.cos(angle), math.sin(angle)
+                                        new_reflected.append([
+                                            ox_s + ca * r_off, oy_s + sa * r_off,
+                                            random.uniform(0.3, 0.65), w[3] * 0.85,
+                                            ca * spd, sa * spd
+                                        ])
+                if new_reflected:
+                    self.reflected_wakes.extend(new_reflected)
 
     def collide(self):
         bx, by = self.boat_pos
@@ -702,11 +713,11 @@ class BoatEnv:
         self.wp_check_timer = 0
         wp = self.current_wp["pos"]; pair = self.current_wp["pair"]
         gx = int(wp[0] // GRID); gy = int(wp[1] // GRID); rad = int(35 // GRID)
-        for yy in range(max(0, gy - rad), min(GRID_H, gy + rad + 1)):
-            for xx in range(max(0, gx - rad), min(GRID_W, gx + rad + 1)):
-                if self.grid[yy, xx] >= 3:
-                    self.visited.add(pair); self.visited.add((pair[1], pair[0]))
-                    self.current_wp = None; return
+        y0 = max(0, gy - rad); y1 = min(GRID_H, gy + rad + 1)
+        x0 = max(0, gx - rad); x1 = min(GRID_W, gx + rad + 1)
+        if np.any(self.grid[y0:y1, x0:x1] >= 3):
+            self.visited.add(pair); self.visited.add((pair[1], pair[0]))
+            self.current_wp = None
 
     def validate_wp_obstacle_5x5(self):
         if self.current_wp is None: return
@@ -854,5 +865,5 @@ class BoatEnv:
         # 부드러운 카메라 추종 (lerp)
         self.cam_x = self.cam_x * 0.85 + target_cam_x * 0.15
 
-    def render(self, hits):
-        self.renderer.render(hits)
+    def render(self, hits_x, hits_y):
+        self.renderer.render(hits_x, hits_y)

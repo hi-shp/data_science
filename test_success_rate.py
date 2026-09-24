@@ -84,7 +84,8 @@ Estimated ETA:   {eta_str}
 
             sub_steps = max(1, int(getattr(env, 'sim_speed', 4)))
             plan_interval = 1 if sub_steps <= 4 else 3
-            hits = None
+            hits_x = None
+            hits_y = None
             new_wp = None
             
             for step_idx in range(sub_steps):
@@ -92,13 +93,13 @@ Estimated ETA:   {eta_str}
                 ep_steps += 1
                 env.update_dynamic_obstacles()
 
-                dists, hits = lidar_hits_np(
+                dists, hits_x, hits_y = lidar_hits_np(
                     env.boat_pos, env.boat_heading,
                     env.rel_angles, env.dynamic_obstacles,
                     env.lidar_range
                 )
 
-                update_grid(env.grid, hits)
+                update_grid(env.grid, hits_x, hits_y)
                 env.grid *= 0.945
 
                 # 연산 부하 절감을 위한 적응형 인지/탐색 주기
