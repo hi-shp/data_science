@@ -344,8 +344,8 @@ Estimated ETA:   {eta_str}
                             pass
                     p = os.path.join(outdir, f"{ts}_{tag}.png")
                     try:
-                        if hits is not None:
-                            env.render(hits)
+                        if hits_x is not None:
+                            env.render(hits_x, hits_y)
                         pygame.image.save(env.screen, p)
                     except Exception:
                         pass
@@ -354,8 +354,8 @@ Estimated ETA:   {eta_str}
                     episode_done = True
                     break
 
-            if hits is not None:
-                env.render(hits)
+            if hits_x is not None:
+                env.render(hits_x, hits_y)
             env.clock.tick(0)
 
     pygame.quit()

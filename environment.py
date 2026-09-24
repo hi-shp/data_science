@@ -76,6 +76,10 @@ class BoatEnv:
         ]
         
         self.trail = pygame.Surface((self.map_w, self.sim_h), pygame.SRCALPHA)
+        self.trail_min_x = 999999.0
+        self.trail_max_x = -999999.0
+        self.trail_min_y = 999999.0
+        self.trail_max_y = -999999.0
         self.path_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         self.wake_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         self.occ_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
@@ -203,6 +207,10 @@ class BoatEnv:
         self.cam_x = 0
         
         self.trail.fill((0, 0, 0, 0))
+        self.trail_min_x = 999999.0
+        self.trail_max_x = -999999.0
+        self.trail_min_y = 999999.0
+        self.trail_max_y = -999999.0
         self.path_surf.fill((0, 0, 0, 0))
         self.wake_surf.fill((0, 0, 0, 0))
         
@@ -457,7 +465,7 @@ class BoatEnv:
     def pwm_to_thrust(self, p):
         return p * 10
 
-    def step(self, L, R):
+    def step(self, L, R, sub_step_idx=0, total_sub_steps=1):
         tL = self.pwm_to_thrust(L)
         tR = self.pwm_to_thrust(R)
 
@@ -469,7 +477,7 @@ class BoatEnv:
         else:
             # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어 (장애물 근접 시 최소 속도를 더욱 낮추어 서행)
             em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-            speed_factor = (math.tanh(em_dist / 100.0)) ** 1.35
+            speed_factor = (math.tanh(max(0.0, em_dist) / 100.0)) ** 1.35
             # 라인트레이싱 모드에서는 갭 내비 대비 살짝 느린 속도 (85%)로 주행하여 반응형 회피에 여유 확보
             if getattr(self, 'linetrace_mode', False):
                 speed_factor *= 0.85
@@ -503,9 +511,17 @@ class BoatEnv:
             self.boat_pos[1] = min(max(25.0, float(self.boat_pos[1])), float(self.sim_h - 25.0))
         
         if self.frame % 7 == 0:
-            pygame.draw.line(self.trail, (255, 255, 255, 60),
-                             (int(prev0), int(prev1)),
-                             (int(self.boat_pos[0]), int(self.boat_pos[1])), 2)
+            p0x, p0y = int(prev0), int(prev1)
+            p1x, p1y = int(self.boat_pos[0]), int(self.boat_pos[1])
+            pygame.draw.line(self.trail, (255, 255, 255, 60), (p0x, p0y), (p1x, p1y), 2)
+            min_lx = min(p0x, p1x) - 4
+            max_lx = max(p0x, p1x) + 4
+            min_ly = min(p0y, p1y) - 4
+            max_ly = max(p0y, p1y) + 4
+            if min_lx < self.trail_min_x: self.trail_min_x = float(min_lx)
+            if max_lx > self.trail_max_x: self.trail_max_x = float(max_lx)
+            if min_ly < self.trail_min_y: self.trail_min_y = float(min_ly)
+            if max_ly > self.trail_max_y: self.trail_max_y = float(max_ly)
                              
         ang_acc = (mom - self.rot_drag * self.boat_ang_vel) / self.inertia
         self.boat_ang_vel += ang_acc * self.dt
@@ -572,8 +588,9 @@ class BoatEnv:
                 # 7번째 원소=1: 순백색 거품 태그 (뷰쪽 파란색 링 없이 흰색만)
                 self.wakes.append([bx_foam, by_foam, init_r, alpha, drift_vx, drift_vy, 1])
 
-        # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering) - 2D 배치 벡터화 고속 연산
-        if len(self.wakes) > 0 and len(self.dynamic_obstacles) > 0:
+        # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering) - 렌더링 직전 마지막 서브스텝에서만 연산
+        is_last_substep = (sub_step_idx == total_sub_steps - 1) if total_sub_steps > 1 else True
+        if is_last_substep and len(self.wakes) > 0 and len(self.dynamic_obstacles) > 0:
             bx, by = self.boat_pos
             dx_b = self.dynamic_obstacles[:, 0] - bx
             dy_b = self.dynamic_obstacles[:, 1] - by

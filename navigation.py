@@ -170,7 +170,9 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
     heading_exp = params.get('heading_exp', params.get('boat_align_exp', params.get('head_exp', 4.0))) if params else 4.0
     perp_exp = params.get('perp_exp', 2.0) if params else 2.0
 
-    gps_vec = np.array([math.cos(gps_heading), math.sin(gps_heading)])
+    gps_cos = math.cos(gps_heading)
+    gps_sin = math.sin(gps_heading)
+    gps_vec = np.array([gps_cos, gps_sin])
     
     h_cos = math.cos(boat_heading)
     h_sin = math.sin(boat_heading)
@@ -205,45 +207,55 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         if (items[i+1][0] - items[i][0]) > 0.03490658503988659:  # deg2rad(2.0)
             gaps_set.add((i, i+1))
             
-    # 2) 3개 이상의 장애물 조합(1-2, 2-3뿐만 아니라 1-3, 1-4 등) 및 깊이 단차가 있는 모든 가능한 틈새 조합 탐색
-    # O(N)으로 각 클러스터와 장애물 간 거리 제곱을 사전 계산하여 O(N^2) 중복 연산 제거
-    d2_items = [(ox - it[2][0])**2 + (oy - it[2][1])**2 for it in items]
+    # 2) 3개 이상의 장애물 조합 및 깊이 단차가 있는 모든 가능한 틈새 조합 탐색 (스칼라 고속 필터링)
+    # 전방 탐색 반경 내 유효 장애물만 사전 선별하여 검사 횟수를 대폭 절감
+    d2_obs_cand = (obstacles[:, 0] - bx)**2 + (obstacles[:, 1] - by)**2
+    cand_obs = obstacles[d2_obs_cand <= (max_dist_cut + 30.0)**2]
+    obs_tuples = [(float(cand_obs[oi, 0]), float(cand_obs[oi, 1]), float(cand_obs[oi, 2])) for oi in range(len(cand_obs))]
     
     for i in range(len(items)):
         c1 = items[i][2]
-        d2_c1 = d2_items[i]
+        c1x = float(c1[0])
+        c1y = float(c1[1])
         for j in range(i + 1, len(items)):
             c2 = items[j][2]
-            v_gap = c2 - c1
-            gap_w = math.hypot(v_gap[0], v_gap[1])
+            c2x = float(c2[0])
+            c2y = float(c2[1])
+            vgx = c2x - c1x
+            vgy = c2y - c1y
+            gap_w2 = vgx * vgx + vgy * vgy
             
             # 최소 통과 폭 (45px) ~ 전방 게이트 유효 최대 폭 (280px)
-            if not (45.0 <= gap_w <= 280.0):
+            if not (2025.0 <= gap_w2 <= 78400.0):
                 continue
                 
-            # 바운딩 박스 빠른 필터링: c1과 c2 영역 바깥에 있는 장애물은 검사 대상에서 즉시 배제
-            min_x = (c1[0] if c1[0] < c2[0] else c2[0]) - 25.0
-            max_x = (c1[0] if c1[0] > c2[0] else c2[0]) + 25.0
-            min_y = (c1[1] if c1[1] < c2[1] else c2[1]) - 25.0
-            max_y = (c1[1] if c1[1] > c2[1] else c2[1]) + 25.0
+            min_x = (c1x if c1x < c2x else c2x) - 25.0
+            max_x = (c1x if c1x > c2x else c2x) + 25.0
+            min_y = (c1y if c1y < c2y else c2y) - 25.0
+            max_y = (c1y if c1y > c2y else c2y) + 25.0
             
-            mask_obs = (d2_c1 > 784.0) & (d2_items[j] > 784.0) & (ox >= min_x) & (ox <= max_x) & (oy >= min_y) & (oy <= max_y)
-            if np.any(mask_obs):
-                near_obs = obstacles[mask_obs]
-                px = near_obs[:, 0] - c1[0]
-                py = near_obs[:, 1] - c1[1]
-                t = (px * v_gap[0] + py * v_gap[1]) / (gap_w * gap_w + 1e-6)
-                in_span = (t > 0.05) & (t < 0.95)
-                if np.any(in_span):
-                    cand_obs = near_obs[in_span]
-                    cand_t = t[in_span]
-                    cx = c1[0] + cand_t * v_gap[0]
-                    cy = c1[1] + cand_t * v_gap[1]
-                    dist_to_gate = np.sqrt((cand_obs[:, 0] - cx)**2 + (cand_obs[:, 1] - cy)**2) - cand_obs[:, 2]
-                    if np.any(dist_to_gate < 15.0):
-                        # 게이트 사이가 제3의 장애물로 가로막혀 있으므로 단일 갭으로 취급하지 않음
+            # 장애물 방해 여부 스칼라 고속 검사 (numpy 임시 부울 배열 및 슬라이스 할당 100% 제거)
+            has_blocked = False
+            denom = gap_w2 + 1e-6
+            for ox_val, oy_val, or_val in obs_tuples:
+                if min_x <= ox_val <= max_x and min_y <= oy_val <= max_y:
+                    d1_sq = (ox_val - c1x)**2 + (oy_val - c1y)**2
+                    if d1_sq <= 784.0:
                         continue
-                        
+                    d2_sq = (ox_val - c2x)**2 + (oy_val - c2y)**2
+                    if d2_sq <= 784.0:
+                        continue
+                    t = ((ox_val - c1x) * vgx + (oy_val - c1y) * vgy) / denom
+                    if 0.05 < t < 0.95:
+                        cx_obs = c1x + t * vgx
+                        cy_obs = c1y + t * vgy
+                        dg_sq = (ox_val - cx_obs)**2 + (oy_val - cy_obs)**2
+                        if dg_sq < (or_val + 15.0)**2:
+                            has_blocked = True
+                            break
+            if has_blocked:
+                continue
+                
             gaps_set.add((i, j))
                 
     gaps = sorted(list(gaps_set))
@@ -251,7 +263,7 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         return None
         
     valid_gaps = []
-    d2_boat_obs = (ox - bx)**2 + (oy - by)**2
+    d2_boat_obs = d2_obs_cand
     
     for gi, gj in gaps:
         ang1, d1, c1, id1 = items[gi]
@@ -271,13 +283,12 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         if dist_mid_to_target >= dist_to_target + req_progress_dist:
             continue
             
-        forward_progress = np.dot(rel / distm, gps_vec)
+        forward_progress = (rel[0] * gps_cos + rel[1] * gps_sin) / distm
         # 목적지 방향 전진 성분이 부족하거나(측면/후방 회피) 목적지보다 멀면 제외
         min_progress = 0.25 if is_next_wp else (0.55 if dist_to_target < 300 else 0.40)
         max_allowed_distm = (dist_to_target + 10) if is_next_wp else (dist_to_target - 25)
         if forward_progress < min_progress or distm > max_allowed_distm:
             continue
-            
             
         ang_mid = math.atan2(rel[1], rel[0])
         ang_err = wrap(ang_mid - gps_heading)
@@ -295,9 +306,7 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
             continue
         
         heading_align = math.exp(-(ang_err / 0.9)**2)
-        
-        forward_proj = np.dot(rel / distm, gps_vec)
-        forward_proj = max(forward_proj, 0)**1.5
+        forward_proj = max(forward_progress, 0.0)**1.5
         
         lateral = abs(ang2 - ang1) / (np.pi/2)
         lateral = min(max(lateral, 0), 1)**2

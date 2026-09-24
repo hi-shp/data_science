@@ -373,7 +373,7 @@ def run():
                     steer = 0
                 L, R = env.get_pwm(steer)
 
-            env.step(L, R)
+            env.step(L, R, sub_step_idx=step_idx, total_sub_steps=sub_steps)
             env.update_camera()
 
             if not getattr(env, 'linetrace_mode', False) and not getattr(env, 'manual_mode', False):
