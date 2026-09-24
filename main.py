@@ -116,7 +116,7 @@ def run():
                     n_fc = len(front_clusters)
                     env.total_gaps_count = n_fc * (n_fc - 1) // 2 if n_fc >= 2 else 0
 
-                    if getattr(env, 'show_all_gaps', False) and n_fc >= 2:
+                    if getattr(env, 'show_all_gaps', True) and n_fc >= 2:
                         gui_all_gaps = []
                         for i in range(n_fc):
                             c1 = front_clusters[i]

@@ -116,12 +116,12 @@ class BoatEnv:
         self.show_1st_path = True
         self.show_2nd_path = True
         self.show_paths = True
-        self.show_candidates = True
+        self.show_candidates = False
         self.show_lidar = True
         self.show_lidar_range = True
         self.candidate_wps = []
         self.total_gaps_count = 0
-        self.show_all_gaps = False
+        self.show_all_gaps = True
         self.all_gaps = []
         self.gaps_btn_rect = None
         
@@ -370,7 +370,7 @@ class BoatEnv:
             elif self.pause_btn.collidepoint(pos):
                 self.paused = not self.paused
             elif getattr(self, 'gaps_btn_rect', None) and self.gaps_btn_rect.collidepoint(pos):
-                self.show_all_gaps = not getattr(self, 'show_all_gaps', False)
+                self.show_all_gaps = not getattr(self, 'show_all_gaps', True)
             else:
                 for spd, rect in self.speed_btns.items():
                     if rect.collidepoint(pos):
@@ -398,10 +398,10 @@ class BoatEnv:
                 'show_paths': getattr(self, 'show_paths', True),
                 'show_1st_path': getattr(self, 'show_1st_path', True),
                 'show_2nd_path': getattr(self, 'show_2nd_path', True),
-                'show_candidates': getattr(self, 'show_candidates', True),
+                'show_candidates': getattr(self, 'show_candidates', False),
                 'show_lidar': getattr(self, 'show_lidar', False),
                 'show_lidar_range': getattr(self, 'show_lidar_range', True),
-                'show_all_gaps': getattr(self, 'show_all_gaps', False),
+                'show_all_gaps': getattr(self, 'show_all_gaps', True),
                 'linetrace_mode': getattr(self, 'linetrace_mode', False),
             }
             self.manual_mode = True
@@ -427,10 +427,10 @@ class BoatEnv:
                 self.show_paths = saved.get('show_paths', True)
                 self.show_1st_path = saved.get('show_1st_path', True)
                 self.show_2nd_path = saved.get('show_2nd_path', True)
-                self.show_candidates = saved.get('show_candidates', True)
+                self.show_candidates = saved.get('show_candidates', False)
                 self.show_lidar = saved.get('show_lidar', False)
                 self.show_lidar_range = saved.get('show_lidar_range', True)
-                self.show_all_gaps = saved.get('show_all_gaps', False)
+                self.show_all_gaps = saved.get('show_all_gaps', True)
             self.reset()
 
     def reset_manual_episode(self):

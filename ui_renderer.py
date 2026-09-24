@@ -590,7 +590,7 @@ class EnvRenderer:
                 pygame.draw.circle(target_surf, (255, 50, 150), (int(sx(px_t)), int(py_t)), 5)
 
         # 6. 차순위 후보 웨이포인트 렌더링 (120 FPS 고속 더티 렉트 최적화, 라인트레이싱 모드에서는 완전 제외)
-        if not is_lt and getattr(env, 'show_candidates', True) and getattr(env, 'candidate_wps', None):
+        if not is_lt and getattr(env, 'show_candidates', False) and getattr(env, 'candidate_wps', None):
             cand_list = env.candidate_wps[:2]
             cand_colors = [(80, 210, 255, 130), (255, 180, 70, 120)]
             all_cx = []; all_cy = []
@@ -620,7 +620,7 @@ class EnvRenderer:
             self._prev_cand_rect = None
 
         # 6-2. 고려 중인 모든 갭의 중간점 위치 렌더링 (Gaps 버튼 클릭 시 ON/OFF 토글, 반투명 블렌딩으로 하부 선박/궤적 시인성 확보)
-        if not is_lt and getattr(env, 'show_all_gaps', False) and getattr(env, 'all_gaps', None):
+        if not is_lt and getattr(env, 'show_all_gaps', True) and getattr(env, 'all_gaps', None):
             visible_idx = 0
             gap_items = []
             all_pts_x = []
@@ -1050,7 +1050,7 @@ class EnvRenderer:
             if cb3_hover:
                 pygame.draw.rect(env.screen, (28, 56, 88), cb3_row, border_radius=4)
             pygame.draw.rect(env.screen, (255, 255, 255), env.cb3_rect, 2)
-            if getattr(env, 'show_candidates', True): pygame.draw.rect(env.screen, (160, 180, 255), env.cb3_rect.inflate(-6, -6))
+            if getattr(env, 'show_candidates', False): pygame.draw.rect(env.screen, (160, 180, 255), env.cb3_rect.inflate(-6, -6))
             txt_col3 = (195, 215, 255) if cb3_hover else (255, 255, 255)
             env.screen.blit(self.get_text_surf(self.font, "Show Candidate WPs", txt_col3), (70, env.cb3_rect.centery - 10))
 
@@ -1308,7 +1308,7 @@ class EnvRenderer:
         if not is_lt:
             # 현재 고려 중인 모든 갭의 개수 표시 HUD 토글 버튼 (전방 180도 기준, O(1) 고속 참조)
             total_gaps = getattr(env, 'total_gaps_count', 0)
-            show_all = getattr(env, 'show_all_gaps', False)
+            show_all = getattr(env, 'show_all_gaps', True)
 
             # 자리수 변화(1자리, 2자리)에 관계없이 버튼 크기 고정 (Fixed Width)
             btn_w = 94
@@ -1367,7 +1367,7 @@ class EnvRenderer:
         sample_lh = self.small_font.render("0°", True, (0, 0, 0)).get_height()
         dot_y = legend_bar_y - sample_lh - 9
 
-        if not is_lt and getattr(env, 'show_all_gaps', False):
+        if not is_lt and getattr(env, 'show_all_gaps', True):
             # 좌우 일렬 수평 가이드선
             pygame.draw.line(self.cam_surf, (0, 180, 240, 90), (8, dot_y), (cam_w - 8, dot_y), 1)
 
