@@ -23,6 +23,7 @@ class EnvRenderer:
         self.bezier_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
         self.weights_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
         self._cand_surf = pygame.Surface((env.w, env.h), pygame.SRCALPHA)
+        self._gaps_surf = pygame.Surface((env.w, env.sim_h), pygame.SRCALPHA)
         self.shadow_surf = pygame.Surface((180, 180), pygame.SRCALPHA)
         self.world_2d_surf = pygame.Surface((env.w, env.sim_h))
         self._top_btn_surf = pygame.Surface((165, 28), pygame.SRCALPHA)
@@ -210,11 +211,13 @@ class EnvRenderer:
         self._hud_bg_surf.fill((10, 20, 40, 190))
         pygame.draw.rect(self._hud_bg_surf, (0, 160, 230), (0, 0, 210, 110), 2)
 
-    def get_text_surf(self, font, text, color):
-        key = (id(font), text, color)
+    def get_text_surf(self, font, text, color, alpha=None):
+        key = (id(font), text, color, alpha)
         surf = self._text_cache.get(key)
         if surf is None:
             surf = font.render(text, True, color)
+            if alpha is not None:
+                surf.set_alpha(alpha)
             self._text_cache[key] = surf
         return surf
 
@@ -616,10 +619,12 @@ class EnvRenderer:
             self._cand_surf.fill((0, 0, 0, 0), self._prev_cand_rect)
             self._prev_cand_rect = None
 
-        # 6-2. 고려 중인 모든 갭의 중간점 위치 렌더링 (Gaps 버튼 클릭 시 ON/OFF 토글, 라인트레이싱 모드에서는 완전 제외)
-        # target_surf 직접 렌더링으로 92만 픽셀 소프트웨어 알파 블렌딩 및 fill 오버헤드를 100% 제거하여 120 FPS 고속 유지
+        # 6-2. 고려 중인 모든 갭의 중간점 위치 렌더링 (Gaps 버튼 클릭 시 ON/OFF 토글, 반투명 블렌딩으로 하부 선박/궤적 시인성 확보)
         if not is_lt and getattr(env, 'show_all_gaps', False) and getattr(env, 'all_gaps', None):
             visible_idx = 0
+            gap_items = []
+            all_pts_x = []
+            all_pts_y = []
             for g in env.all_gaps:
                 mid = g.get("pos")
                 if mid is None:
@@ -644,22 +649,45 @@ class EnvRenderer:
                     continue
                 
                 visible_idx += 1
-                
-                # 1. 양 끝 장애물(c1, c2) 사이를 온전히 연결하는 시안색 갭 게이트 라인
-                pygame.draw.line(target_surf, (0, 195, 235), (c1_x, c1_y), (c2_x, c2_y), 1)
-                
-                # 2. 장애물 중심 앵커 도트 (선이 부표에 완전히 닿아 연결되었음을 직관적으로 표출)
-                pygame.draw.circle(target_surf, (0, 215, 250), (c1_x, c1_y), 3)
-                pygame.draw.circle(target_surf, (0, 215, 250), (c2_x, c2_y), 3)
-                
-                # 3. 갭 중간점 인디케이터 및 번호 라벨 (화면 뷰포트 내에 있을 때만 렌더링)
                 msx = int(sx(mid[0]))
                 my = int(mid[1])
-                if -15 <= msx <= env.w + 15 and -15 <= my <= env.sim_h + 15:
-                    pygame.draw.circle(target_surf, (0, 190, 235), (msx, my), 6, 1)
-                    pygame.draw.circle(target_surf, (255, 255, 255), (msx, my), 2)
-                    lbl_g = self.get_text_surf(self.micro_font, f"G{visible_idx}", (0, 230, 255))
-                    target_surf.blit(lbl_g, (msx + 8, my - 6))
+                gap_items.append((c1_x, c1_y, c2_x, c2_y, msx, my, visible_idx))
+                all_pts_x.extend([c1_x, c2_x, msx, msx + 35])
+                all_pts_y.extend([c1_y, c2_y, my - 10, my + 10])
+
+            if gap_items:
+                min_gx = max(0, min(all_pts_x) - 10)
+                max_gx = min(env.w, max(all_pts_x) + 10)
+                min_gy = max(0, min(all_pts_y) - 10)
+                max_gy = min(env.sim_h, max(all_pts_y) + 10)
+                curr_rect = pygame.Rect(min_gx, min_gy, max_gx - min_gx + 1, max_gy - min_gy + 1)
+                clear_rect = curr_rect.union(self._prev_all_gaps_rect) if self._prev_all_gaps_rect else curr_rect
+                self._gaps_surf.fill((0, 0, 0, 0), clear_rect)
+                gaps_surf = self._gaps_surf
+
+                for c1_x, c1_y, c2_x, c2_y, msx, my, v_idx in gap_items:
+                    # 1. 양 끝 장애물(c1, c2) 사이를 연결하는 반투명 시안색 갭 게이트 라인
+                    pygame.draw.line(gaps_surf, (0, 195, 235, 110), (c1_x, c1_y), (c2_x, c2_y), 1)
+                    
+                    # 2. 장애물 중심 반투명 앵커 도트
+                    pygame.draw.circle(gaps_surf, (0, 215, 250, 130), (c1_x, c1_y), 3)
+                    pygame.draw.circle(gaps_surf, (0, 215, 250, 130), (c2_x, c2_y), 3)
+                    
+                    # 3. 갭 중간점 인디케이터 및 번호 라벨 (반투명 표출로 하부 궤적/장애물 가림 방지)
+                    if -15 <= msx <= env.w + 15 and -15 <= my <= env.sim_h + 15:
+                        pygame.draw.circle(gaps_surf, (0, 190, 235, 140), (msx, my), 6, 1)
+                        pygame.draw.circle(gaps_surf, (255, 255, 255, 160), (msx, my), 2)
+                        lbl_g = self.get_text_surf(self.micro_font, f"G{v_idx}", (0, 230, 255), alpha=150)
+                        gaps_surf.blit(lbl_g, (msx + 8, my - 6))
+
+                target_surf.blit(gaps_surf, clear_rect.topleft, area=clear_rect)
+                self._prev_all_gaps_rect = curr_rect
+            elif self._prev_all_gaps_rect:
+                self._gaps_surf.fill((0, 0, 0, 0), self._prev_all_gaps_rect)
+                self._prev_all_gaps_rect = None
+        elif self._prev_all_gaps_rect:
+            self._gaps_surf.fill((0, 0, 0, 0), self._prev_all_gaps_rect)
+            self._prev_all_gaps_rect = None
 
         # 선박 형상 정밀 렌더링 (스크린 좌표)
         self._draw_boat_hull(sbx, sby, ch, sh, target_surf=target_surf)
