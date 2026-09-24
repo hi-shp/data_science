@@ -251,6 +251,7 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         return None
         
     valid_gaps = []
+    d2_boat_obs = (ox - bx)**2 + (oy - by)**2
     
     for gi, gj in gaps:
         ang1, d1, c1, id1 = items[gi]
@@ -286,17 +287,12 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         
         gx = int(mx // GRID)
         gy = int(my // GRID)
-        blocked = False
-        for dy_grid in range(-2, 3):
-            for dx_grid in range(-2, 3):
-                yy = gy + dy_grid
-                xx = gx + dx_grid
-                if 0 <= xx < GRID_W and 0 <= yy < GRID_H:
-                    if grid[yy, xx] >= 3.0:
-                        blocked = True
-                        break
-            if blocked: break
-        if blocked: continue
+        y_min = max(0, gy - 2)
+        y_max = min(GRID_H, gy + 3)
+        x_min = max(0, gx - 2)
+        x_max = min(GRID_W, gx + 3)
+        if np.any(grid[y_min:y_max, x_min:x_max] >= 3.0):
+            continue
         
         heading_align = math.exp(-(ang_err / 0.9)**2)
         
@@ -314,9 +310,8 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         vx = mx - bx
         vy = my - by
         seg2 = distm * distm
-        d2_obs = (ox - bx)**2 + (oy - by)**2
         
-        mask = d2_obs <= (distm + 200)**2
+        mask = d2_boat_obs <= (distm + 200)**2
         obs_f = obstacles[mask]
         
         if len(obs_f) > 0:

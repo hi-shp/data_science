@@ -572,7 +572,7 @@ class BoatEnv:
                 # 7번째 원소=1: 순백색 거품 태그 (뷰쪽 파란색 링 없이 흰색만)
                 self.wakes.append([bx_foam, by_foam, init_r, alpha, drift_vx, drift_vy, 1])
 
-        # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering)
+        # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering) - 2D 배치 벡터화 고속 연산
         if len(self.wakes) > 0 and len(self.dynamic_obstacles) > 0:
             bx, by = self.boat_pos
             dx_b = self.dynamic_obstacles[:, 0] - bx
@@ -583,34 +583,44 @@ class BoatEnv:
                 near_ox = near_obs[:, 0]
                 near_oy = near_obs[:, 1]
                 near_or = near_obs[:, 2]
-                n_near = len(near_ox)
-                new_reflected = []
-                for w in self.wakes:
-                    if w[3] <= 0:
-                        continue
-                    wx, wy = w[0], w[1]
-                    # 벡터화 거리 계산: 모든 근접 장애물과의 거리를 한 번에 연산
-                    ddx = wx - near_ox
-                    ddy = wy - near_oy
-                    dd = np.sqrt(ddx * ddx + ddy * ddy)
+                
+                # 살아있는 웨이크만 필터링하여 일괄 2D 행렬 연산
+                active_wake_indices = [idx for idx, w in enumerate(self.wakes) if w[3] > 0]
+                if active_wake_indices:
+                    w_arr = np.array([[self.wakes[idx][0], self.wakes[idx][1], self.wakes[idx][2], self.wakes[idx][3]] for idx in active_wake_indices], dtype=np.float32)
+                    wx = w_arr[:, 0:1]
+                    wy = w_arr[:, 1:2]
+                    wr = w_arr[:, 2:3]
+                    wa = w_arr[:, 3:4]
                     
-                    # 1. 장애물 내부로 들어간 파도는 완전히 소멸/흡수 (Absorption)
-                    absorb_mask = dd < (near_or + 2.0)
-                    if np.any(absorb_mask):
-                        w[3] = 0
-                        continue
+                    ddx = wx - near_ox[None, :]
+                    ddy = wy - near_oy[None, :]
+                    dd_sq = ddx * ddx + ddy * ddy
                     
-                    # 2. 장애물 둘레에 파도가 닿으면 나노 거품 반사 산란
-                    if w[3] > 35:
-                        scatter_mask = np.abs(dd - (w[2] + near_or)) < 5.0
+                    # 1. 장애물 내부로 들어간 파도 소멸 (Absorption) - 제곱 거리로 sqrt 연산 제거
+                    absorb_thresh = (near_or + 2.0)**2
+                    absorb_matrix = dd_sq < absorb_thresh[None, :]
+                    absorbed_w_idx = np.any(absorb_matrix, axis=1)
+                    if np.any(absorbed_w_idx):
+                        for a_idx in np.where(absorbed_w_idx)[0]:
+                            self.wakes[active_wake_indices[a_idx]][3] = 0
+                            
+                    # 2. 장애물 둘레에 닿은 파도 반사 산란 (Scatter)
+                    scatter_cand = (wa > 35) & (~absorbed_w_idx[:, None])
+                    if np.any(scatter_cand):
+                        dd = np.sqrt(dd_sq)
+                        target_dist = wr + near_or[None, :]
+                        scatter_mask = scatter_cand & (np.abs(dd - target_dist) < 5.0)
                         if np.any(scatter_mask):
-                            scatter_indices = np.where(scatter_mask)[0]
-                            for si in scatter_indices:
+                            w_hits, obs_hits = np.where(scatter_mask)
+                            new_reflected = []
+                            for wi, oi in zip(w_hits, obs_hits):
                                 if random.random() < 0.35:
-                                    ox_s = float(near_ox[si])
-                                    oy_s = float(near_oy[si])
-                                    orad_s = float(near_or[si])
-                                    base_angle = math.atan2(float(ddy[si]), float(ddx[si]))
+                                    ox_s = float(near_ox[oi])
+                                    oy_s = float(near_oy[oi])
+                                    orad_s = float(near_or[oi])
+                                    base_angle = math.atan2(float(ddy[wi, oi]), float(ddx[wi, oi]))
+                                    w_alpha = float(wa[wi, 0])
                                     for _ in range(random.randint(2, 4)):
                                         angle = base_angle + random.uniform(-0.8, 0.8)
                                         spd = random.uniform(0.8, 1.8)
@@ -618,11 +628,11 @@ class BoatEnv:
                                         ca, sa = math.cos(angle), math.sin(angle)
                                         new_reflected.append([
                                             ox_s + ca * r_off, oy_s + sa * r_off,
-                                            random.uniform(0.3, 0.65), w[3] * 0.85,
+                                            random.uniform(0.3, 0.65), w_alpha * 0.85,
                                             ca * spd, sa * spd
                                         ])
-                if new_reflected:
-                    self.reflected_wakes.extend(new_reflected)
+                            if new_reflected:
+                                self.reflected_wakes.extend(new_reflected)
 
     def collide(self):
         bx, by = self.boat_pos

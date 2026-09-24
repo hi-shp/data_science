@@ -90,8 +90,14 @@ class EnvRenderer:
         pygame.draw.circle(self._obs_sprite, (255, 255, 255), (ocx - 1, ocy - 1), int(r * 0.40))
         pygame.draw.circle(self._obs_sprite, (255, 255, 255), (ocx, ocy), int(r * 0.20))
 
-        # 해양 잔물결 파도 Y좌표 사전 연산
+        # 해양 잔물결 파도 베이스 메쉬그리드 사전 연산
         self._wave_i_arr = np.arange(25, env.sim_h, 60, dtype=np.float32)
+        n_wave_j = (env.w + 160) // 80 + 1
+        base_wave_j = np.arange(0, n_wave_j * 80, 80, dtype=np.float32)
+        wave_ii, wave_jj = np.meshgrid(self._wave_i_arr, base_wave_j, indexing='ij')
+        self._wave_ii_flat = wave_ii.ravel()
+        self._wave_jj_base = wave_jj.ravel()
+        self._trail_rect = pygame.Rect(0, 0, env.w, env.sim_h)
 
     def get_text_surf(self, font, text, color):
         key = (id(font), text, color)
@@ -250,34 +256,30 @@ class EnvRenderer:
         # 1. 밝고 맑은 마린 오션 수면 배경 (Brighter Clean Ocean)
         target_surf.fill((40, 118, 178))
         
-        # 아주 은은하고 자연스러운 해양 잔물결 파도 (Gentle Natural Ocean Swell Waves) - numpy 벡터화 고속 연산
+        # 아주 은은하고 자연스러운 해양 잔물결 파도 (Gentle Natural Ocean Swell Waves) - 사전 연산 메쉬그리드 초고속 연산
         wave_t = env.frame * 0.016
         wave_start_j = int(cam_x // 80) * 80
-        wave_i_arr = self._wave_i_arr
-        wave_j_arr = np.arange(wave_start_j, cam_x + env.w + 80, 80, dtype=np.float32)
-        if len(wave_i_arr) > 0 and len(wave_j_arr) > 0:
-            ii, jj = np.meshgrid(wave_i_arr, wave_j_arr, indexing='ij')
-            ii_flat = ii.ravel()
-            jj_flat = jj.ravel()
-            wj_flat = jj_flat - cam_x
-            wx_flat = wj_flat + np.cos(wave_t + ii_flat * 0.025 + jj_flat * 0.01) * 9
-            wy_flat = ii_flat + np.sin(wave_t * 0.7 + jj_flat * 0.025) * 5
-            wl_flat = 16 + np.sin(wave_t + jj_flat * 0.02) * 6
-            wx_int = wx_flat.astype(int)
-            wy_int = wy_flat.astype(int)
-            wxe_int = (wx_flat + wl_flat).astype(int)
-            sparkle_mask = ((ii_flat.astype(int) + jj_flat.astype(int)) % 160 == 0)
-            draw_line = pygame.draw.line
-            wave_color = (55, 134, 196)
-            for k in range(len(wx_int)):
-                draw_line(target_surf, wave_color, (wx_int[k], wy_int[k]), (wxe_int[k], wy_int[k]), 1)
-            if np.any(sparkle_mask):
-                sparkle_x = (wx_flat[sparkle_mask] + wl_flat[sparkle_mask] * 0.5).astype(int)
-                sparkle_y = (wy_flat[sparkle_mask] - 1).astype(int)
-                draw_circle = pygame.draw.circle
-                sparkle_color = (210, 235, 255)
-                for k in range(len(sparkle_x)):
-                    draw_circle(target_surf, sparkle_color, (int(sparkle_x[k]), int(sparkle_y[k])), 1)
+        ii_flat = self._wave_ii_flat
+        jj_flat = self._wave_jj_base + wave_start_j
+        wj_flat = jj_flat - cam_x
+        wx_flat = wj_flat + np.cos(wave_t + ii_flat * 0.025 + jj_flat * 0.01) * 9
+        wy_flat = ii_flat + np.sin(wave_t * 0.7 + jj_flat * 0.025) * 5
+        wl_flat = 16 + np.sin(wave_t + jj_flat * 0.02) * 6
+        wx_int = wx_flat.astype(int)
+        wy_int = wy_flat.astype(int)
+        wxe_int = (wx_flat + wl_flat).astype(int)
+        sparkle_mask = ((ii_flat.astype(int) + jj_flat.astype(int)) % 160 == 0)
+        draw_line = pygame.draw.line
+        wave_color = (55, 134, 196)
+        for k in range(len(wx_int)):
+            draw_line(target_surf, wave_color, (wx_int[k], wy_int[k]), (wxe_int[k], wy_int[k]), 1)
+        if np.any(sparkle_mask):
+            sparkle_x = (wx_flat[sparkle_mask] + wl_flat[sparkle_mask] * 0.5).astype(int)
+            sparkle_y = (wy_flat[sparkle_mask] - 1).astype(int)
+            draw_circle = pygame.draw.circle
+            sparkle_color = (210, 235, 255)
+            for k in range(len(sparkle_x)):
+                draw_circle(target_surf, sparkle_color, (int(sparkle_x[k]), int(sparkle_y[k])), 1)
 
         # 2. 360도 라이다 범위 - 벡터화 고속 렌더링
         if env.show_lidar_range:
@@ -331,10 +333,16 @@ class EnvRenderer:
 
         all_wake_pts = [(p[0], p[1], p[2]) for p in wake_draw_list] + [(p[1], p[2], p[3]) for p in rw_draw_list]
         if all_wake_pts:
-            min_x = max(0, min(p[0] - p[2] for p in all_wake_pts) - 10)
-            max_x = min(env.w, max(p[0] + p[2] for p in all_wake_pts) + 10)
-            min_y = max(0, min(p[1] - p[2] for p in all_wake_pts) - 10)
-            max_y = min(env.sim_h, max(p[1] + p[2] for p in all_wake_pts) + 10)
+            min_x = 99999; max_x = -99999; min_y = 99999; max_y = -99999
+            for px, py, pr in all_wake_pts:
+                if px - pr < min_x: min_x = px - pr
+                if px + pr > max_x: max_x = px + pr
+                if py - pr < min_y: min_y = py - pr
+                if py + pr > max_y: max_y = py + pr
+            min_x = max(0, min_x - 10)
+            max_x = min(env.w, max_x + 10)
+            min_y = max(0, min_y - 10)
+            max_y = min(env.sim_h, max_y + 10)
             curr_rect = pygame.Rect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
             clear_rect = curr_rect.union(self._prev_wake_rect) if self._prev_wake_rect else curr_rect
             env.wake_surf.fill((0, 0, 0, 0), clear_rect)
@@ -356,7 +364,8 @@ class EnvRenderer:
         elif self._prev_wake_rect:
             env.wake_surf.fill((0, 0, 0, 0), self._prev_wake_rect)
             self._prev_wake_rect = None
-        target_surf.blit(env.trail, (0, 0), area=pygame.Rect(int(cam_x), 0, env.w, env.sim_h))
+        self._trail_rect.x = int(cam_x)
+        target_surf.blit(env.trail, (0, 0), area=self._trail_rect)
         
         # 4. 해상 장애물 - 뷰포트 내부만 (사전 렌더링 부표 스프라이트 고속 블릿)
         obs_sprite = self._obs_sprite
@@ -377,10 +386,15 @@ class EnvRenderer:
                 curr_rect = pygame.Rect(min_gx, min_gy, max_gx - min_gx, max_gy - min_gy)
                 clear_rect = curr_rect.union(self._prev_occ_rect) if self._prev_occ_rect else curr_rect
                 env.occ_surf.fill((0, 0, 0, 0), clear_rect)
-                for gx_i, gy_i in zip(occ_x, occ_y):
-                    osx = int(gx_i * GRID - cam_x)
-                    if -10 < osx < env.w + 10:
-                        pygame.draw.rect(env.occ_surf, (220, 50, 50, 60), (osx, gy_i * GRID, GRID, GRID))
+                draw_rect = pygame.draw.rect
+                occ_surf = env.occ_surf
+                occ_color = (220, 50, 50, 60)
+                cam_x_int = int(cam_x)
+                w_max = env.w + 10
+                for i in range(len(occ_x)):
+                    osx = int(occ_x[i] * GRID) - cam_x_int
+                    if -10 < osx < w_max:
+                        draw_rect(occ_surf, occ_color, (osx, int(occ_y[i] * GRID), GRID, GRID))
                 target_surf.blit(env.occ_surf, clear_rect.topleft, area=clear_rect)
                 self._prev_occ_rect = curr_rect
         elif self._prev_occ_rect:
@@ -395,8 +409,10 @@ class EnvRenderer:
                 psx_arr = hx_v - cam_x
                 screen_mask = (psx_arr > -10) & (psx_arr < env.w + 10)
                 if np.any(screen_mask):
+                    draw_circle = pygame.draw.circle
+                    hit_color = (225, 220, 130)
                     for k in np.where(screen_mask)[0]:
-                        pygame.draw.circle(target_surf, (225, 220, 130), (int(psx_arr[k]), int(hy_v[k])), 2)
+                        draw_circle(target_surf, hit_color, (int(psx_arr[k]), int(hy_v[k])), 2)
 
         # 라인트레이싱 모드: 회피 장애물 히트지점
         if getattr(env, 'linetrace_mode', False) and getattr(env, 'show_closest_obstacle', True):

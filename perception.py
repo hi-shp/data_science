@@ -128,7 +128,7 @@ def extract_clusters_from_grid(grid):
     
     cx = sum_wx[valid] / sum_w[valid]
     cy = sum_wy[valid] / sum_w[valid]
-    return [np.array([cx[i], cy[i]], dtype=np.float32) for i in range(len(cx))]
+    return list(np.column_stack((cx, cy)).astype(np.float32))
 
 def match_clusters(prev_clusters, prev_ids, new_clusters, max_dist=28.0):
     if len(new_clusters) == 0:
