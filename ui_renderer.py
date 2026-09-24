@@ -71,6 +71,28 @@ class EnvRenderer:
             x2 = int((i + 1) * cam_w / n_slices)
             self._cached_gauge_slices.append((idx, x1, max(1, x2 - x1)))
 
+        # 180도 POV 라이다 스캔 광선 상대 오프셋 사전 연산 (매 프레임 삼각함수 루프 제거)
+        self._cached_pov_ray_ends = []
+        scale_r = 0.55
+        for ang in env.rel_angles:
+            if -math.pi/2 <= ang <= math.pi/2:
+                rx_off = int(math.sin(ang) * (env.lidar_range * scale_r))
+                ry_off = int(-math.cos(ang) * (env.lidar_range * scale_r))
+                self._cached_pov_ray_ends.append((rx_off, ry_off))
+
+        # 사전 렌더링된 해상 장애물 부표 스프라이트 (48x48) - 100% 동일 픽셀 및 고속 블릿
+        self._obs_sprite = pygame.Surface((48, 48), pygame.SRCALPHA)
+        ocx, ocy = 24, 24
+        r = 17.0
+        pygame.draw.circle(self._obs_sprite, (10, 42, 75, 140), (ocx + 4, ocy + 4), int(r + 1))
+        pygame.draw.circle(self._obs_sprite, (210, 45, 30), (ocx, ocy), int(r))
+        pygame.draw.circle(self._obs_sprite, (245, 75, 50), (ocx - 1, ocy - 1), int(r * 0.76))
+        pygame.draw.circle(self._obs_sprite, (255, 255, 255), (ocx - 1, ocy - 1), int(r * 0.40))
+        pygame.draw.circle(self._obs_sprite, (255, 255, 255), (ocx, ocy), int(r * 0.20))
+
+        # 해양 잔물결 파도 Y좌표 사전 연산
+        self._wave_i_arr = np.arange(25, env.sim_h, 60, dtype=np.float32)
+
     def get_text_surf(self, font, text, color):
         key = (id(font), text, color)
         surf = self._text_cache.get(key)
@@ -93,15 +115,16 @@ class EnvRenderer:
             # 전체화면 3D 모드 활성화 시:
             # 1. 상단 메인 화면(0, 0, 1800, 630)에 고해상도 3D 엔진 버퍼 렌더링
             try:
-                hits_legacy = self._hits_to_legacy(hits_x, hits_y)
-                main_3d = self.engine_3d.render(env, hits_legacy, env.w, env.sim_h)
+                main_3d = self.engine_3d.render(env, (hits_x, hits_y), env.w, env.sim_h)
                 env.screen.blit(main_3d, (0, 0))
             except Exception as e:
                 print(f"[Warning] Fullscreen 3D render failed: {e}")
             # 2. 하단 슬롯에 스왑 표출할 2D 월드를 전용 버퍼(world_2d_surf)에 사전 렌더링
             self._draw_2d_world(hits_x, hits_y, sx, cam_x, target_surf=self.world_2d_surf)
         else:
-            # 기본 2D 모드: 상단 메인 화면에 2D 월드 직접 렌더링
+            # 기본 2D 모드: 3D 엔진 비동기 렌더링을 미리 시작해두고 2D 월드를 병렬로 렌더링
+            if getattr(self, 'engine_3d', None) is not None:
+                self.engine_3d.start_render(env, (hits_x, hits_y), 320, 220)
             self._draw_2d_world(hits_x, hits_y, sx, cam_x, target_surf=env.screen)
 
         # 7. 하단 대시보드 UI (320x220 슬롯에 3D 또는 스왑된 2D 전술 맵 표출)
@@ -230,7 +253,7 @@ class EnvRenderer:
         # 아주 은은하고 자연스러운 해양 잔물결 파도 (Gentle Natural Ocean Swell Waves) - numpy 벡터화 고속 연산
         wave_t = env.frame * 0.016
         wave_start_j = int(cam_x // 80) * 80
-        wave_i_arr = np.arange(25, env.sim_h, 60, dtype=np.float32)
+        wave_i_arr = self._wave_i_arr
         wave_j_arr = np.arange(wave_start_j, cam_x + env.w + 80, 80, dtype=np.float32)
         if len(wave_i_arr) > 0 and len(wave_j_arr) > 0:
             ii, jj = np.meshgrid(wave_i_arr, wave_j_arr, indexing='ij')
@@ -335,16 +358,13 @@ class EnvRenderer:
             self._prev_wake_rect = None
         target_surf.blit(env.trail, (0, 0), area=pygame.Rect(int(cam_x), 0, env.w, env.sim_h))
         
-        # 4. 해상 장애물 - 뷰포트 내부만
+        # 4. 해상 장애물 - 뷰포트 내부만 (사전 렌더링 부표 스프라이트 고속 블릿)
+        obs_sprite = self._obs_sprite
         for ox, oy, r in env.dynamic_obstacles:
             osx = int(sx(ox))
             if osx < -30 or osx > env.w + 30:
                 continue
-            pygame.draw.circle(target_surf, (10, 42, 75, 140), (osx + 4, int(oy + 4)), int(r + 1))
-            pygame.draw.circle(target_surf, (210, 45, 30), (osx, int(oy)), int(r))
-            pygame.draw.circle(target_surf, (245, 75, 50), (osx - 1, int(oy - 1)), int(r * 0.76))
-            pygame.draw.circle(target_surf, (255, 255, 255), (osx - 1, int(oy - 1)), int(r * 0.40))
-            pygame.draw.circle(target_surf, (255, 255, 255), (osx, int(oy)), int(r * 0.20))
+            target_surf.blit(obs_sprite, (osx - 24, int(oy) - 24))
             
         # GRID는 모듈 레벨 import 사용
         occ_y, occ_x = np.where(env.grid >= 3)
@@ -998,11 +1018,12 @@ class EnvRenderer:
 
         # 180도 스캔 레이 라인 (저채도 세이지 그린)
         if env.show_lidar_range:
-            for ang in env.rel_angles:
-                if -math.pi/2 <= ang <= math.pi/2:
-                    rx = pcx + math.sin(ang) * (env.lidar_range * scale_r)
-                    ry = pcy - math.cos(ang) * (env.lidar_range * scale_r)
-                    pygame.draw.line(self.pov_surf, (55, 120, 95), (pcx, pcy), (int(rx), int(ry)), 1)
+            draw_line = pygame.draw.line
+            pov_surf = self.pov_surf
+            pov_col = (55, 120, 95)
+            origin = (pcx, pcy)
+            for rx_off, ry_off in self._cached_pov_ray_ends:
+                draw_line(pov_surf, pov_col, origin, (pcx + rx_off, pcy + ry_off), 1)
 
         # 라이다 히트 포인트 렌더링 (저채도 소프트 옐로우) - 벡터화 연산
         if env.show_lidar:
@@ -1088,17 +1109,25 @@ class EnvRenderer:
         pygame.draw.rect(self.cam_surf, (0, 180, 255), (0, 0, cam_w, cam_h), 2)
 
         n_slices = 180
-        # 180개 각도 세로 직사각형 게이지 렌더링 (사전 연산 캐시 테이블 활용) - 벡터화
+        # 180개 각도 세로 직사각형 게이지 렌더링 (사전 연산 캐시 테이블 활용) - 벡터화 고속 렌더링
         n_hits = len(hits_x)
+        lidar_dists = getattr(env, 'lidar_dists', None)
+        draw_rect = pygame.draw.rect
+        cam_surf = self.cam_surf
+        h_gauge = cam_h - 4
+        lidar_range = env.lidar_range
+        
         for idx, x1, w_s in self._cached_gauge_slices:
-            if idx < n_hits and np.isfinite(hits_x[idx]):
+            if lidar_dists is not None and idx < len(lidar_dists):
+                d = float(lidar_dists[idx])
+            elif idx < n_hits and np.isfinite(hits_x[idx]):
                 hdx = hits_x[idx] - bx
                 hdy = hits_y[idx] - by
                 d = math.sqrt(hdx * hdx + hdy * hdy)
             else:
-                d = env.lidar_range
+                d = lidar_range
 
-            if d < env.lidar_range:
+            if d < lidar_range:
                 if d < 70:
                     color = (230, 60, 50)
                 elif d < 140:
@@ -1108,7 +1137,7 @@ class EnvRenderer:
                 else:
                     color = (40, 170, 160)
                 
-                pygame.draw.rect(self.cam_surf, color, (x1, 2, w_s, cam_h - 4))
+                draw_rect(cam_surf, color, (x1, 2, w_s, h_gauge))
 
         # 웨이포인트 및 최종 목표 지점 수직 오버레이 신호선
         marker_objs = []
@@ -1341,9 +1370,8 @@ class EnvRenderer:
                     
                     env.screen.blit(panel_surf, (p3_x, p_y))
                 else:
-                    # 기본 2D 모드: 하단 슬롯에 320x220 3D 뷰포트 표출 (패널 상에 어떤 버튼도 배치하지 않음)
-                    hits_legacy = self._hits_to_legacy(hits_x, hits_y)
-                    surf_3d = self.engine_3d.render(env, hits_legacy, 320, 220)
+                    # 기본 2D 모드: 비동기 백그라운드 프로세스에서 사전 렌더링된 3D 뷰포트 서피스 회수 (블로킹 대기 없음)
+                    surf_3d = self.engine_3d.finish_render(320, 220)
                     env.screen.blit(surf_3d, (p3_x, p_y))
             except Exception as e:
                 print(f"[Warning] 3D render failed: {e}")
@@ -1384,7 +1412,7 @@ class EnvRenderer:
         if not hasattr(self, 'scale_x_max'): self.scale_x_max = 4.0; self.scale_y_max = 2.0
         
         if path is not None and len(path) >= 4:
-            pts = np.array(path)
+            pts = path
             diffs = pts - env.boat_pos
             # 선박 기준 로컬 좌표계 변환 (X: 전방 거리, Y: 좌/우 편차 거리)
             x_loc = diffs[:, 0] * ch + diffs[:, 1] * sh
@@ -1411,14 +1439,10 @@ class EnvRenderer:
             pygame.draw.line(surf, (0, 140, 180), (gx, y_center), (gx + gw, y_center), 1)
             pygame.draw.line(surf, (25, 55, 80), (gx + gw//2, gy), (gx + gw//2, gy + gh), 1)
             
-            # 3차 베지어 곡선 궤적 포인트 생성 (+ y_val 방향으로 위쪽 매핑)
-            plot_pts = []
-            for x_val, y_val in zip(xm, ym):
-                px = int(gx + (x_val / max(0.1, sx_max)) * (gw - 12))
-                py = int(y_center - (y_val / max(0.1, sy_max)) * (gh * 0.44))
-                px = max(gx, min(gx + gw, px))
-                py = max(gy, min(gy + gh, py))
-                plot_pts.append((px, py))
+            # 3차 베지어 곡선 궤적 포인트 생성 - 벡터화 고속 연산
+            px_arr = np.clip((gx + (xm / max(0.1, sx_max)) * (gw - 12)).astype(int), gx, gx + gw)
+            py_arr = np.clip((y_center - (ym / max(0.1, sy_max)) * (gh * 0.44)).astype(int), gy, gy + gh)
+            plot_pts = list(zip(px_arr, py_arr))
                 
             if len(plot_pts) >= 2:
                 # 3차 함수 곡선 본체 (빛나는 시안색)
@@ -1492,7 +1516,7 @@ class EnvRenderer:
         pygame.draw.rect(surf, (0, 180, 255), (0, 0, ww, wh), 2)
         
         # 타이틀
-        surf.blit(self.bold_font.render("WP Score Weights", True, (255, 255, 255)), (10, 10))
+        surf.blit(self.get_text_surf(self.bold_font, "WP Score Weights", (255, 255, 255)), (10, 10))
         
         wp = getattr(env, 'current_wp', None)
         factors = wp.get('factors', None) if wp is not None else None
@@ -1529,7 +1553,7 @@ class EnvRenderer:
             
             for i, (name, col) in enumerate(FACTOR_ITEMS):
                 y_pos = 36 + i * 29
-                lbl = self.small_font.render(name, True, (210, 225, 240))
+                lbl = self.get_text_surf(self.small_font, name, (210, 225, 240))
                 surf.blit(lbl, (10, y_pos - 2))
                 
                 pygame.draw.rect(surf, (20, 40, 65), (bar_x, y_pos, bar_w, bar_h), border_radius=3)
@@ -1546,12 +1570,12 @@ class EnvRenderer:
             # 웨이포인트가 없을 때 (대기 상태 UI 유지)
             for i, (name, col) in enumerate(FACTOR_ITEMS):
                 y_pos = 36 + i * 29
-                lbl = self.small_font.render(name, True, (120, 145, 170))
+                lbl = self.get_text_surf(self.small_font, name, (120, 145, 170))
                 surf.blit(lbl, (10, y_pos - 2))
                 
                 pygame.draw.rect(surf, (20, 40, 65), (bar_x, y_pos, bar_w, bar_h), border_radius=3)
                 
-                txt_pct = self.small_font.render("--%", True, (90, 120, 150))
+                txt_pct = self.get_text_surf(self.small_font, "--%", (90, 120, 150))
                 surf.blit(txt_pct, (bar_x + bar_w + 6, y_pos - 2))
             
         env.screen.blit(surf, (dest_x, dest_y))
@@ -1587,8 +1611,9 @@ class EnvRenderer:
             mode_txt = self.bold_font.render("CRUISING", True, (50, 230, 120))
         hud_surf.blit(mode_txt, (10, 6))
         
-        # 속도
-        speed = float(np.linalg.norm(env.boat_vel))
+        # 속도 (math.hypot 고속화)
+        bv = env.boat_vel
+        speed = math.hypot(bv[0], bv[1])
         speed_knots = speed * 0.9
         spd_txt = self.small_font.render(f"Speed: {speed_knots:.1f} kt", True, (220, 235, 255))
         hud_surf.blit(spd_txt, (10, 32))
@@ -1601,8 +1626,8 @@ class EnvRenderer:
         bar_color = (255, 80, 60) if em else (0, 200, 100)
         pygame.draw.rect(hud_surf, bar_color, (10, 48, fill_w, 7))
 
-        # 목표 거리 (50px = 1m 기준 미터 단위 변환)
-        d2t = float(np.linalg.norm(env.target - env.boat_pos))
+        # 목표 거리 (50px = 1m 기준 미터 단위 변환 - math.hypot 고속화)
+        d2t = math.hypot(env.target[0] - env.boat_pos[0], env.target[1] - env.boat_pos[1])
         d2t_m = d2t / 50.0
 
         if is_manual:

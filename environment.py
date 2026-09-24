@@ -480,30 +480,31 @@ class BoatEnv:
             self.current_fwd = 0.0
             
         self.current_fwd = self.current_fwd * 0.90 + target_fwd * 0.10
-        hv = np.array([math.cos(self.boat_heading), math.sin(self.boat_heading)])
+        ch = math.cos(self.boat_heading)
+        sh = math.sin(self.boat_heading)
         
         acc = self.current_fwd / self.mass
-        vel_norm = math.hypot(self.boat_vel[0], self.boat_vel[1])
+        vel0, vel1 = float(self.boat_vel[0]), float(self.boat_vel[1])
+        vel_norm = math.hypot(vel0, vel1)
         
-        # 유체 항력
-        drag = -self.drag * self.boat_vel * vel_norm
-        
-        # 횡방향 슬립 댐핑
-        lat_v = np.array([-math.sin(self.boat_heading), math.cos(self.boat_heading)])
-        lat_speed = np.dot(self.boat_vel, lat_v)
-        drag += -lat_v * lat_speed * 18.0
+        # 유체 항력 및 횡방향 슬립 댐핑 고속 연산 (numpy 임시 배열 할당 제거)
+        lat_speed = -vel0 * sh + vel1 * ch
+        drag0 = -self.drag * vel0 * vel_norm + sh * lat_speed * 18.0
+        drag1 = -self.drag * vel1 * vel_norm - ch * lat_speed * 18.0
             
-        prev = self.boat_pos.copy()
-        self.boat_vel += (acc * hv + drag) * self.dt
-        self.boat_pos += self.boat_vel * self.dt
+        prev0, prev1 = float(self.boat_pos[0]), float(self.boat_pos[1])
+        self.boat_vel[0] = vel0 + (acc * ch + drag0) * self.dt
+        self.boat_vel[1] = vel1 + (acc * sh + drag1) * self.dt
+        self.boat_pos[0] = prev0 + self.boat_vel[0] * self.dt
+        self.boat_pos[1] = prev1 + self.boat_vel[1] * self.dt
         
         if getattr(self, 'manual_mode', False):
-            self.boat_pos[0] = np.clip(self.boat_pos[0], 25, self.map_w - 25)
-            self.boat_pos[1] = np.clip(self.boat_pos[1], 25, self.sim_h - 25)
+            self.boat_pos[0] = min(max(25.0, float(self.boat_pos[0])), float(self.map_w - 25.0))
+            self.boat_pos[1] = min(max(25.0, float(self.boat_pos[1])), float(self.sim_h - 25.0))
         
         if self.frame % 7 == 0:
             pygame.draw.line(self.trail, (255, 255, 255, 60),
-                             (int(prev[0]), int(prev[1])),
+                             (int(prev0), int(prev1)),
                              (int(self.boat_pos[0]), int(self.boat_pos[1])), 2)
                              
         ang_acc = (mom - self.rot_drag * self.boat_ang_vel) / self.inertia

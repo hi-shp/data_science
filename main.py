@@ -71,6 +71,7 @@ def run():
                 env.lidar_range,
                 map_bounds=map_bounds
             )
+            env.lidar_dists = dists
             env.render(hits_x, hits_y)
             env.clock.tick(120)
             continue
@@ -93,6 +94,7 @@ def run():
                 env.lidar_range,
                 map_bounds=map_bounds
             )
+            env.lidar_dists = dists
 
             update_grid(env.grid, hits_x, hits_y)
             env.grid *= 0.945
@@ -344,7 +346,7 @@ def run():
                     if env.current_wp is not None and env.next_wp is not None:
                         if env.bezier_path is not None and len(env.bezier_path) >= 2:
                             t1 = env.bezier_path[-1] - env.bezier_path[-2]
-                            if np.linalg.norm(t1) > 1e-6:
+                            if math.hypot(t1[0], t1[1]) > 1e-6:
                                 next_start_head = math.atan2(t1[1], t1[0])
                             else:
                                 vec = env.current_wp["pos"] - env.boat_pos

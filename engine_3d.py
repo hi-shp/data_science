@@ -926,19 +926,36 @@ class _Engine3DCore:
         col_hit = [1.0, 0.88, 0.20, 0.92] # Glowing Amber Hit Marker
         
         if hits is not None:
-            for k in range(0, len(hits), 2):
-                hp = hits[k]
-                if hp is not None:
-                    hx = hp[0] / 50.0; hz = hp[1] / 50.0
-                    hy = self._wave_height(hx, hz, self.time) + 0.20
-                    # 발사 광선
-                    line_verts.extend(lidar_src + col_laser)
-                    line_verts.extend([hx, hy, hz] + col_laser)
-                    # 히트 지점 마커 (0.08m 3D 십자 스타)
-                    s_m = 0.08
-                    line_verts.extend([hx - s_m, hy, hz] + col_hit); line_verts.extend([hx + s_m, hy, hz] + col_hit)
-                    line_verts.extend([hx, hy - s_m, hz] + col_hit); line_verts.extend([hx, hy + s_m, hz] + col_hit)
-                    line_verts.extend([hx, hy, hz - s_m] + col_hit); line_verts.extend([hx, hy, hz + s_m] + col_hit)
+            if isinstance(hits, tuple) and len(hits) == 2:
+                hx_arr, hy_arr = hits
+                if hx_arr is not None and len(hx_arr) > 0:
+                    for k in range(0, len(hx_arr), 2):
+                        hx_v = hx_arr[k]
+                        if np.isfinite(hx_v):
+                            hx = float(hx_v) / 50.0; hz = float(hy_arr[k]) / 50.0
+                            hy = self._wave_height(hx, hz, self.time) + 0.20
+                            # 발사 광선
+                            line_verts.extend(lidar_src + col_laser)
+                            line_verts.extend([hx, hy, hz] + col_laser)
+                            # 히트 지점 마커 (0.08m 3D 십자 스타)
+                            s_m = 0.08
+                            line_verts.extend([hx - s_m, hy, hz] + col_hit); line_verts.extend([hx + s_m, hy, hz] + col_hit)
+                            line_verts.extend([hx, hy - s_m, hz] + col_hit); line_verts.extend([hx, hy + s_m, hz] + col_hit)
+                            line_verts.extend([hx, hy, hz - s_m] + col_hit); line_verts.extend([hx, hy, hz + s_m] + col_hit)
+            else:
+                for k in range(0, len(hits), 2):
+                    hp = hits[k]
+                    if hp is not None:
+                        hx = hp[0] / 50.0; hz = hp[1] / 50.0
+                        hy = self._wave_height(hx, hz, self.time) + 0.20
+                        # 발사 광선
+                        line_verts.extend(lidar_src + col_laser)
+                        line_verts.extend([hx, hy, hz] + col_laser)
+                        # 히트 지점 마커 (0.08m 3D 십자 스타)
+                        s_m = 0.08
+                        line_verts.extend([hx - s_m, hy, hz] + col_hit); line_verts.extend([hx + s_m, hy, hz] + col_hit)
+                        line_verts.extend([hx, hy - s_m, hz] + col_hit); line_verts.extend([hx, hy + s_m, hz] + col_hit)
+                        line_verts.extend([hx, hy, hz - s_m] + col_hit); line_verts.extend([hx, hy, hz + s_m] + col_hit)
 
         # 셰이더 uniform 바인딩 및 렌더링
         self.prog_unlit['u_mvp'].write(VP.T.tobytes())
@@ -1119,6 +1136,8 @@ class Engine3D:
         self.full_w = full_w
         self.full_h = full_h
         self._closed = False
+        self._pending_render = False
+        self._pending_dim = (320, 220)
         
         # 패널(320x220) 및 전체화면(full_w x full_h) 공유 메모리 블록 생성
         self.shm_panel = shared_memory.SharedMemory(create=True, size=320 * 220 * 4)
@@ -1146,19 +1165,23 @@ class Engine3D:
             
         atexit.register(self.close)
 
-    def render(self, env, hits, width=None, height=None):
+    def start_render(self, env, hits, width=None, height=None):
+        """3D 렌더링 워커에 비동기 렌더링 명령 전송 (블로킹 대기 없음)"""
         if self._closed or not self.proc.is_alive():
-            # 워커가 비활성 상태인 경우 대체용 서피스 반환
-            w = width or self.width
-            h = height or self.height
-            s = pygame.Surface((w, h))
-            s.fill((20, 40, 60))
-            return s
+            return
             
         w = width or self.width
         h = height or self.height
         
-        # 최소 상태 페이로드 직렬화
+        # 이전 프레임 응답이 미수거된 경우 수거
+        if self._pending_render:
+            try:
+                self.parent_conn.recv()
+            except Exception:
+                pass
+            self._pending_render = False
+
+        # 최소 상태 페이로드 직렬화 (numpy 배열 직접 전달로 70배 고속 직렬화)
         req = {
             'w': w, 'h': h,
             'boat_pos': tuple(env.boat_pos),
@@ -1166,9 +1189,9 @@ class Engine3D:
             'boat_vel': tuple(getattr(env, 'boat_vel', [0.0, 0.0])),
             'prev_steer': float(getattr(env, 'prev_steer', 0.0)),
             'cam_3d_mode': int(getattr(env, 'cam_3d_mode', 1)),
-            'dynamic_obstacles': [list(obs) for obs in env.dynamic_obstacles],
+            'dynamic_obstacles': env.dynamic_obstacles,
             'target': tuple(env.target),
-            'bezier_path': [list(p) for p in env.bezier_path] if getattr(env, 'bezier_path', None) is not None else None,
+            'bezier_path': getattr(env, 'bezier_path', None),
             'current_wp': env.current_wp,
             'next_wp': env.next_wp,
             'linetrace_mode': bool(getattr(env, 'linetrace_mode', False)),
@@ -1181,12 +1204,34 @@ class Engine3D:
         }
         
         self.parent_conn.send(req)
-        self.parent_conn.recv()
-        
+        self._pending_render = True
+        self._pending_dim = (w, h)
+
+    def finish_render(self, width=None, height=None):
+        """비동기 3D 렌더링 완료 대기 및 공유 메모리 뷰포트 서피스 반환"""
+        if self._closed or not self.proc.is_alive():
+            w = width or self.width
+            h = height or self.height
+            s = pygame.Surface((w, h))
+            s.fill((20, 40, 60))
+            return s
+            
+        if self._pending_render:
+            try:
+                self.parent_conn.recv()
+            except Exception:
+                pass
+            self._pending_render = False
+
+        w, h = self._pending_dim if hasattr(self, '_pending_dim') else (width or self.width, height or self.height)
         if (w, h) == (320, 220):
             return self.surf_panel
         else:
             return self.surf_full
+
+    def render(self, env, hits, width=None, height=None):
+        self.start_render(env, hits, width, height)
+        return self.finish_render(width, height)
 
     def close(self):
         if self._closed:

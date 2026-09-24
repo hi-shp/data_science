@@ -12,14 +12,28 @@ def build_bezier_path(p0, p1, p2, samples=40):
 def wrap(a):
     return (a + np.pi) % (2 * np.pi) - np.pi
 
+_T_90 = np.linspace(0, 1, 90)[:, None]
+_B0_90 = (1 - _T_90)**3
+_B1_90 = 3 * (1 - _T_90)**2 * _T_90
+_B2_90 = 3 * (1 - _T_90) * _T_90**2
+_B3_90 = _T_90**3
+
+_T_30 = np.linspace(0, 1, 30)[:, None]
+_B0_30 = (1 - _T_30)**3
+_B1_30 = 3 * (1 - _T_30)**2 * _T_30
+_B2_30 = 3 * (1 - _T_30) * _T_30**2
+_B3_30 = _T_30**3
+
 def cubic_bezier(p0, p1, p2, p3, n=90):
-    t = np.linspace(0, 1, n)
-    T = t[:, None]
-    B = (1-T)**3 * p0 + 3*(1-T)**2*T*p1 + 3*(1-T)*T**2*p2 + T**3*p3
-    return B
+    if n == 90:
+        return _B0_90 * p0 + _B1_90 * p1 + _B2_90 * p2 + _B3_90 * p3
+    elif n == 30:
+        return _B0_30 * p0 + _B1_30 * p1 + _B2_30 * p2 + _B3_30 * p3
+    t = np.linspace(0, 1, n)[:, None]
+    return (1-t)**3 * p0 + 3*(1-t)**2*t*p1 + 3*(1-t)*t**2*p2 + t**3*p3
 
 def make_bezier_path(boat_pos, boat_heading, goal, obstacles=None, boat_radius=25, min_clearance=35.0, boat_speed=0.0, start_tangent_fixed=False):
-    d = np.linalg.norm(goal - boat_pos)
+    d = math.hypot(goal[0] - boat_pos[0], goal[1] - boat_pos[1])
     if d < 1:
         return None
 
@@ -38,7 +52,7 @@ def make_bezier_path(boat_pos, boat_heading, goal, obstacles=None, boat_radius=2
             forward_dist = min(93.0, d * 0.40)
             p1 = boat_pos + forward * forward_dist
             v_goal = p3 - p1
-            norm_v_goal = np.linalg.norm(v_goal)
+            norm_v_goal = math.hypot(v_goal[0], v_goal[1])
             v_goal_n = np.zeros(2) if norm_v_goal < 1e-6 else v_goal / norm_v_goal
             p2 = p3 - v_goal_n * min(85.0, d * 0.38)
             return cubic_bezier(p0, p1, p2, p3, n=90)
@@ -48,7 +62,7 @@ def make_bezier_path(boat_pos, boat_heading, goal, obstacles=None, boat_radius=2
             p1 = boat_pos + forward * forward_dist
 
             v_goal = p3 - p1
-            norm_v_goal = np.linalg.norm(v_goal)
+            norm_v_goal = math.hypot(v_goal[0], v_goal[1])
             v_goal_n = np.zeros(2) if norm_v_goal < 1e-6 else v_goal / norm_v_goal
             p2 = p3 - v_goal_n * min(35.0, d * 0.20)
             return cubic_bezier(p0, p1, p2, p3, n=90)
@@ -66,13 +80,13 @@ def make_bezier_path(boat_pos, boat_heading, goal, obstacles=None, boat_radius=2
         # P1 방향을 목표 방향 안쪽으로 미리 편향하여 조기 선회 유도 (Inward Lead Vector)
         blend = min(0.3, 0.40 * speed_ratio * math.sin(ang_diff * 0.5))
         lead_dir = (1.0 - blend) * forward + blend * u_goal
-        norm_lead = np.linalg.norm(lead_dir)
+        norm_lead = math.hypot(lead_dir[0], lead_dir[1])
         lead_dir = forward if norm_lead < 1e-6 else lead_dir / norm_lead
 
         p1 = boat_pos + lead_dir * forward_dist
 
     v_goal = p3 - p1
-    norm_v_goal = np.linalg.norm(v_goal)
+    norm_v_goal = math.hypot(v_goal[0], v_goal[1])
     v_goal_n = np.zeros(2) if norm_v_goal < 1e-6 else v_goal / norm_v_goal
     p2 = p3 - v_goal_n * min(85.0, d * 0.38)
 
@@ -133,8 +147,8 @@ def make_bezier_path(boat_pos, boat_heading, goal, obstacles=None, boat_radius=2
 def pure_pursuit(path, boat_pos, lookahead=70):
     if path is None or len(path) == 0:
         return None
-    dists = np.sqrt(np.sum((path - boat_pos)**2, axis=1))
-    far = np.where(dists > lookahead)[0]
+    d2 = np.sum((path - boat_pos)**2, axis=1)
+    far = np.where(d2 > (lookahead * lookahead))[0]
     if len(far) > 0:
         return path[far[0]]
     return path[-1]
