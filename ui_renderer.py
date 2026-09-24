@@ -451,33 +451,68 @@ class EnvRenderer:
                 self._all_gaps_surf = pygame.Surface((env.w, env.h), pygame.SRCALPHA)
                 gaps_surf = self._all_gaps_surf
             
-            gap_pts = []
+            gap_render_items = []
+            all_xs = []
+            all_ys = []
             for g in env.all_gaps:
-                mid = g["pos"]
+                mid = g.get("pos")
+                if mid is None:
+                    continue
                 dx = mid[0] - bx
                 dy = mid[1] - by
+                # 헤딩 전방 180도 영역 판정
                 if dx * ch + dy * sh >= 0:
                     msx = int(sx(mid[0]))
-                    if -20 <= msx <= env.w + 20:
-                        gap_pts.append((g, msx, int(mid[1])))
+                    my = int(mid[1])
+                    c1, c2 = g.get("c1"), g.get("c2")
+                    c1_scr = (int(sx(c1[0])), int(c1[1])) if c1 is not None else None
+                    c2_scr = (int(sx(c2[0])), int(c2[1])) if c2 is not None else None
+
+                    pts_x = [msx]
+                    pts_y = [my]
+                    if c1_scr:
+                        pts_x.append(c1_scr[0])
+                        pts_y.append(c1_scr[1])
+                    if c2_scr:
+                        pts_x.append(c2_scr[0])
+                        pts_y.append(c2_scr[1])
+
+                    # 화면 가로 범위(-40 ~ env.w + 40) 내에 선분 또는 중간점이 걸쳐 있는 경우 렌더링
+                    if max(pts_x) >= -40 and min(pts_x) <= env.w + 40:
+                        gap_render_items.append((g, msx, my, c1_scr, c2_scr))
+                        # 더티 렉트 계산 시 장애물 양 끝점(c1, c2)과 중간점, 라벨 마진을 모두 포함
+                        for px in pts_x:
+                            all_xs.append(max(0, min(env.w, px)))
+                        for py in pts_y:
+                            all_ys.append(max(0, min(env.sim_h, py)))
+                        all_xs.append(max(0, min(env.w, msx + 35)))
+                        all_ys.append(max(0, min(env.sim_h, my + 15)))
+                        all_ys.append(max(0, min(env.sim_h, my - 15)))
             
-            if gap_pts:
-                min_gx = max(0, min(p[1] for p in gap_pts) - 25)
-                max_gx = min(env.w, max(p[1] for p in gap_pts) + 35)
-                min_gy = max(0, min(p[2] for p in gap_pts) - 20)
-                max_gy = min(env.sim_h, max(p[2] for p in gap_pts) + 20)
-                curr_rect = pygame.Rect(min_gx, min_gy, max_gx - min_gx + 1, max_gy - min_gy + 1)
+            if gap_render_items and all_xs:
+                min_gx = max(0, min(all_xs) - 15)
+                max_gx = min(env.w, max(all_xs) + 20)
+                min_gy = max(0, min(all_ys) - 15)
+                max_gy = min(env.sim_h, max(all_ys) + 15)
+                curr_rect = pygame.Rect(min_gx, min_gy, max(1, max_gx - min_gx + 1), max(1, max_gy - min_gy + 1))
                 clear_rect = curr_rect.union(self._prev_all_gaps_rect) if self._prev_all_gaps_rect else curr_rect
                 gaps_surf.fill((0, 0, 0, 0), clear_rect)
-                for visible_idx, (g, msx, my) in enumerate(gap_pts, start=1):
-                    c1, c2 = g.get("c1"), g.get("c2")
-                    if c1 is not None and c2 is not None:
-                        pygame.draw.line(gaps_surf, (0, 220, 255, 55), (int(sx(c1[0])), int(c1[1])), (int(sx(c2[0])), int(c2[1])), 1)
+                
+                for visible_idx, (g, msx, my, c1_scr, c2_scr) in enumerate(gap_render_items, start=1):
+                    if c1_scr is not None and c2_scr is not None:
+                        # 양 끝 장애물(c1, c2) 사이를 온전히 연결하는 시안색 갭 라인
+                        pygame.draw.line(gaps_surf, (0, 220, 255, 90), c1_scr, c2_scr, 1)
+                        # 장애물 중심 앵커 도트
+                        pygame.draw.circle(gaps_surf, (0, 220, 255, 140), c1_scr, 3)
+                        pygame.draw.circle(gaps_surf, (0, 220, 255, 140), c2_scr, 3)
+                    
+                    # 갭 중간점 인디케이터
                     pygame.draw.circle(gaps_surf, (0, 240, 255, 45), (msx, my), 8)
                     pygame.draw.circle(gaps_surf, (0, 240, 255, 180), (msx, my), 6, 1)
                     pygame.draw.circle(gaps_surf, (255, 255, 255, 230), (msx, my), 2)
                     lbl_g = self.get_text_surf(self.micro_font, f"G{visible_idx}", (0, 240, 255))
                     gaps_surf.blit(lbl_g, (msx + 8, my - 6))
+                
                 target_surf.blit(gaps_surf, clear_rect.topleft, area=clear_rect)
                 self._prev_all_gaps_rect = curr_rect
             elif self._prev_all_gaps_rect:
