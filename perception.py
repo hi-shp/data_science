@@ -60,6 +60,8 @@ def lidar_hits_np(boat_pos, boat_heading, rel_angles, obstacles, lidar_range, ma
         t_wall = np.minimum(t_left, np.minimum(t_top, t_bottom))
         d_final = np.minimum(d_final, t_wall[:, 0].astype(np.float32))
     
+    d_final = np.clip(d_final, 0.0, lidar_range)
+
     # 벡터화된 히트 좌표 연산 (Python for 루프 제거)
     vx_flat = vx[:, 0]
     vy_flat = vy[:, 0]

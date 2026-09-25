@@ -1,4 +1,19 @@
 # DBSCAN과 베지어 곡선, 순수추종 알고리즘을 이용한 자율운항 시뮬레이션
+
+## 2026-09-25 관성 모델 및 제어 업데이트
+
+현재 기본 자율운항은 질량·회전 관성 명목값을 2배로 설정한 평면 동역학과, 감지 범위 내 장애물 지도/A* 경로 및 예측 제어를 사용합니다. 기존 갭 평가·베지어 후보와 시각화는 유지했습니다. 1배속은 실제 시간과 일치하도록 수정했습니다. 아래의 기존 주행 설명·성능 기록은 업데이트 이전 내용도 포함합니다.
+
+동일 200개 배치에서 기존 189회, 변경 후 199회 완주했습니다. 변경 후 충돌은 0회, 시간 초과는 1회이며, 성공 주행 평균 시간은 49.60초에서 64.43초로 증가했습니다. 모델 가정, 남은 제어 명령 변동, CSV 원시 결과와 궤적 비교는 [관성 2배 제어 검증 보고서](report5/README.md)에 정리했습니다.
+
+```bash
+KABOAT_WIDTH=1800 python3 main.py
+python3 -m unittest test_vessel_dynamics -v
+python3 test_success_rate.py 200 --headless --seed 2000 --output data/new_validation
+```
+
+물리/제어 설정은 `vessel_config.json`, 기존 갭 점수 가중치는 `best_learned_params.json`에서 관리합니다. 평가 결과는 에피소드별 CSV, 시계열 CSV, 맵 및 설정 JSON으로 저장합니다.
+
 <b>Autonomous Navigation Simulation using DBSCAN, Bezier Curve, and Pure Pursuit</b>
 
 라이다 센서 데이터에 DBSCAN 군집화를 적용하여 장애물 사이 빈 공간(Gap)의 중심점을 찾고, 3차 베지어 곡선과 순수추종(Pure Pursuit) 알고리즘으로 부드럽게 경로를 추종하도록 구현한 2D/3D 자율운항 시뮬레이션 프로젝트입니다. ModernGL 기반 실시간 3D 엔진, RC 수동 조종 모드 및 리더보드 시스템을 포함합니다.

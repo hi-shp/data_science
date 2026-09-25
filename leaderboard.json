@@ -134,5 +134,53 @@
     "cumulative_turn_deg": 395.1,
     "date": "2026-09-25 03:02",
     "timestamp": 1790272931.5120265
+  },
+  {
+    "player": "Player",
+    "collisions": 0,
+    "time": 39.59,
+    "cumulative_turn_deg": 298.3,
+    "date": "2026-09-25 04:12",
+    "timestamp": 1790277159.888136
+  },
+  {
+    "player": "Player",
+    "collisions": 0,
+    "time": 13.36,
+    "cumulative_turn_deg": 254.4,
+    "date": "2026-09-25 19:23",
+    "timestamp": 1790331795.9199436
+  },
+  {
+    "player": "Player",
+    "collisions": 1,
+    "time": 13.38,
+    "cumulative_turn_deg": 385.5,
+    "date": "2026-09-25 19:23",
+    "timestamp": 1790331810.636978
+  },
+  {
+    "player": "Player",
+    "collisions": 0,
+    "time": 27.58,
+    "cumulative_turn_deg": 606.6,
+    "date": "2026-09-25 19:40",
+    "timestamp": 1790332844.3593807
+  },
+  {
+    "player": "Player",
+    "collisions": 2,
+    "time": 14.83,
+    "cumulative_turn_deg": 329.0,
+    "date": "2026-09-26 03:28",
+    "timestamp": 1790360915.49603
+  },
+  {
+    "player": "Player",
+    "collisions": 2,
+    "time": 13.98,
+    "cumulative_turn_deg": 356.3,
+    "date": "2026-09-26 03:28",
+    "timestamp": 1790360930.2117808
   }
 ]

@@ -1,17 +1,82 @@
 ---
-title: User Reporting and Git Push Guidelines
-trigger: always_on
+title: Reporting and Visualization Guidelines
+trigger: model_decision
+description: "Apply when creating or editing reports, presentation figures, plots, charts, validation graphics, or other visual material for the KABOAT/USV project."
 ---
 
-# KABOAT Project Guidelines
+# KABOAT Reporting and Visualization Guidelines
 
-1. **보고서 서식 및 문체 규칙**:
-   - 강조용 별표(`*`, `**`) 및 이모지(Emoji) 절대 사용 금지. (강조 시 `<b>...</b>` 사용 또는 구조화된 표/헤더 사용)
-   - 미사어구, 과장 표현, 감정적 수식어 배제. 정밀한 학술/공학적 어조 유지.
-   - 보고서에는 선박 주행 궤적, 선박 헤딩, 조타각, 선속 등 선박과 직접 관련된 시각화 자료를 충실히 포함할 것.
-   - 모든 그래프와 시각화 자료에서 텍스트 겹침이나 박스 이탈, 어색한 배치가 없는지 철저히 사전 검수할 것.
-   - **폰트 크기 및 시각 가독성 확보**: 차트 및 다이어그램의 글자가 너무 작아서 읽기 어려운 문제가 없도록 본문 주석 10pt 이상, 레이블 11pt 이상, 서브제목 13pt 이상으로 확대하고, 배경과의 명도 대비를 최적화하여 한눈에 명확히 읽히도록 구성할 것.
+## Writing style
 
-2. **Git 커밋 및 푸시 의무**:
-   - 코드 수정, 보고서 작성 등 모든 수정사항이 발생하면 항상 누락 없이 git commit 및 git push origin main을 수행할 것.
+- Use a precise academic/engineering tone.
+- Avoid decorative language, exaggerated claims, and emotional phrasing.
+- In generated report text, do not use emoji.
+- Do not use Markdown asterisk emphasis in reports or Markdown documents; use headings, tables, or `<b>...</b>`. This preserves the existing project rule.
+- Distinguish measured results, code-derived facts, engineering assumptions, and interpretation.
 
+## Evidence
+
+Do not present synthetic/example plots as measured simulation results.
+
+Every performance claim should state the evaluation conditions when available:
+
+- number of episodes;
+- seed policy;
+- map/environment conditions;
+- timestep;
+- planning frequency;
+- relevant controller/dynamics version.
+
+When comparing algorithms or revisions, use identical conditions whenever possible.
+
+Success, collision, and timeout must be separated.
+
+## Required vessel-focused visualizations
+
+For performance reports or presentation material, prefer real run data and include a useful subset of:
+
+- vessel trajectory;
+- heading versus time;
+- yaw rate / yaw acceleration;
+- steering or differential-thrust command;
+- linear speed;
+- minimum obstacle clearance;
+- path length / completion time;
+- failure-category distribution;
+- before/after comparison on identical seeds.
+
+Navigation performance reports must include recorded trajectory, heading, steering/differential-thrust command, and speed when applicable. Do not generate unrelated plots mechanically; choose figures that support the engineering point being made.
+
+## Figure quality
+
+Before finalizing a figure, verify:
+
+- labels do not overlap;
+- legends do not obscure important data;
+- boxes and annotations stay within bounds;
+- axis units are explicit;
+- text remains readable at presentation size;
+- visual encodings are consistent across before/after figures.
+
+Required minimum presentation sizes (preserved local readability rule):
+
+- annotations/body text: 10 pt;
+- axis labels: 11 pt;
+- subplot/section titles: 13 pt.
+
+Use adequate contrast and avoid unnecessary visual clutter.
+
+## Presentation use
+
+For PPT or booth material:
+
+- prefer one engineering message per figure;
+- favor directly comparable before/after layouts;
+- show the metric and its engineering implication together;
+- avoid claiming real-vessel accuracy without measured real-vessel validation;
+- label model-based or estimated quantities clearly.
+
+## Git
+
+Reporting work follows the Git rules in the root `AGENTS.md`.
+Do not automatically commit or push merely because a report or figure was generated.

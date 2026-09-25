@@ -761,15 +761,14 @@ class _Engine3DCore:
         tri_verts = []
         line_verts = []
         
-        # (1) 3차 베지에 계획 궤적 3D 발광 리본 (수면 위 0.08m, 트라이앵글 쿼드 스트립)
-        path = getattr(env, 'bezier_path', None)
+        # (1) Actual smoothed control path, in metres, as a 3D ribbon.
+        path = getattr(env, 'control_path', None)
         if path is not None and len(path) >= 2:
             ribbon_w = 0.25
             col_ribbon = [0.10, 0.90, 1.0, 0.88] # Bright Cyan Glowing Ribbon
             
             pts_3d = []
-            for px, py in path:
-                wx = px / 50.0; wz = py / 50.0
+            for wx, wz in path:
                 wy = self._wave_height(wx, wz, self.time) + 0.08
                 pts_3d.append(np.array([wx, wy, wz]))
                 
@@ -909,10 +908,8 @@ class _Engine3DCore:
                     line_verts.extend([rs_x, rs_y, rs_z] + col_ray)
                     line_verts.extend([re_x, re_y, re_z] + col_ray)
 
-        if getattr(env, 'current_wp', None) is not None:
-            add_holo_beacon(env.current_wp["pos"], [0.0, 1.0, 0.85, 0.95]) # Cyan WP1
-        if getattr(env, 'next_wp', None) is not None:
-            add_holo_beacon(env.next_wp["pos"], [0.82, 0.42, 1.0, 0.90])  # Purple WP2
+        if getattr(env, 'selected_gap', None) is not None:
+            add_holo_beacon(np.asarray(env.selected_gap) * 50.0, [0.0, 1.0, 0.85, 0.95])
             
         # 회피 지점 (Avoid Hit)
         if getattr(env, 'linetrace_mode', False):
@@ -1011,8 +1008,8 @@ class _Engine3DCore:
             
         # [5] 하단 정보 표출 (선속, 헤딩, 러더 각도, 엔진 정보)
         # 상단 중앙의 파란색 헤딩을 제거하고 하단 흰색 텍스트 아이템들 사이에 통합
-        hdg_deg = int(math.degrees(heading)) % 360
-        steer_deg = math.degrees(steer)
+        hdg_deg = int(math.degrees(heading) + 90) % 360
+        steer_command = steer
         knots = speed * 1.94384
         is_blind = getattr(env, 'blind_mode', False)
 
@@ -1020,7 +1017,7 @@ class _Engine3DCore:
             # 전체화면 3D 모드: 화면을 가리는 하단 검은색 바를 추가하지 않고 3D 화면을 100% 꽉 채우며, 우측 하단 텍스트는 그대로 유지
             blind_tag = " | BLIND VISION" if is_blind else ""
             rc_tag = f" | RC MANUAL [WASD]{blind_tag}" if getattr(env, 'manual_mode', False) else " | ModernGL 3.3 Core Profile"
-            txt_str = f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | HDG: {hdg_deg:03d}° | RUDDER: {steer_deg:+.1f}°{rc_tag}"
+            txt_str = f"SPEED: {speed:.1f} m/s ({knots:.1f} kt) | HDG: {hdg_deg:03d}° | TURN CMD: {steer_command:+.2f}{rc_tag}"
             lbl_stat = f_info.render(txt_str, True, (225, 242, 255))
             lbl_stat_sh = f_info.render(txt_str, True, (10, 15, 25))
             txt_x = w - lbl_stat.get_width() - 16
@@ -1055,7 +1052,7 @@ class _Engine3DCore:
             info_y = h - info_h
             pygame.draw.rect(surf, (8, 18, 30, 210), (0, info_y, w, info_h))
             pygame.draw.line(surf, (0, 140, 200), (0, info_y), (w, info_y), 1)
-            txt_str = f"SPEED: {speed:.1f}m/s | HDG: {hdg_deg:03d}° | RUD: {steer_deg:+.1f}° | ModernGL 3.3 Core"
+            txt_str = f"SPEED: {speed:.1f}m/s | HDG: {hdg_deg:03d}° | CMD: {steer_command:+.2f} | ModernGL 3.3 Core"
             lbl_stat = f_info.render(txt_str, True, (225, 242, 255))
             surf.blit(lbl_stat, (8, info_y + 3))
 
@@ -1103,7 +1100,8 @@ def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name, full_w=1840, ful
         p_env.cam_3d_mode = req['cam_3d_mode']
         p_env.dynamic_obstacles = req['dynamic_obstacles']
         p_env.target = req['target']
-        p_env.bezier_path = req['bezier_path']
+        p_env.control_path = req['control_path']
+        p_env.selected_gap = req['selected_gap']
         p_env.current_wp = req['current_wp']
         p_env.next_wp = req['next_wp']
         p_env.linetrace_mode = req['linetrace_mode']
@@ -1146,6 +1144,12 @@ class Engine3D:
         # Pygame Surface를 공유 메모리에 직접 매핑 (고정 참조)
         self.surf_panel = pygame.image.frombuffer(self.shm_panel.buf, (320, 220), 'RGBA')
         self.surf_full = pygame.image.frombuffer(self.shm_full.buf, (full_w, full_h), 'RGBA')
+        # Display only completed frames. The worker may still be writing the
+        # shared buffer while the main thread draws the previous frame.
+        self._completed_panel = self.surf_panel.copy()
+        self._completed_full = self.surf_full.copy()
+        self._completed_panel.fill((20, 40, 60))
+        self._completed_full.fill((20, 40, 60))
         
         # 클린 프로세스 스폰
         ctx_spawn = mp.get_context('spawn')
@@ -1173,13 +1177,10 @@ class Engine3D:
         w = width or self.width
         h = height or self.height
         
-        # 이전 프레임 응답이 미수거된 경우 수거
+        self._collect_completed()
         if self._pending_render:
-            try:
-                self.parent_conn.recv()
-            except Exception:
-                pass
-            self._pending_render = False
+            # A visual update can be dropped; simulation state cannot.
+            return
 
         # 최소 상태 페이로드 직렬화 (numpy 배열 직접 전달로 70배 고속 직렬화)
         req = {
@@ -1191,9 +1192,10 @@ class Engine3D:
             'cam_3d_mode': int(getattr(env, 'cam_3d_mode', 1)),
             'dynamic_obstacles': env.dynamic_obstacles,
             'target': tuple(env.target),
-            'bezier_path': getattr(env, 'bezier_path', None),
-            'current_wp': env.current_wp,
-            'next_wp': env.next_wp,
+            'control_path': getattr(env, 'control_path', None),
+            'selected_gap': getattr(env, 'selected_gap', None) if getattr(env, 'show_raw_route', False) else None,
+            'current_wp': None,
+            'next_wp': None,
             'linetrace_mode': bool(getattr(env, 'linetrace_mode', False)),
             'closest_avoid_hit': getattr(env, 'closest_avoid_hit', None),
             'hits': hits,
@@ -1207,6 +1209,15 @@ class Engine3D:
         self._pending_render = True
         self._pending_dim = (w, h)
 
+    def _collect_completed(self):
+        if self._pending_render and self.parent_conn.poll():
+            self.parent_conn.recv()
+            if self._pending_dim == (320, 220):
+                self._completed_panel.blit(self.surf_panel, (0, 0))
+            else:
+                self._completed_full.blit(self.surf_full, (0, 0))
+            self._pending_render = False
+
     def finish_render(self, width=None, height=None):
         """비동기 3D 렌더링 완료 대기 및 공유 메모리 뷰포트 서피스 반환"""
         if self._closed or not self.proc.is_alive():
@@ -1216,18 +1227,13 @@ class Engine3D:
             s.fill((20, 40, 60))
             return s
             
-        if self._pending_render:
-            try:
-                self.parent_conn.recv()
-            except Exception:
-                pass
-            self._pending_render = False
+        self._collect_completed()
 
-        w, h = self._pending_dim if hasattr(self, '_pending_dim') else (width or self.width, height or self.height)
+        w, h = width or self.width, height or self.height
         if (w, h) == (320, 220):
-            return self.surf_panel
+            return self._completed_panel
         else:
-            return self.surf_full
+            return self._completed_full
 
     def render(self, env, hits, width=None, height=None):
         self.start_render(env, hits, width, height)

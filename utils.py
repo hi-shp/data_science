@@ -1,14 +1,6 @@
 import numpy as np
 import math
 
-def bezier_point(p0, p1, p2, t):
-    return (1-t)*(1-t)*p0 + 2*(1-t)*t*p1 + t*t*p2
-
-def build_bezier_path(p0, p1, p2, samples=40):
-    ts = np.linspace(0, 1, samples)
-    pts = [bezier_point(p0, p1, p2, t) for t in ts]
-    return np.array(pts, dtype=np.float32)
-
 def wrap(a):
     return (a + np.pi) % (2 * np.pi) - np.pi
 
@@ -143,18 +135,3 @@ def make_bezier_path(boat_pos, boat_heading, goal, obstacles=None, boat_radius=2
     p2 = p2 + shift_p2
 
     return cubic_bezier(p0, p1, p2, p3, n=90)
-
-def pure_pursuit(path, boat_pos, lookahead=70):
-    if path is None or len(path) == 0:
-        return None
-    d2 = np.sum((path - boat_pos)**2, axis=1)
-    far = np.where(d2 > (lookahead * lookahead))[0]
-    if len(far) > 0:
-        return path[far[0]]
-    return path[-1]
-
-def find_pp_target(path, pos, L=80):
-    for i in range(len(path)-1):
-        if np.linalg.norm(path[i]-pos) >= L:
-            return path[i]
-    return path[-1]

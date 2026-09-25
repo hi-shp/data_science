@@ -22,7 +22,6 @@ class EnvRenderer:
         self.hud_surf = pygame.Surface((210, 110), pygame.SRCALPHA)
         self.bezier_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
         self.weights_surf = pygame.Surface((190, 220), pygame.SRCALPHA)
-        self._cand_surf = pygame.Surface((env.w, env.h), pygame.SRCALPHA)
         self._gaps_surf = pygame.Surface((env.w, env.sim_h), pygame.SRCALPHA)
         self.shadow_surf = pygame.Surface((180, 180), pygame.SRCALPHA)
         self.world_2d_surf = pygame.Surface((env.w, env.sim_h))
@@ -63,7 +62,6 @@ class EnvRenderer:
         self._text_cache = {}
         self._prev_wake_rect = None
         self._prev_occ_rect = None
-        self._prev_cand_rect = None
         self._prev_all_gaps_rect = None
 
         # 120 FPS 초고속 렌더링을 위한 게이지 슬라이스 인덱스 테이블 사전 연산
@@ -182,7 +180,7 @@ class EnvRenderer:
         self._bezier_bg_surf = pygame.Surface((bw, bh), pygame.SRCALPHA)
         self._bezier_bg_surf.fill((10, 22, 38, 240))
         pygame.draw.rect(self._bezier_bg_surf, (0, 180, 255), (0, 0, bw, bh), 2)
-        self._bezier_bg_surf.blit(self.bold_font.render("Bezier Curve 2D", True, (255, 255, 255)), (10, 8))
+        self._bezier_bg_surf.blit(self.bold_font.render("Guidance Route", True, (255, 255, 255)), (10, 8))
         self._bezier_bg_surf.blit(self.small_font.render("Y(m)", True, (140, 190, 240)), (4, 30))
         gx, gy, gw, gh = 36, 42, 144, 94
         pygame.draw.rect(self._bezier_bg_surf, (15, 30, 50), (gx, gy, gw, gh))
@@ -267,7 +265,7 @@ class EnvRenderer:
             t_border = (255, 40, 195) if top_hover else (220, 20, 170)
             t_col = (255, 160, 230) if top_hover else (255, 50, 200)
         else:
-            t_str = "GAP NAVIGATION"
+            t_str = "PREDICTIVE NAV"
             t_bg = (18, 36, 58, 220) if top_hover else (12, 26, 42, 195)
             t_border = (0, 190, 240) if top_hover else (0, 125, 175)
             t_col = (200, 235, 255) if top_hover else (150, 195, 225)
@@ -549,145 +547,28 @@ class EnvRenderer:
             pygame.draw.line(target_surf, (255, 255, 255, 180), (itgx - 16, itgy), (itgx + 16, itgy), 1)
             pygame.draw.line(target_surf, (255, 255, 255, 180), (itgx, itgy - 16), (itgx, itgy + 16), 1)
         
-        # 5. 실시간 동적 추종 궤적 (베지어 곡선 및 웨이포인트)
+        # Draw only the controller's actual path and lookahead target.
         is_lt = getattr(env, 'linetrace_mode', False)
-        show_1st = getattr(env, 'show_1st_path', True) and not is_lt
-        show_2nd = getattr(env, 'show_2nd_path', True) and not is_lt
-
-        if show_2nd:
-            if env.next_wp is not None:
-                nwp = env.next_wp
-                if nwp.get("pair") != (-1, -1):
-                    pygame.draw.line(target_surf, (255, 140, 0), (int(sx(nwp["c1"][0])), int(nwp["c1"][1])), (int(sx(nwp["c2"][0])), int(nwp["c2"][1])), 3)
-                pygame.draw.circle(target_surf, (200, 100, 255, 100), (int(sx(nwp["pos"][0])), int(nwp["pos"][1])), 8)
-                pygame.draw.circle(target_surf, (200, 100, 255), (int(sx(nwp["pos"][0])), int(nwp["pos"][1])), 3)
-
-            if env.next_bezier_path is not None:
-                pts = [(int(sx(x)), int(y)) for x, y in env.next_bezier_path]
-                if len(pts) > 1:
-                    pygame.draw.lines(target_surf, (255, 200, 50), False, pts, 3)
-
-            if env.next_pursuit_target is not None:
-                px_nt, py_nt = env.next_pursuit_target
-                pygame.draw.circle(target_surf, (255, 255, 255), (int(sx(px_nt)), int(py_nt)), 8, 2)
-                pygame.draw.circle(target_surf, (255, 150, 50), (int(sx(px_nt)), int(py_nt)), 4)
-
-        if show_1st:
-            if env.current_wp is not None:
-                wp = env.current_wp
-                pygame.draw.line(target_surf, (0, 255, 200), (int(sx(wp["c1"][0])), int(wp["c1"][1])), (int(sx(wp["c2"][0])), int(wp["c2"][1])), 4)
-                pygame.draw.circle(target_surf, (0, 255, 255, 100), (int(sx(wp["pos"][0])), int(wp["pos"][1])), 10)
-                pygame.draw.circle(target_surf, (0, 255, 255), (int(sx(wp["pos"][0])), int(wp["pos"][1])), 4)
-                             
-            if env.bezier_path is not None:
-                pts = [(int(sx(x)), int(y)) for x, y in env.bezier_path]
-                if len(pts) > 1:
-                    pygame.draw.lines(target_surf, (50, 210, 255), False, pts, 4)
-
-            if env.pursuit_target is not None:
-                px_t, py_t = env.pursuit_target
+        if not is_lt and getattr(env, 'show_control_path', True):
+            path = getattr(env, 'control_path', None)
+            if path is not None:
+                if path is not getattr(self, '_draw_path_source', None):
+                    self._draw_path_source = path
+                    self._draw_path_world = path * env.dynamics.pixels_per_m
+                if len(path) > 1:
+                    pts = self._draw_path_world.copy()
+                    pts[:, 0] -= cam_x
+                    pygame.draw.lines(target_surf, (50, 210, 255), False, pts.astype(np.int32), 4)
+            if getattr(env, 'controller_target', None) is not None:
+                px_t, py_t = env.controller_target
                 pygame.draw.circle(target_surf, (255, 255, 255), (int(sx(px_t)), int(py_t)), 10, 2)
                 pygame.draw.circle(target_surf, (255, 50, 150), (int(sx(px_t)), int(py_t)), 5)
 
-        # 6. 차순위 후보 웨이포인트 렌더링 (120 FPS 고속 더티 렉트 최적화, 라인트레이싱 모드에서는 완전 제외)
-        if not is_lt and getattr(env, 'show_candidates', False) and getattr(env, 'candidate_wps', None):
-            cand_list = env.candidate_wps[:2]
-            cand_colors = [(80, 210, 255, 130), (255, 180, 70, 120)]
-            all_cx = []; all_cy = []
-            for cand in cand_list:
-                for pt in [cand["c1"], cand["c2"], cand["pos"]]:
-                    all_cx.append(int(sx(pt[0]))); all_cy.append(int(pt[1]))
-            if all_cx:
-                min_cx = max(0, min(all_cx) - 25); max_cx = min(env.w, max(all_cx) + 25)
-                min_cy = max(0, min(all_cy) - 25); max_cy = min(env.sim_h, max(all_cy) + 25)
-                curr_rect = pygame.Rect(min_cx, min_cy, max_cx - min_cx + 1, max_cy - min_cy + 1)
-                clear_rect = curr_rect.union(self._prev_cand_rect) if self._prev_cand_rect else curr_rect
-                self._cand_surf.fill((0, 0, 0, 0), clear_rect)
-                for rank_idx, cand in enumerate(cand_list):
-                    col = cand_colors[rank_idx % len(cand_colors)]
-                    c1, c2 = cand["c1"], cand["c2"]
-                    mid = cand["pos"]
-                    pygame.draw.line(self._cand_surf, col, (int(sx(c1[0])), int(c1[1])), (int(sx(c2[0])), int(c2[1])), 2)
-                    pygame.draw.circle(self._cand_surf, (col[0], col[1], col[2], 50), (int(sx(mid[0])), int(mid[1])), 9)
-                    pygame.draw.circle(self._cand_surf, col, (int(sx(mid[0])), int(mid[1])), 9, 2)
-                    pygame.draw.circle(self._cand_surf, (col[0], col[1], col[2], 210), (int(sx(mid[0])), int(mid[1])), 3)
-                    txt_rank = self.get_text_surf(self.small_font, f"#{rank_idx + 2}", (col[0], col[1], col[2]))
-                    self._cand_surf.blit(txt_rank, (int(sx(mid[0])) + 10, int(mid[1]) - 8))
-                target_surf.blit(self._cand_surf, clear_rect.topleft, area=clear_rect)
-                self._prev_cand_rect = curr_rect
-        elif self._prev_cand_rect:
-            self._cand_surf.fill((0, 0, 0, 0), self._prev_cand_rect)
-            self._prev_cand_rect = None
-
-        # 6-2. 고려 중인 모든 갭의 중간점 위치 렌더링 (Gaps 버튼 클릭 시 ON/OFF 토글, 반투명 블렌딩으로 하부 선박/궤적 시인성 확보)
-        if not is_lt and getattr(env, 'show_all_gaps', True) and getattr(env, 'all_gaps', None):
-            visible_idx = 0
-            gap_items = []
-            all_pts_x = []
-            all_pts_y = []
-            for g in env.all_gaps:
-                mid = g.get("pos")
-                if mid is None:
-                    continue
-                # 선박 헤딩 전방 180도 영역 판정
-                if (mid[0] - bx) * ch + (mid[1] - by) * sh < 0:
-                    continue
-                
-                c1, c2 = g.get("c1"), g.get("c2")
-                if c1 is None or c2 is None:
-                    continue
-                
-                c1_x = int(sx(c1[0]))
-                c2_x = int(sx(c2[0]))
-                # 선분이 화면 좌우 뷰포트 범위 내에 일부라도 걸치지 않으면 즉시 스킵
-                if max(c1_x, c2_x) < -10 or min(c1_x, c2_x) > env.w + 10:
-                    continue
-                
-                c1_y = int(c1[1])
-                c2_y = int(c2[1])
-                if max(c1_y, c2_y) < -10 or min(c1_y, c2_y) > env.sim_h + 10:
-                    continue
-                
-                visible_idx += 1
-                msx = int(sx(mid[0]))
-                my = int(mid[1])
-                gap_items.append((c1_x, c1_y, c2_x, c2_y, msx, my, visible_idx))
-                all_pts_x.extend([c1_x, c2_x, msx, msx + 35])
-                all_pts_y.extend([c1_y, c2_y, my - 10, my + 10])
-
-            if gap_items:
-                min_gx = max(0, min(all_pts_x) - 10)
-                max_gx = min(env.w, max(all_pts_x) + 10)
-                min_gy = max(0, min(all_pts_y) - 10)
-                max_gy = min(env.sim_h, max(all_pts_y) + 10)
-                curr_rect = pygame.Rect(min_gx, min_gy, max_gx - min_gx + 1, max_gy - min_gy + 1)
-                clear_rect = curr_rect.union(self._prev_all_gaps_rect) if self._prev_all_gaps_rect else curr_rect
-                self._gaps_surf.fill((0, 0, 0, 0), clear_rect)
-                gaps_surf = self._gaps_surf
-
-                for c1_x, c1_y, c2_x, c2_y, msx, my, v_idx in gap_items:
-                    # 1. 양 끝 장애물(c1, c2) 사이를 연결하는 반투명 시안색 갭 게이트 라인
-                    pygame.draw.line(gaps_surf, (0, 195, 235, 110), (c1_x, c1_y), (c2_x, c2_y), 1)
-                    
-                    # 2. 장애물 중심 반투명 앵커 도트
-                    pygame.draw.circle(gaps_surf, (0, 215, 250, 130), (c1_x, c1_y), 3)
-                    pygame.draw.circle(gaps_surf, (0, 215, 250, 130), (c2_x, c2_y), 3)
-                    
-                    # 3. 갭 중간점 인디케이터 및 번호 라벨 (반투명 표출로 하부 궤적/장애물 가림 방지)
-                    if -15 <= msx <= env.w + 15 and -15 <= my <= env.sim_h + 15:
-                        pygame.draw.circle(gaps_surf, (0, 190, 235, 140), (msx, my), 6, 1)
-                        pygame.draw.circle(gaps_surf, (255, 255, 255, 160), (msx, my), 2)
-                        lbl_g = self.get_text_surf(self.micro_font, f"G{v_idx}", (0, 230, 255), alpha=150)
-                        gaps_surf.blit(lbl_g, (msx + 8, my - 6))
-
-                target_surf.blit(gaps_surf, clear_rect.topleft, area=clear_rect)
-                self._prev_all_gaps_rect = curr_rect
-            elif self._prev_all_gaps_rect:
-                self._gaps_surf.fill((0, 0, 0, 0), self._prev_all_gaps_rect)
-                self._prev_all_gaps_rect = None
-        elif self._prev_all_gaps_rect:
-            self._gaps_surf.fill((0, 0, 0, 0), self._prev_all_gaps_rect)
-            self._prev_all_gaps_rect = None
+        # Optional debug overlay reads the actual raw A* route.
+        if not is_lt and getattr(env, 'show_raw_route', False) and getattr(env, 'raw_route', None) is not None:
+            pts = [(int(sx(x * env.dynamics.pixels_per_m)), int(y * env.dynamics.pixels_per_m)) for x, y in env.raw_route]
+            if len(pts) > 1:
+                pygame.draw.lines(target_surf, (160, 180, 255), False, pts, 2)
 
         # 선박 형상 정밀 렌더링 (스크린 좌표)
         self._draw_boat_hull(sbx, sby, ch, sh, target_surf=target_surf)
@@ -796,15 +677,10 @@ class EnvRenderer:
         mm_trail = pygame.transform.scale(env.trail, (mm_w, mm_h))
         mm_surf.blit(mm_trail, (2, 2))
         
-        # 웨이포인트 (1st: 시안, 2nd: 보라)
-        is_lt = getattr(env, 'linetrace_mode', False)
-        if not is_lt:
-            if env.current_wp is not None:
-                wp = env.current_wp["pos"]
-                pygame.draw.circle(mm_surf, (0, 255, 255), (int(2 + wp[0] * scale_x), int(2 + wp[1] * scale_y)), 3)
-            if env.next_wp is not None:
-                nwp = env.next_wp["pos"]
-                pygame.draw.circle(mm_surf, (200, 100, 255), (int(2 + nwp[0] * scale_x), int(2 + nwp[1] * scale_y)), 2)
+        # Same lookahead used by the controller, in map coordinates.
+        if not getattr(env, 'linetrace_mode', False) and env.controller_target is not None:
+            wp = env.controller_target
+            pygame.draw.circle(mm_surf, (255, 50, 150), (int(2 + wp[0] * scale_x), int(2 + wp[1] * scale_y)), 3)
         
         # 목표점 (녹색)
         tgx_mm = int(2 + env.target[0] * scale_x)
@@ -1023,57 +899,23 @@ class EnvRenderer:
             txt_col3 = (130, 225, 180) if cb3_hover else (255, 255, 255)
             env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Range", txt_col3), (70, env.cb3_rect.centery - 10))
         else:
-            # [기본 갭 항법 모드 UI] 5개 체크박스 구성
-            # 1. Show 1st Path (시안)
-            cb1_row = getattr(env, 'cb1_row_rect', env.cb1_rect)
-            cb1_hover = cb1_row.collidepoint(mpos)
-            if cb1_hover:
-                pygame.draw.rect(env.screen, (28, 56, 88), cb1_row, border_radius=4)
-            pygame.draw.rect(env.screen, (255, 255, 255), env.cb1_rect, 2)
-            if getattr(env, 'show_1st_path', True): pygame.draw.rect(env.screen, (0, 255, 200), env.cb1_rect.inflate(-6, -6))
-            txt_col1 = (120, 255, 230) if cb1_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show 1st Path", txt_col1), (70, env.cb1_rect.centery - 10))
+            # Actual control path plus optional raw-route/perception diagnostics.
+            options = (
+                (env.cb1_rect, env.cb1_row_rect, 'show_control_path', 'Show Control Path', (0, 255, 200)),
+                (env.cb2_rect, env.cb2_row_rect, 'show_raw_route', 'Show Raw A* Route', (160, 180, 255)),
+                (env.cb3_rect, env.cb3_row_rect, 'show_lidar', 'Show LiDAR Hits', (225, 220, 130)),
+                (env.cb4_rect, env.cb4_row_rect, 'show_lidar_range', 'Show LiDAR Range', (80, 175, 140)),
+            )
+            for rect, row, field, label, color in options:
+                hover = row.collidepoint(mpos)
+                if hover:
+                    pygame.draw.rect(env.screen, (28, 56, 88), row, border_radius=4)
+                pygame.draw.rect(env.screen, (255, 255, 255), rect, 2)
+                if getattr(env, field, False):
+                    pygame.draw.rect(env.screen, color, rect.inflate(-6, -6))
+                env.screen.blit(self.get_text_surf(self.font, label, color if hover else (255, 255, 255)),
+                                (70, rect.centery - 10))
 
-            # 2. Show 2nd Path (오렌지)
-            cb2_row = getattr(env, 'cb2_row_rect', env.cb2_rect)
-            cb2_hover = cb2_row.collidepoint(mpos)
-            if cb2_hover:
-                pygame.draw.rect(env.screen, (28, 56, 88), cb2_row, border_radius=4)
-            pygame.draw.rect(env.screen, (255, 255, 255), env.cb2_rect, 2)
-            if getattr(env, 'show_2nd_path', True): pygame.draw.rect(env.screen, (255, 140, 0), env.cb2_rect.inflate(-6, -6))
-            txt_col2 = (255, 185, 95) if cb2_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show 2nd Path", txt_col2), (70, env.cb2_rect.centery - 10))
-
-            # 3. Show Candidate WPs (연보라)
-            cb3_row = getattr(env, 'cb3_row_rect', env.cb3_rect)
-            cb3_hover = cb3_row.collidepoint(mpos)
-            if cb3_hover:
-                pygame.draw.rect(env.screen, (28, 56, 88), cb3_row, border_radius=4)
-            pygame.draw.rect(env.screen, (255, 255, 255), env.cb3_rect, 2)
-            if getattr(env, 'show_candidates', False): pygame.draw.rect(env.screen, (160, 180, 255), env.cb3_rect.inflate(-6, -6))
-            txt_col3 = (195, 215, 255) if cb3_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show Candidate WPs", txt_col3), (70, env.cb3_rect.centery - 10))
-
-            # 4. Show LiDAR Hits (소프트 옐로우)
-            cb4_row = getattr(env, 'cb4_row_rect', env.cb4_rect)
-            cb4_hover = cb4_row.collidepoint(mpos)
-            if cb4_hover:
-                pygame.draw.rect(env.screen, (28, 56, 88), cb4_row, border_radius=4)
-            pygame.draw.rect(env.screen, (255, 255, 255), env.cb4_rect, 2)
-            if env.show_lidar: pygame.draw.rect(env.screen, (225, 220, 130), env.cb4_rect.inflate(-6, -6))
-            txt_col4 = (250, 245, 175) if cb4_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Hits", txt_col4), (70, env.cb4_rect.centery - 10))
-
-            # 5. Show LiDAR Range (세이지 그린)
-            cb5_row = getattr(env, 'cb5_row_rect', env.cb5_rect)
-            cb5_hover = cb5_row.collidepoint(mpos)
-            if cb5_hover:
-                pygame.draw.rect(env.screen, (28, 56, 88), cb5_row, border_radius=4)
-            pygame.draw.rect(env.screen, (255, 255, 255), env.cb5_rect, 2)
-            if env.show_lidar_range: pygame.draw.rect(env.screen, (80, 175, 140), env.cb5_rect.inflate(-6, -6))
-            txt_col5 = (130, 225, 180) if cb5_hover else (255, 255, 255)
-            env.screen.blit(self.get_text_surf(self.font, "Show LiDAR Range", txt_col5), (70, env.cb5_rect.centery - 10))
-        
         # 일시정지(PAUSE) 버튼
         is_paused = getattr(env, 'paused', False)
         p_hover = env.pause_btn.collidepoint(mpos)
@@ -1259,167 +1101,19 @@ class EnvRenderer:
                 
                 draw_rect(cam_surf, color, (x1, 2, w_s, h_gauge))
 
-        # 웨이포인트 및 최종 목표 지점 수직 오버레이 신호선
-        marker_objs = []
-        show_1st = getattr(env, 'show_1st_path', getattr(env, 'show_paths', True))
-        show_2nd = getattr(env, 'show_2nd_path', getattr(env, 'show_paths', True))
-        if show_1st and env.current_wp is not None:
-            dx_w = env.current_wp["pos"][0] - bx; dy_w = env.current_wp["pos"][1] - by
-            lf_w = dx_w * f_vec[0] + dy_w * f_vec[1]; lr_w = dx_w * r_vec[0] + dy_w * r_vec[1]
-            marker_objs.append(('wp1', lf_w, lr_w))
-
-        if show_2nd and env.next_wp is not None:
-            dx_w2 = env.next_wp["pos"][0] - bx; dy_w2 = env.next_wp["pos"][1] - by
-            lf_w2 = dx_w2 * f_vec[0] + dy_w2 * f_vec[1]; lr_w2 = dx_w2 * r_vec[0] + dy_w2 * r_vec[1]
-            marker_objs.append(('wp2', lf_w2, lr_w2))
-
-        marker_objs.append(('target', lf_t, lr_t))
-
-        for obj_type, lf, lr in marker_objs:
-            ang_obj = math.atan2(lr, lf)
-            if -math.pi/2 <= ang_obj <= math.pi/2:
-                s_idx = int((ang_obj + math.pi/2) / math.pi * n_slices)
-                mx = int(s_idx * cam_w / n_slices)
-                
-                if obj_type == 'wp1':
-                    pygame.draw.line(self.cam_surf, (0, 255, 220), (mx, 0), (mx, cam_h - 26), 2)
-                    pygame.draw.circle(self.cam_surf, (0, 255, 220), (mx, 55), 6)
-                    pygame.draw.circle(self.cam_surf, (255, 255, 255), (mx, 55), 2)
-                    lbl_wp1 = self.get_text_surf(self.micro_font, "WP1", (0, 255, 220))
-                    tx = mx + 8 if mx + 32 < cam_w else mx - lbl_wp1.get_width() - 8
-                    self.cam_surf.blit(lbl_wp1, (tx, 49))
-                elif obj_type == 'wp2':
-                    pygame.draw.line(self.cam_surf, (200, 100, 255), (mx, 0), (mx, cam_h - 26), 2)
-                    pygame.draw.circle(self.cam_surf, (200, 100, 255), (mx, 90), 6)
-                    pygame.draw.circle(self.cam_surf, (255, 255, 255), (mx, 90), 2)
-                    lbl_wp2 = self.get_text_surf(self.micro_font, "WP2", (200, 100, 255))
-                    tx = mx + 8 if mx + 32 < cam_w else mx - lbl_wp2.get_width() - 8
-                    self.cam_surf.blit(lbl_wp2, (tx, 84))
-                elif obj_type == 'target':
-                    pygame.draw.line(self.cam_surf, (20, 250, 80), (mx, 0), (mx, cam_h - 26), 3)
-                    pygame.draw.circle(self.cam_surf, (20, 250, 80), (mx, 125), 7)
-                    pygame.draw.circle(self.cam_surf, (255, 255, 255), (mx, 125), 3)
-                    lbl_tgt = self.get_text_surf(self.micro_font, "Target", (20, 250, 80))
-                    tx = mx + 9 if mx + 42 < cam_w else mx - lbl_tgt.get_width() - 8
-                    self.cam_surf.blit(lbl_tgt, (tx, 119))
-
-        is_lt = getattr(env, 'linetrace_mode', False)
-
-        if not is_lt:
-            # 현재 고려 중인 모든 갭의 개수 표시 HUD 토글 버튼 (전방 180도 기준, O(1) 고속 참조)
-            total_gaps = getattr(env, 'total_gaps_count', 0)
-            show_all = getattr(env, 'show_all_gaps', True)
-
-            # 자리수 변화(1자리, 2자리)에 관계없이 버튼 크기 고정 (Fixed Width)
-            btn_w = 94
-            btn_h = 24
-            bx_pos = cam_w - btn_w - 10
-            by_pos = 7
-            badge_rect = pygame.Rect(bx_pos, by_pos, btn_w, btn_h)
-            # 화면 절대 좌표로 버튼 클릭 영역 저장 (환경 handle_click 연동)
-            env.gaps_btn_rect = pygame.Rect(p2_x + bx_pos, p_y + by_pos, btn_w, btn_h)
-
-            mpos = pygame.mouse.get_pos()
-            is_hover = env.gaps_btn_rect.collidepoint(mpos)
-
-            if getattr(env, 'current_wp', None) is not None and total_gaps > 0:
-                gap_txt = f"Gaps: {total_gaps:02d}" if total_gaps < 100 else f"Gaps: {total_gaps}"
-                
-                if show_all:
-                    # 활성화(ON) 상태: 갭 중간점 표시 켜짐 - 네온 시안 하이라이트
-                    bg_col = (18, 55, 95, 240) if is_hover else (14, 42, 75, 230)
-                    border_col = (0, 255, 255)
-                    text_col = (0, 255, 255)
-                    border_w = 2
-                else:
-                    # 비활성화(OFF) 상태: 차분한 다크 블루
-                    bg_col = (20, 38, 62, 230) if is_hover else (12, 24, 42, 210)
-                    border_col = (0, 200, 255) if is_hover else (0, 130, 180, 180)
-                    text_col = (220, 245, 255) if is_hover else (145, 190, 220)
-                    border_w = 1
-
-                pygame.draw.rect(self.cam_surf, bg_col, badge_rect, border_radius=4)
-                pygame.draw.rect(self.cam_surf, border_col, badge_rect, border_w, border_radius=4)
-
-                # 버튼 내부 수직/수평 완벽한 정중앙 정렬
-                lbl_gap = self.small_font.render(gap_txt, True, text_col)
-                text_rect = lbl_gap.get_rect(center=badge_rect.center)
-                self.cam_surf.blit(lbl_gap, text_rect)
-
-            elif getattr(env, 'current_wp', None) is None:
-                dir_txt = "Direct"
-                bg_col = (14, 48, 30, 240) if is_hover else (10, 36, 22, 225)
-                border_col = (20, 255, 90) if is_hover else (20, 220, 80)
-                text_col = (30, 255, 100) if is_hover else (20, 250, 80)
-
-                pygame.draw.rect(self.cam_surf, bg_col, badge_rect, border_radius=4)
-                pygame.draw.rect(self.cam_surf, border_col, badge_rect, 1, border_radius=4)
-
-                # 버튼 내부 수직/수평 완벽한 정중앙 정렬
-                lbl_dir = self.small_font.render(dir_txt, True, text_col)
-                text_rect = lbl_dir.get_rect(center=badge_rect.center)
-                self.cam_surf.blit(lbl_dir, text_rect)
-        else:
-            env.gaps_btn_rect = None
-
-        # 모든 갭 표시 활성화 시 각도 바로 위쪽 좌우 일렬 선상에 각 갭 및 웨이포인트(WP1, WP2)의 각도 위치를 점으로 표출
+        # The camera marker is the actual mission destination.
+        ang_obj = math.atan2(lr_t, lf_t)
+        if -math.pi / 2 <= ang_obj <= math.pi / 2:
+            s_idx = int((ang_obj + math.pi / 2) / math.pi * n_slices)
+            mx = int(s_idx * cam_w / n_slices)
+            pygame.draw.line(self.cam_surf, (20, 250, 80), (mx, 0), (mx, cam_h - 26), 3)
+            pygame.draw.circle(self.cam_surf, (20, 250, 80), (mx, 125), 7)
+            pygame.draw.circle(self.cam_surf, (255, 255, 255), (mx, 125), 3)
+            lbl_tgt = self.get_text_surf(self.micro_font, "Target", (20, 250, 80))
+            tx = mx + 9 if mx + 42 < cam_w else mx - lbl_tgt.get_width() - 8
+            self.cam_surf.blit(lbl_tgt, (tx, 119))
+        env.gaps_btn_rect = None
         legend_bar_y = cam_h - 25
-        sample_lh = self.small_font.render("0°", True, (0, 0, 0)).get_height()
-        dot_y = legend_bar_y - sample_lh - 9
-
-        if not is_lt and getattr(env, 'show_all_gaps', True):
-            # 좌우 일렬 수평 가이드선
-            pygame.draw.line(self.cam_surf, (0, 180, 240, 90), (8, dot_y), (cam_w - 8, dot_y), 1)
-
-            # 1. 탐지된 모든 장애물 쌍 틈새(갭) 각도 점 (번호 텍스트 없이 깔끔한 점으로 표출)
-            if getattr(env, 'all_gaps', None):
-                for g in env.all_gaps:
-                    mid = g["pos"]
-                    dx_g = mid[0] - bx
-                    dy_g = mid[1] - by
-                    lf_g = dx_g * f_vec[0] + dy_g * f_vec[1]
-                    lr_g = dx_g * r_vec[0] + dy_g * r_vec[1]
-
-                    ang_g = math.atan2(lr_g, lf_g)
-                    if -math.pi / 2 <= ang_g <= math.pi / 2:
-                        s_idx = int((ang_g + math.pi / 2) / math.pi * n_slices)
-                        gx = int(s_idx * cam_w / n_slices)
-                        gx = max(6, min(cam_w - 6, gx))
-
-                        # 갭 위치 점 (섀도우 + 시안 링 + 화이트 코어)
-                        pygame.draw.circle(self.cam_surf, (10, 20, 35), (gx, dot_y), 4)
-                        pygame.draw.circle(self.cam_surf, (0, 220, 255), (gx, dot_y), 3)
-                        pygame.draw.circle(self.cam_surf, (255, 255, 255), (gx, dot_y), 1)
-
-            # 2. 1차 웨이포인트(WP1) 각도 점 표출 (제외하지 않고 반드시 포함)
-            if getattr(env, 'current_wp', None) is not None:
-                dx_w1 = env.current_wp["pos"][0] - bx
-                dy_w1 = env.current_wp["pos"][1] - by
-                lf_w1 = dx_w1 * f_vec[0] + dy_w1 * f_vec[1]
-                lr_w1 = dx_w1 * r_vec[0] + dy_w1 * r_vec[1]
-                ang_w1 = math.atan2(lr_w1, lf_w1)
-                if -math.pi / 2 <= ang_w1 <= math.pi / 2:
-                    s_idx1 = int((ang_w1 + math.pi / 2) / math.pi * n_slices)
-                    gx1 = max(6, min(cam_w - 6, int(s_idx1 * cam_w / n_slices)))
-                    # 1차 웨이포인트 점 (네온 시안 강조)
-                    pygame.draw.circle(self.cam_surf, (10, 20, 35), (gx1, dot_y), 6)
-                    pygame.draw.circle(self.cam_surf, (0, 255, 220), (gx1, dot_y), 5)
-                    pygame.draw.circle(self.cam_surf, (255, 255, 255), (gx1, dot_y), 2)
-
-            # 3. 2차 웨이포인트(WP2) 각도 점 표출 (제외하지 않고 반드시 포함)
-            if getattr(env, 'next_wp', None) is not None:
-                dx_w2 = env.next_wp["pos"][0] - bx
-                dy_w2 = env.next_wp["pos"][1] - by
-                lf_w2 = dx_w2 * f_vec[0] + dy_w2 * f_vec[1]
-                lr_w2 = dx_w2 * r_vec[0] + dy_w2 * r_vec[1]
-                ang_w2 = math.atan2(lr_w2, lf_w2)
-                if -math.pi / 2 <= ang_w2 <= math.pi / 2:
-                    s_idx2 = int((ang_w2 + math.pi / 2) / math.pi * n_slices)
-                    gx2 = max(6, min(cam_w - 6, int(s_idx2 * cam_w / n_slices)))
-                    # 2차 웨이포인트 점 (퍼플/마젠타 강조)
-                    pygame.draw.circle(self.cam_surf, (10, 20, 35), (gx2, dot_y), 6)
-                    pygame.draw.circle(self.cam_surf, (200, 100, 255), (gx2, dot_y), 5)
-                    pygame.draw.circle(self.cam_surf, (255, 255, 255), (gx2, dot_y), 2)
 
         # 전방 180도 화각 표시를 위한 하단 각도 단위 텍스트 (사전 연산 캐시 레이블 고속 블릿)
         for lbl_ang, lbl_shadow, bx_pos, by_pos in self._cached_cam_angle_labels:
@@ -1467,10 +1161,9 @@ class EnvRenderer:
         # --- 4. 실시간 베지어 곡선 & 곡률 프로파일 그래프 & 5. 가중치 패널 (라인트레이싱 모드에서는 완전 제외) ---
         if not getattr(env, 'linetrace_mode', False):
             self._draw_bezier_profile(p4_x, p_y)
-            self._draw_weight_breakdown(p5_x, p_y)
 
     def _draw_bezier_profile(self, x=None, y=None):
-        """우측 하단: 실시간 3차 베지어 곡선(Cubic S-Curve) 2D 궤적 그래프 (X: 전진거리, Y: 좌우편차 - 상하반전 및 3차 수식 표기)"""
+        """Active guidance route in vessel coordinates with yaw-rate reference."""
         env = self.env
         bw, bh = 190, 220
         surf = self.bezier_surf
@@ -1481,7 +1174,8 @@ class EnvRenderer:
         
         y_center = gy + gh // 2
         
-        path = getattr(env, 'bezier_path', None)
+        control_path = getattr(env, 'control_path', None)
+        path = None if control_path is None else control_path * env.dynamics.pixels_per_m
         bx, by = env.boat_pos
         h = env.boat_heading
         ch, sh = math.cos(h), math.sin(h)
@@ -1538,23 +1232,8 @@ class EnvRenderer:
             path_len_m = float(np.sum(np.hypot(np.diff(pts[:, 0]), np.diff(pts[:, 1])))) / 50.0
             end_ym = ym[-1]
             
-            # 실시간 3차 함수 계수 고속 계산 (y(0) = 0 제약 정규방정식 연산)
-            if len(xm) >= 4 and (np.max(xm) - np.min(xm)) > 0.3:
-                A = np.stack([xm**3, xm**2, xm], axis=1)
-                ATA = A.T @ A
-                ATA[0, 0] += 1e-4; ATA[1, 1] += 1e-4; ATA[2, 2] += 1e-4
-                a, b, c = np.linalg.solve(ATA, A.T @ ym)
-            else:
-                a, b, c = 0.0, 0.0, 0.0
-                
-            if not hasattr(self, 'poly_coeffs'): self.poly_coeffs = (0.0, 0.0, 0.0)
-            self.poly_coeffs = (
-                self.poly_coeffs[0] * 0.80 + a * 0.20,
-                self.poly_coeffs[1] * 0.80 + b * 0.20,
-                self.poly_coeffs[2] * 0.80 + c * 0.20
-            )
-            sa, sb, sc = self.poly_coeffs
-            formula_txt = f"y = {sa:+.3f}x³ {sb:+.2f}x² {sc:+.2f}x"
+            # Active guidance is a free-space polyline, not a cubic polynomial.
+            formula_txt = f"Yaw ref: {math.degrees(getattr(env, 'command_yaw_rate', 0.)):+.1f} deg/s"
         else:
             sy_max = self.scale_y_max
             sx_max = self.scale_x_max
@@ -1565,7 +1244,7 @@ class EnvRenderer:
             pygame.draw.line(surf, (50, 225, 255), (gx, y_center), (gx + gw - 20, y_center), 3)
             path_len_m = 0.0
             end_ym = 0.0
-            formula_txt = "y = +0.000x³ +0.00x² +0.00x"
+            formula_txt = "Waiting for route"
             
         # X축 거리 눈금 및 수치 표기 (단위: m)
         surf.blit(self.small_font.render("0m", True, (140, 180, 220)), (gx, gy + gh + 2))
@@ -1666,7 +1345,7 @@ class EnvRenderer:
         elif em:
             mode_txt = self.get_text_surf(self.bold_font, "AVOIDING", (255, 80, 60))
         elif has_wp:
-            mode_txt = self.get_text_surf(self.bold_font, "GAP PASS", (0, 255, 220))
+            mode_txt = self.get_text_surf(self.bold_font, "PREDICTIVE", (0, 255, 220))
         else:
             mode_txt = self.get_text_surf(self.bold_font, "CRUISING", (50, 230, 120))
         hud_surf.blit(mode_txt, (10, 6))
@@ -1674,14 +1353,14 @@ class EnvRenderer:
         # 속도 (math.hypot 고속화)
         bv = env.boat_vel
         speed = math.hypot(bv[0], bv[1])
-        speed_knots = speed * 0.9
+        speed_knots = speed / 50.0 * 1.94384
         spd_txt = self.small_font.render(f"Speed: {speed_knots:.1f} kt", True, (220, 235, 255))
         hud_surf.blit(spd_txt, (10, 32))
         
         # 속도 바 (실제 최고 속도 45.0 px/s 기준 정밀 스케일링)
         bar_w = 125
         pygame.draw.rect(hud_surf, (30, 50, 70), (10, 48, bar_w, 7))
-        speed_ratio = float(np.clip(speed / 45.0, 0.0, 1.0))
+        speed_ratio = float(np.clip(speed / (50.0*env.dynamics.cruise_speed_m_s), 0.0, 1.0))
         fill_w = int(speed_ratio * bar_w)
         bar_color = (255, 80, 60) if em else (0, 200, 100)
         pygame.draw.rect(hud_surf, bar_color, (10, 48, fill_w, 7))
@@ -1709,8 +1388,7 @@ class EnvRenderer:
             steer_txt = self.small_font.render(f"Steer: {steer_val:+.2f}", True, (220, 235, 255))
             hud_surf.blit(steer_txt, (10, 60))
 
-            tgt_h = getattr(env, 'heading_target', env.boat_heading)
-            hdg_deg = (math.degrees(tgt_h) + 90) % 360
+            hdg_deg = (math.degrees(env.boat_heading) + 90) % 360
             hdg_txt = self.small_font.render(f"Heading: {hdg_deg:.0f}\u00b0", True, (220, 235, 255))
             hud_surf.blit(hdg_txt, (10, 76))
 

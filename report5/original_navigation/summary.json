@@ -1,0 +1,63 @@
+{
+  "episodes": 200,
+  "seed_start": 2000,
+  "width": 1800,
+  "timeout_s": 140.0,
+  "legacy": true,
+  "overrides": {},
+  "source_sha256": {
+    "config.py": "405d82aca730b7ea65284d69cd44280a4a9f4acaf68e0cca5cc77959afaa7954",
+    "engine_3d.py": "add6aa2a0adb45a0615ff393b88cdd341c6b0761cd13cd08038adc882f4b6dba",
+    "environment.py": "4bec96c4a27ff39dc49228821bca53c96854a261d7eb91d9b5d9e9d208ce96d5",
+    "leaderboard.py": "a4983b9e4371bc0aab7ea3f9e3097c63a99e4c02930f4f9e2ed92b74e4d3957f",
+    "main.py": "f8f904fd5d5c0b5b9bd598828ca15c70b166860af60e6db21bb935657d82de6d",
+    "navigation.py": "dfb666cb6595f7b00b881a89c9a33bd8d83482842e04919350386a32551a8da7",
+    "perception.py": "269415287d64453f917c75254b7c98dd274294f34bbde9fb19145e59d763ed27",
+    "test_success_rate.py": "88f82ce2724796a4479eb77cdc3e9c35397ed18d299f40840883f359b8cf98dc",
+    "ui_renderer.py": "f49fe7582255be4a1924da7292f124be9d161adc4dfe84a09aa7545d918ff06b",
+    "utils.py": "4e8a4a1262c38bed16a8bc44667ba4b89eb031741d872d4924a45b79064478b9"
+  },
+  "configuration": {
+    "best_learned_params.json": {
+      "steer_gain": 1.1,
+      "steer_alpha": 0.3515,
+      "mom_coeff": 0.00665,
+      "pwm_rng": 200.36,
+      "avoid_normal": 0.05,
+      "avoid_em": 0.3,
+      "clear_margin": 10,
+      "em_enter": 125.0,
+      "em_exit": 160.0,
+      "em_hold_frames": 18,
+      "align_exp": 6.0,
+      "heading_exp": 4.0,
+      "fwd_exp": 6.0,
+      "width_exp": 4.0,
+      "clear_exp": 4.0,
+      "wp_switch_thresh": 1.1,
+      "perp_exp": 2.0
+    }
+  },
+  "units": {
+    "position": "m (50 px/m)",
+    "heading": "rad",
+    "time": "simulation seconds",
+    "steering": "normalized command; not a measured rudder angle"
+  },
+  "success": 190,
+  "collision": 10,
+  "boundary": 0,
+  "timeout": 0,
+  "mean_time_s": 48.737800000000014,
+  "mean_cumulative_turn_deg": 423.6630682637752,
+  "mean_steering_tv_per_s": 0.21479370940818826,
+  "mean_yaw_reversals": 13.42,
+  "mean_peak_yaw_deg_s": 48.74375986536741,
+  "mean_peak_yaw_accel_deg_s2": 229.08217084789976,
+  "mean_compute_s": 1.6789330591150247,
+  "mean_success_time_s": 49.652000000000015,
+  "success_rate_wilson95": [
+    0.9104209437021562,
+    0.9726176509713551
+  ]
+}

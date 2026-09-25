@@ -5,14 +5,17 @@ import pygame
 import numpy as np
 import math
 import random
+from pathlib import Path
 from config import WIDTH, HEIGHT, SIM_H, DASH_H, MAP_W, GRID, GRID_W, GRID_H, get_dashboard_layout
 from utils import wrap
+from vessel_dynamics import VesselParameters, integrate, allocate
+from boat_control import select_command, ControllerParameters
 from perception import init_grid
-from navigation import reactive_avoidance
 from ui_renderer import EnvRenderer
 
 class BoatEnv:
-    def __init__(self):
+    def __init__(self, headless=False):
+        self.headless = headless
         os.environ['SDL_VIDEO_CENTERED'] = '1'
         pygame.init()
         self.w = WIDTH
@@ -52,10 +55,7 @@ class BoatEnv:
         self.lidar_range = 320
         self.rel_angles = np.linspace(-np.pi, np.pi, self.lidar_beams, endpoint=False)
         
-        self.mass = 10
-        self.inertia = 4.5
-        self.drag = 0.2
-        self.rot_drag = 0.8
+        self.configure_dynamics()
         self.boat_radius = 25
         
         # 선체 표면 기하 형상 (ui_renderer의 선체 렌더링과 100% 일치하는 정밀 히트박스)
@@ -102,10 +102,8 @@ class BoatEnv:
         self.steer_timer = 0
         self.path_timer = 0
         
-        self.bezier_path = None
-        self.next_bezier_path = None
         self.pursuit_target = None
-        self.next_pursuit_target = None
+        self.controller_target = None
         self.heading_target = 0.0
         self.wakes = [] # [x, y, radius, alpha]
         self.reflected_wakes = [] # [x, y, radius, alpha] (장애물 충돌 반사파)
@@ -113,15 +111,12 @@ class BoatEnv:
         self.obstacles = np.array([])
         self.dynamic_obstacles = np.array([])
         
-        self.show_1st_path = True
-        self.show_2nd_path = True
-        self.show_paths = True
-        self.show_candidates = False
+        self.show_control_path = True
+        self.show_raw_route = False
         self.show_lidar = True
         self.show_lidar_range = True
-        self.candidate_wps = []
         self.total_gaps_count = 0
-        self.show_all_gaps = True
+        self.show_all_gaps = False
         self.all_gaps = []
         self.gaps_btn_rect = None
         
@@ -148,7 +143,7 @@ class BoatEnv:
         self.cb5_row_rect = pygame.Rect(35, base_y + 144, 275, 30)
         
         self.paused = False
-        btn_y = base_y + 185
+        btn_y = base_y + 149
         self.pause_btn = pygame.Rect(38, btn_y, 52, 34)
         self.sim_speed = 1
         self.speed_btns = {
@@ -185,11 +180,11 @@ class BoatEnv:
         self.leaderboard_retry_rect = None
         self.leaderboard_exit_rect = None
         
-        self.renderer = EnvRenderer(self)
+        self.renderer = None if headless else EnvRenderer(self)
         self.reset()
 
     def load_params(self):
-        json_path = "best_learned_params.json"
+        json_path = Path(__file__).with_name("best_learned_params.json")
         if os.path.exists(json_path):
             try:
                 with open(json_path, "r") as f:
@@ -197,8 +192,42 @@ class BoatEnv:
             except Exception:
                 pass
 
+    def configure_dynamics(self):
+        with Path(__file__).with_name("vessel_config.json").open() as f:
+            config = json.load(f)
+        physics = dict(config['physics'])
+        physics.update({k: self.params[k] for k in VesselParameters.__dataclass_fields__ if k in self.params})
+        controller = dict(config['controller'])
+        controller.update({k: self.params[k] for k in ControllerParameters.__dataclass_fields__ if k in self.params})
+        self.dynamics = VesselParameters(**physics)
+        self.control = ControllerParameters(**controller)
+        self.mass = self.dynamics.mass_kg
+        self.inertia = self.dynamics.yaw_inertia_kg_m2
+
+    def physics_state(self):
+        c, s = math.cos(self.boat_heading), math.sin(self.boat_heading)
+        scale = self.dynamics.pixels_per_m
+        vx, vy = self.boat_vel / scale
+        return np.array([self.boat_pos[0]/scale, self.boat_pos[1]/scale,
+                         self.boat_heading, vx*c+vy*s, -vx*s+vy*c,
+                         self.boat_ang_vel, self.thrust_left, self.thrust_right])
+
     def reset(self):
         self.load_params()
+        self.configure_dynamics()
+        self.command_speed = self.dynamics.cruise_speed_m_s
+        self.command_yaw_rate = 0.0
+        self.thrust_left = self.thrust_right = 0.0
+        self.current_fwd = 0.0
+        self.prev_steer = 0.0
+        self.emergency_cooldown = 0
+        self.reflected_wakes = []
+        for name in ('navigation_map', 'control_path', 'path_geometry', 'raw_route', 'route_plan_frame', 'path_progress', 'selected_gap'):
+            if hasattr(self, name):
+                delattr(self, name)
+        self.perceived_obstacles = np.empty((0, 3))
+        self.stalled_s = 0.0
+        self.recovery_until = 0.0
         self.frame = 0
         self.boat_pos = np.array([65, self.sim_h/2], dtype=np.float32)
         self.boat_vel = np.zeros(2)
@@ -252,10 +281,8 @@ class BoatEnv:
         self.wp_check_timer = 0
         self.steer_timer = 0
         self.path_timer = 0
-        self.bezier_path = None
-        self.next_bezier_path = None
         self.pursuit_target = None
-        self.next_pursuit_target = None
+        self.controller_target = None
         self.wakes = []
         self.emergency_mode = False
         if getattr(self, 'linetrace_queued', False):
@@ -354,23 +381,17 @@ class BoatEnv:
                         self.paused = False
                         break
         else:
-            # 갭 항법 모드: 5개 체크박스
+            # Actual path and perception overlays only.
             if getattr(self, 'cb1_row_rect', self.cb1_rect).collidepoint(pos) or self.cb1_rect.collidepoint(pos):
-                self.show_1st_path = not getattr(self, 'show_1st_path', True)
-                self.show_paths = self.show_1st_path or getattr(self, 'show_2nd_path', True)
+                self.show_control_path = not self.show_control_path
             elif getattr(self, 'cb2_row_rect', self.cb2_rect).collidepoint(pos) or self.cb2_rect.collidepoint(pos):
-                self.show_2nd_path = not getattr(self, 'show_2nd_path', True)
-                self.show_paths = getattr(self, 'show_1st_path', True) or self.show_2nd_path
+                self.show_raw_route = not self.show_raw_route
             elif getattr(self, 'cb3_row_rect', self.cb3_rect).collidepoint(pos) or self.cb3_rect.collidepoint(pos):
-                self.show_candidates = not self.show_candidates
-            elif getattr(self, 'cb4_row_rect', self.cb4_rect).collidepoint(pos) or self.cb4_rect.collidepoint(pos):
                 self.show_lidar = not self.show_lidar
-            elif getattr(self, 'cb5_row_rect', self.cb5_rect).collidepoint(pos) or self.cb5_rect.collidepoint(pos):
+            elif getattr(self, 'cb4_row_rect', self.cb4_rect).collidepoint(pos) or self.cb4_rect.collidepoint(pos):
                 self.show_lidar_range = not self.show_lidar_range
             elif self.pause_btn.collidepoint(pos):
                 self.paused = not self.paused
-            elif getattr(self, 'gaps_btn_rect', None) and self.gaps_btn_rect.collidepoint(pos):
-                self.show_all_gaps = not getattr(self, 'show_all_gaps', True)
             else:
                 for spd, rect in self.speed_btns.items():
                     if rect.collidepoint(pos):
@@ -395,13 +416,10 @@ class BoatEnv:
                 'fullscreen_3d': getattr(self, 'fullscreen_3d', False),
                 'cam_3d_mode': getattr(self, 'cam_3d_mode', 1),
                 'sim_speed': getattr(self, 'sim_speed', 1),
-                'show_paths': getattr(self, 'show_paths', True),
-                'show_1st_path': getattr(self, 'show_1st_path', True),
-                'show_2nd_path': getattr(self, 'show_2nd_path', True),
-                'show_candidates': getattr(self, 'show_candidates', False),
+                'show_control_path': self.show_control_path,
+                'show_raw_route': getattr(self, 'show_raw_route', False),
                 'show_lidar': getattr(self, 'show_lidar', False),
                 'show_lidar_range': getattr(self, 'show_lidar_range', True),
-                'show_all_gaps': getattr(self, 'show_all_gaps', True),
                 'linetrace_mode': getattr(self, 'linetrace_mode', False),
             }
             self.manual_mode = True
@@ -424,13 +442,10 @@ class BoatEnv:
                 self.fullscreen_3d = saved.get('fullscreen_3d', False)
                 self.cam_3d_mode = saved.get('cam_3d_mode', 1)
                 self.sim_speed = saved.get('sim_speed', 1)
-                self.show_paths = saved.get('show_paths', True)
-                self.show_1st_path = saved.get('show_1st_path', True)
-                self.show_2nd_path = saved.get('show_2nd_path', True)
-                self.show_candidates = saved.get('show_candidates', False)
+                self.show_control_path = saved.get('show_control_path', True)
+                self.show_raw_route = saved.get('show_raw_route', False)
                 self.show_lidar = saved.get('show_lidar', False)
                 self.show_lidar_range = saved.get('show_lidar_range', True)
-                self.show_all_gaps = saved.get('show_all_gaps', True)
             self.reset()
 
     def reset_manual_episode(self):
@@ -456,80 +471,32 @@ class BoatEnv:
         self.dynamic_obstacles[:, 0] = ox + np.sin(phase) * (r * 0.2)
         self.dynamic_obstacles[:, 1] = oy + np.cos(phase * 1.2) * (r * 0.2)
         
+        if self.headless:
+            return
+
         # 부표 중앙을 기준으로 부드러운 백색 원형 구름 파도가 주기적으로 퍼져나감 (벡터화 일괄 생성)
         if self.frame % 36 == 0:
             n_obs = len(self.obstacles)
             new_rw = [[float(self.dynamic_obstacles[i, 0]), float(self.dynamic_obstacles[i, 1]), float(r[i]) + 1.0, 72] for i in range(n_obs)]
             self.reflected_wakes.extend(new_rw)
 
-    def pwm_to_thrust(self, p):
-        return p * 10
+    def pwm_to_thrust(self, pwm):
+        return float(np.clip((pwm-1500)/400, -1, 1))*self.dynamics.max_thrust_N
 
     def step(self, L, R, sub_step_idx=0, total_sub_steps=1):
-        tL = self.pwm_to_thrust(L)
-        tR = self.pwm_to_thrust(R)
-
-        if getattr(self, 'manual_mode', False):
-            # 수동 조종 모드: W/S 키 입력에 따른 직접 추진력 제어
-            m_thr = getattr(self, 'manual_throttle', 0.0)
-            target_fwd = m_thr * 5500.0
-            mom = (tR - tL) * self.params['mom_coeff']
-        else:
-            # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어 (장애물 근접 시 최소 속도를 더욱 낮추어 서행)
-            em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-            speed_factor = (math.tanh(max(0.0, em_dist) / 100.0)) ** 1.35
-            # 라인트레이싱 모드에서는 갭 내비 대비 살짝 느린 속도 (85%)로 주행하여 반응형 회피에 여유 확보
-            if getattr(self, 'linetrace_mode', False):
-                speed_factor *= 0.85
-            target_fwd = ((tL + tR) / 6.0) * speed_factor
-            mom = (tR - tL) * self.params['mom_coeff']
-            
-        if not hasattr(self, 'current_fwd'):
-            self.current_fwd = 0.0
-            
-        self.current_fwd = self.current_fwd * 0.90 + target_fwd * 0.10
-        ch = math.cos(self.boat_heading)
-        sh = math.sin(self.boat_heading)
-        
-        acc = self.current_fwd / self.mass
-        vel0, vel1 = float(self.boat_vel[0]), float(self.boat_vel[1])
-        vel_norm = math.hypot(vel0, vel1)
-        
-        # 유체 항력 및 횡방향 슬립 댐핑 고속 연산 (numpy 임시 배열 할당 제거)
-        lat_speed = -vel0 * sh + vel1 * ch
-        drag0 = -self.drag * vel0 * vel_norm + sh * lat_speed * 18.0
-        drag1 = -self.drag * vel1 * vel_norm - ch * lat_speed * 18.0
-            
-        prev0, prev1 = float(self.boat_pos[0]), float(self.boat_pos[1])
-        self.boat_vel[0] = vel0 + (acc * ch + drag0) * self.dt
-        self.boat_vel[1] = vel1 + (acc * sh + drag1) * self.dt
-        self.boat_pos[0] = prev0 + self.boat_vel[0] * self.dt
-        self.boat_pos[1] = prev1 + self.boat_vel[1] * self.dt
-        
-        if getattr(self, 'manual_mode', False):
-            self.boat_pos[0] = min(max(25.0, float(self.boat_pos[0])), float(self.map_w - 25.0))
-            self.boat_pos[1] = min(max(25.0, float(self.boat_pos[1])), float(self.sim_h - 25.0))
-        
-        if self.frame % 7 == 0:
-            p0x, p0y = int(prev0), int(prev1)
-            p1x, p1y = int(self.boat_pos[0]), int(self.boat_pos[1])
-            pygame.draw.line(self.trail, (255, 255, 255, 60), (p0x, p0y), (p1x, p1y), 2)
-            min_lx = min(p0x, p1x) - 4
-            max_lx = max(p0x, p1x) + 4
-            min_ly = min(p0y, p1y) - 4
-            max_ly = max(p0y, p1y) + 4
-            if min_lx < self.trail_min_x: self.trail_min_x = float(min_lx)
-            if max_lx > self.trail_max_x: self.trail_max_x = float(max_lx)
-            if min_ly < self.trail_min_y: self.trail_min_y = float(min_ly)
-            if max_ly > self.trail_max_y: self.trail_max_y = float(max_ly)
-                             
-        ang_acc = (mom - self.rot_drag * self.boat_ang_vel) / self.inertia
-        self.boat_ang_vel += ang_acc * self.dt
-        self.boat_ang_vel *= 0.84
-        
-        d_head = self.boat_ang_vel * self.dt
-        self.boat_heading += d_head
-        
+        prev0, prev1 = self.boat_pos
+        old_heading = self.boat_heading
+        z = integrate(self.physics_state(), self.pwm_to_thrust(L), self.pwm_to_thrust(R), self.dt, self.dynamics)
+        scale = self.dynamics.pixels_per_m
+        self.boat_pos = z[:2]*scale
+        self.boat_heading = float(z[2])
+        c, s = math.cos(z[2]), math.sin(z[2])
+        self.boat_vel = np.array([z[3]*c-z[4]*s, z[3]*s+z[4]*c])*scale
+        self.boat_ang_vel = float(z[5])
+        self.thrust_left, self.thrust_right = float(z[6]), float(z[7])
+        self.current_fwd = self.thrust_left+self.thrust_right
+        d_head = self.boat_heading-old_heading
+        vel_norm = math.hypot(*self.boat_vel)
         # RC 수동 조종 모드 시 누적 회전 각도 및 비단절 충돌 카운트 추적
         if getattr(self, 'manual_mode', False):
             self.manual_cum_turn = getattr(self, 'manual_cum_turn', 0.0) + math.degrees(abs(d_head))
@@ -544,11 +511,21 @@ class BoatEnv:
                     self.manual_collision_flash = 35    # 화면 충돌 알림 플래시 지속 시간
                     self.boat_vel = -self.boat_vel * 0.35 # 부표 충돌 반발 감속
         
-        # 선미 추진 선박의 후방 회전축(L_pivot = 4.0px)에 따른 자연스러운 선회 궤적
-        L_pivot = 4.0
-        lat_vec = np.array([-math.sin(self.boat_heading), math.cos(self.boat_heading)])
-        self.boat_pos += lat_vec * (self.boat_ang_vel * L_pivot * self.dt)
-
+        if self.headless:
+            return
+        if self.frame % 7 == 0:
+            p0x, p0y = int(prev0), int(prev1)
+            p1x, p1y = int(self.boat_pos[0]), int(self.boat_pos[1])
+            pygame.draw.line(self.trail, (255, 255, 255, 60), (p0x, p0y), (p1x, p1y), 2)
+            min_lx = min(p0x, p1x) - 4
+            max_lx = max(p0x, p1x) + 4
+            min_ly = min(p0y, p1y) - 4
+            max_ly = max(p0y, p1y) + 4
+            if min_lx < self.trail_min_x: self.trail_min_x = float(min_lx)
+            if max_lx > self.trail_max_x: self.trail_max_x = float(max_lx)
+            if min_ly < self.trail_min_y: self.trail_min_y = float(min_ly)
+            if max_ly > self.trail_max_y: self.trail_max_y = float(max_ly)
+                             
         # 실제 선박 유체역학 파도 생성 (Realistic Hydrodynamic Wave System)
         if vel_norm > 2.0:
             h = self.boat_heading
@@ -656,13 +633,9 @@ class BoatEnv:
         ch = math.cos(self.boat_heading)
         sh = math.sin(self.boat_heading)
 
-        # 라인트레이싱 모드: 외곽 벽(Boundary Walls)을 장애물로 인식 및 충돌 판정 (목적지 방향 정면 수직벽 xmax 제외)
-        if getattr(self, 'linetrace_mode', False):
-            hull_margin = 18.0
-            if bx <= hull_margin or \
-               by <= hull_margin or by >= (self.sim_h - hull_margin) or \
-               bx >= self.map_w:
-                return True
+        # 동일한 수조 경계를 모든 모드에서 적용한다.
+        if bx <= 42.0 or bx >= self.map_w - 42.0 or by <= 27.0 or by >= self.sim_h - 27.0:
+            return True
 
         # 장애물 충돌: 선체 로컬 좌표계로 변환하여 3개 선체 폴리곤(좌/우 선체, 데크)과 원형 장애물 정밀 표면 충돌 검사
         if len(self.dynamic_obstacles) == 0:
@@ -725,14 +698,16 @@ class BoatEnv:
         return False
 
     def get_pwm(self, steer):
-        dead = 0.02
-        if abs(steer) < dead: steer = 0
-        mid = 1500; rng = self.params['pwm_rng']
-        m = (abs(steer) ** 1.15)
-        d = m * rng
-        if steer >= 0: L = mid - d; R = mid + d
-        else: L = mid + d; R = mid - d
-        return int(np.clip(L, 1230, 1770)), int(np.clip(R, 1230, 1770))
+        p = self.dynamics
+        if self.manual_mode:
+            speed = self.manual_throttle*p.cruise_speed_m_s
+        elif self.linetrace_mode:
+            speed = p.cruise_speed_m_s * min(1., max(.15, self.min_wide_dist/180.))
+        else:
+            speed = self.command_speed
+        yaw_rate = float(np.clip(steer, -1, 1))*p.max_yaw_rate_rad_s
+        left, right = allocate(self.physics_state(), speed, yaw_rate, p)
+        return 1500+400*float(left)/p.max_thrust_N, 1500+400*float(right)/p.max_thrust_N
 
     def validate_wp_grid(self):
         if self.current_wp is None: return
@@ -750,141 +725,18 @@ class BoatEnv:
     def validate_wp_obstacle_5x5(self):
         if self.current_wp is None: return
         wp = self.current_wp["pos"]
-        dx = self.dynamic_obstacles[:, 0] - wp[0]
-        dy = self.dynamic_obstacles[:, 1] - wp[1]
+        dx = self.perceived_obstacles[:, 0] - wp[0]
+        dy = self.perceived_obstacles[:, 1] - wp[1]
         dist_sq = dx * dx + dy * dy
-        r_thresh = self.dynamic_obstacles[:, 2] + 2.5 * GRID
+        r_thresh = self.perceived_obstacles[:, 2] + 2.5 * GRID
         if np.any(dist_sq <= r_thresh * r_thresh):
             p = self.current_wp["pair"]
             self.visited.add(p); self.visited.add((p[1], p[0]))
             self.current_wp = None
 
     def update_steering(self, dists):
-        self.steer_timer += self.dt
-        center_idx = self.lidar_beams // 2
-        # 정면 + 양옆 20도 = 총 220도 범위 감시
-        span = int(self.lidar_beams * 220 / 360 / 2)
-        front_dists = dists[center_idx - span : center_idx + span]
-        min_front_dist = np.min(front_dists)
-        self.min_wide_dist = min_front_dist
-        
-        if not hasattr(self, 'emergency_cooldown'):
-            self.emergency_cooldown = 0
-            
-        if min_front_dist < self.params['em_enter']:
-            self.emergency_mode = True
-            self.emergency_cooldown = self.params['em_hold_frames']
-        elif self.emergency_mode:
-            self.emergency_cooldown -= 1
-            if min_front_dist > self.params['em_exit'] and self.emergency_cooldown <= 0:
-                self.emergency_mode = False
-
-        if self.pursuit_target is None:
-            if self.current_wp is not None:
-                self.heading_target = math.atan2(self.current_wp["pos"][1] - self.boat_pos[1], self.current_wp["pos"][0] - self.boat_pos[0])
-            else:
-                self.heading_target = math.atan2(self.target[1] - self.boat_pos[1], self.target[0] - self.boat_pos[0])
-            return 0
-        px, py = self.pursuit_target
-        heading_target = math.atan2(py - self.boat_pos[1], px - self.boat_pos[0])
-        self.heading_target = heading_target
-        heading_error = wrap(heading_target - self.boat_heading)
-
-        # 거리에 따라 연속적으로 조향 및 회피력 스케일링
-        clear_ratio = np.clip((min_front_dist - 150.0) / 50.0, 0.0, 1)
-        steer_gain = self.params['steer_gain'] + (1.0 - clear_ratio) * 0.4
-        avoid_multiplier = self.params['avoid_normal'] + (1.0 - clear_ratio) * (self.params['avoid_em'] * 0.40)
-            
-        # 각속도 댐핑을 강화하여 관성 오버슈트 및 휙휙 도는 회전 억제
-        d_term = -0.12 * getattr(self, 'boat_ang_vel', 0.0)
-        steer_raw = heading_error * steer_gain + d_term
-        alpha = self.params['steer_alpha']
-        steer_f = alpha * steer_raw + (1.0 - alpha) * self.prev_steer
-        self.prev_steer = steer_f
-        
-        # [갭 내비게이션 다이렉트 모드 전용 회피]
-        # 원거리 불필요한 대우회 및 갭 사이 떨림을 방지하되, 근접 장애물(< 55px)에 대해서는 강력한 기존 회피력 완전 유지
-        if self.current_wp is None:
-            fov_rad = 1.134464  # np.deg2rad(65)
-            fwd_mask = np.abs(self.rel_angles) <= fov_rad
-            fwd_indices = np.where(fwd_mask)[0]
-
-            SAFE_DIST = 100.0        # 회피 개시 거리 (원거리 불필요한 대우회 방지)
-            CRIT_DIST = 60.0        # 근접 긴급 회피 기준 거리 (선체 반경 25px + 장애물 반경 17px = 42px 충돌선)
-
-            if len(fwd_indices) > 0:
-                fwd_dists = dists[fwd_indices]
-                min_i = int(np.argmin(fwd_dists))
-                closest_idx = fwd_indices[min_i]
-                min_dist = float(dists[closest_idx])
-                closest_ang = float(self.rel_angles[closest_idx])
-            else:
-                min_dist = 999.0
-                closest_ang = 0.0
-
-            if min_dist < SAFE_DIST:
-                # UI 렌더링용 최근접 회피 히트점
-                bx, by = self.boat_pos
-                self.closest_avoid_hit = (
-                    float(bx + math.cos(self.boat_heading + closest_ang) * min_dist),
-                    float(by + math.sin(self.boat_heading + closest_ang) * min_dist)
-                )
-
-                left_mask = (self.rel_angles < -0.05) & fwd_mask
-                right_mask = (self.rel_angles > 0.05) & fwd_mask
-                d_left = float(np.min(dists[left_mask])) if np.any(left_mask) else 999.0
-                d_right = float(np.min(dists[right_mask])) if np.any(right_mask) else 999.0
-
-                # 1. 좁은 갭 사이 중앙 통과 시 좌우 대칭 밸런싱으로 떨림 방지
-                push_r = max(0.0, (SAFE_DIST - d_left) / SAFE_DIST) ** 1.5   # 좌측 장애물 -> 우측 반발
-                push_l = max(0.0, (SAFE_DIST - d_right) / SAFE_DIST) ** 1.5  # 우측 장애물 -> 좌측 반발
-                net_dir = push_r - push_l
-
-                # 2. 근접 위험도(Urgency) 계산: 55px 이하 근접 시 기존의 강력한 반발력(0.75~1.0)으로 즉각 회피
-                urgency = float(np.clip((SAFE_DIST - min_dist) / (SAFE_DIST - CRIT_DIST), 0.0, 1.0))
-                front_f = max(0.0, math.cos(closest_ang * (np.pi / 2.0 / fov_rad)))
-
-                if min_dist < CRIT_DIST:
-                    # [근접 위험 구간] 기존의 강력한 회피력 완전 유지
-                    avoid_dir = -float(np.sign(closest_ang)) if abs(closest_ang) > 0.04 else (-1.0 if d_left >= d_right else 1.0)
-                    avoid_steer = avoid_dir * (0.75 + 0.25 * urgency)
-                    if min_dist < CRIT_DIST - 5.0:  # 50px 이하 극근접 충돌 위험 시 100% 완전 회피
-                        steer_cmd = avoid_dir * 0.3
-                    else:
-                        avoid_weight = min(0.50, urgency * front_f)
-                        steer_cmd = (1.0 - avoid_weight) * steer_f + avoid_weight * avoid_steer
-                else:
-                    # [중거리(55px ~ 95px) 접근 구간] 양측 밸런싱을 적용하여 크게 돌지 않고 틈새 중앙으로 안정적 진입
-                    avoid_steer = np.clip(net_dir * 0.35, -0.45, 0.45)
-                    steer_cmd = steer_f + avoid_steer
-
-                # 측면 근접 보호(Flank Guard): 배 옆(65~95도) 42px 이내 장애물 근접 시 측면 찰과 충돌 강력 방지 (기존 반발력 0.40 유지)
-                flank_mask = (np.abs(self.rel_angles) > fov_rad) & (np.abs(self.rel_angles) <= 1.658)
-                if np.any(flank_mask):
-                    f_dists = dists[flank_mask]
-                    f_min = float(np.min(f_dists))
-                    if f_min < 42.0:
-                        f_idx = np.where(flank_mask)[0][np.argmin(f_dists)]
-                        f_ang = float(self.rel_angles[f_idx])
-                        f_push = -float(np.sign(f_ang)) * (42.0 - f_min) / 42.0 * 0.40
-                        steer_cmd = float(np.clip(steer_cmd + f_push, -1.0, 1.0))
-
-                return float(np.clip(steer_cmd, -1.0, 1.0))
-            else:
-                self.closest_avoid_hit = None
-
-        avoid = reactive_avoidance(dists, self.rel_angles)
-
-        # 반발력과 조향이 반대로 충돌할 때 조향력 상쇄(직진 현상)를 방지하기 위해 반발력 소프트 감쇠(0.25) 적용
-        if (steer_f * avoid < 0) and abs(steer_f) > 0.15:
-            avoid *= 0.25
-
-        # 후방 반원(|rel_angle| >= 90도) 내 선체 360도 회전 히트박스 반경(약 45.3px) 이내 장애물 감지 시 회전 억제 (조향 0)
-        rear_mask = np.abs(self.rel_angles) >= (np.pi / 2.0 - 1e-5)
-        if np.any(rear_mask) and np.min(dists[rear_mask]) <= 45.3:
-            return 0.0
-
-        return np.clip(steer_f + avoid_multiplier * avoid, -1, 1)
+        self.lidar_dists = dists
+        return select_command(self)
 
     def update_camera(self):
         """카메라 X 오프셋을 보트 위치에 맞춰 부드럽게 추종 (맵 경계 클램핑)"""
@@ -894,4 +746,10 @@ class BoatEnv:
         self.cam_x = self.cam_x * 0.85 + target_cam_x * 0.15
 
     def render(self, hits_x, hits_y):
-        self.renderer.render(hits_x, hits_y)
+        if self.renderer is not None:
+            self.renderer.render(hits_x, hits_y)
+
+    def close(self):
+        if self.renderer is not None and self.renderer.engine_3d is not None:
+            self.renderer.engine_3d.close()
+        pygame.quit()

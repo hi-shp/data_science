@@ -82,79 +82,6 @@ def is_direct_target_safe(boat_pos, boat_heading, target_pos, obstacles, boat_ra
         return False
     return True
 
-def is_waypoint_switch_safe(boat_pos, boat_heading, curr_wp_pos, new_wp_pos, obstacles, boat_radius=25, boat_speed=0.0, params=None):
-    if curr_wp_pos is None or new_wp_pos is None or len(obstacles) == 0:
-        return True
-        
-    bx, by = boat_pos
-    v_curr = curr_wp_pos - boat_pos
-    v_new = new_wp_pos - boat_pos
-    
-    ang_curr = math.atan2(v_curr[1], v_curr[0])
-    ang_new = math.atan2(v_new[1], v_new[0])
-    
-    # 각도 차이가 작으면 (동일 방향/미세 갱신) 안전
-    switch_ang_diff = abs(wrap(ang_new - ang_curr))
-    if switch_ang_diff < 0.4363323129985824:  # deg2rad(25.0)
-        return True
-        
-    # 1. 현재 선박 헤딩에서 새 웨이포인트로 선회하는 베지어 곡선 검증
-    from utils import make_bezier_path
-    p = params or {}
-    margin = float(p.get('clear_margin', 10.0))
-    new_bezier = make_bezier_path(boat_pos, boat_heading, new_wp_pos, obstacles=obstacles, boat_radius=boat_radius, boat_speed=boat_speed)
-    if bezier_path_is_blocked(new_bezier, obstacles, boat_radius=boat_radius, margin=margin):
-        return False
-        
-    # 2. 기존 방향과 새 방향 사이의 부채꼴(Turn Sector) 영역 장애물 검사
-    ang_head_to_new = wrap(ang_new - boat_heading)
-    sweep_radius = 110.0
-    
-    dx_all = obstacles[:, 0] - bx
-    dy_all = obstacles[:, 1] - by
-    dist_all = np.sqrt(dx_all * dx_all + dy_all * dy_all)
-    close_mask = (dist_all - obstacles[:, 2]) < sweep_radius
-    if np.any(close_mask):
-        for k in np.where(close_mask)[0]:
-            dx = dx_all[k]
-            dy = dy_all[k]
-            orad = obstacles[k, 2]
-            obs_dist = dist_all[k]
-            
-            ang_obs = math.atan2(dy, dx)
-            rel_ang = wrap(ang_obs - boat_heading)
-            
-            in_sector = False
-            if ang_head_to_new >= 0:
-                if -0.15 <= rel_ang <= ang_head_to_new + 0.15:
-                    in_sector = True
-            else:
-                if ang_head_to_new - 0.15 <= rel_ang <= 0.15:
-                    in_sector = True
-                    
-            if in_sector:
-                if obs_dist - orad < boat_radius + 40.0:
-                    return False
-                    
-    return True
-
-def is_front_blocked(boat_pos, boat_heading, obstacles, boat_radius=25, block_dist=190.0, fov_deg=130.0):
-    if obstacles is None or len(obstacles) == 0:
-        return False
-    bx, by = boat_pos
-    fov_rad = np.deg2rad(fov_deg)
-    
-    dx = obstacles[:, 0] - bx
-    dy = obstacles[:, 1] - by
-    dist = np.sqrt(dx * dx + dy * dy)
-    clear_dist = dist - obstacles[:, 2]
-    close_mask = clear_dist < block_dist
-    if not np.any(close_mask):
-        return False
-    ang_to_obs = np.arctan2(dy[close_mask], dx[close_mask])
-    rel_ang = np.abs((ang_to_obs - boat_heading + np.pi) % (2 * np.pi) - np.pi)
-    return bool(np.any(rel_ang <= fov_rad))
-
 def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, obstacles, params=None, is_next_wp=False):
     bx, by = boat_pos
     tx, ty = target_pos
@@ -479,67 +406,7 @@ def find_gap(clusters, ids, boat_pos, boat_heading, target_pos, visited, grid, o
         return None
         
     valid_gaps.sort(key=lambda x: x["score"], reverse=True)
-    best = valid_gaps[0]
-    
-    # 2번째, 3번째 웨이포인트 후보는 1순위(현재 웨이포인트) 및 앞선 후보와 장애물 쌍/위치가 중복되지 않도록 선별
-    candidates = []
-    selected_pairs = {tuple(sorted(best["pair"]))}
-    selected_positions = [best["pos"]]
-    
-    for g in valid_gaps[1:]:
-        pair_key = tuple(sorted(g["pair"]))
-        # 1. 1순위 및 앞선 후보와 동일한 장애물 쌍 배제 (동일 갭 중복 배제)
-        if pair_key in selected_pairs:
-            continue
-            
-        # 2. 물리적 위치가 1순위 및 앞선 후보들과 너무 가까운 갭 배제 (최소 50px 이상 이격)
-        too_close = False
-        for spos in selected_positions:
-            dp = g["pos"] - spos
-            if math.hypot(dp[0], dp[1]) < 50.0:
-                too_close = True
-                break
-        if too_close:
-            continue
-            
-        candidates.append(g)
-        selected_pairs.add(pair_key)
-        selected_positions.append(g["pos"])
-        if len(candidates) >= 2:
-            break
-            
-    best["candidates"] = candidates
-    
-    # [순수 GUI 편의 기능 전용 데이터]
-    # 주행 및 회피 알고리즘에는 일절 관여하지 않으며, 사용자가 화면에서 빨간 부표 사이의 
-    # 모든 조합(2개->1갭, 3개->3갭 등 N C 2) 틈새 위치를 필터링 없이 점으로 시각화하여 확인할 수 있도록 분리 전달
-    gui_all_gaps = []
-    for i in range(len(clusters)):
-        c1 = clusters[i]
-        for j in range(i + 1, len(clusters)):
-            c2 = clusters[j]
-            mid_pt = (c1 + c2) / 2.0
-            gui_all_gaps.append({
-                "pos": mid_pt.copy(),
-                "c1": c1.copy(),
-                "c2": c2.copy()
-            })
-            
-    best["total_gaps_count"] = len(gui_all_gaps)
-    best["all_gaps"] = gui_all_gaps
-    return best
-
-def reactive_avoidance(dists, angles):
-    SAFE = 450.0
-    sigma = 150.0
-    mask = dists < SAFE
-    if not np.any(mask):
-        return 0.0
-    d = dists[mask]
-    ang = angles[mask]
-    w = np.exp(-((d / sigma)**2))
-    front = np.maximum(1.2 - np.abs(ang) / (np.pi / 2.0), 0.3)
-    return float(np.sum(-w * front * np.sin(ang)))
+    return valid_gaps[0]
 
 def line_trace_steering(boat_pos, boat_heading, target_pos, dists, rel_angles, boat_ang_vel=0.0, prev_steer=0.0):
     """
