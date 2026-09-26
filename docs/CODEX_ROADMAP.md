@@ -2,7 +2,56 @@
 
 This roadmap breaks USV development into small Codex tickets. Each ticket should normally have one primary objective and explicit acceptance criteria.
 
-## Current continuation order, verified 2026-09-26
+## Current continuation order, verified 2026-09-27
+
+Displayed-4x GUI performance and current-state prediction display were the
+priority after the navigation review. With optional Numba installed, real
+X11/3D seed-2081 20-second runs now show production A at 99.51 FPS,
+minimum 1-second rolling 78 FPS, 4001 physics steps/20.009 s and no >=50 ms
+frame; opt-in B at 112.45 FPS, rolling minimum 102, 4001 steps/20.009 s and
+no >=50 ms frame. Backlog ended below 0.005 simulated s on both. Finite-window
+step rates differ from the 200/s target by less than one step at the stopping
+boundary. Prediction is replaced at about 66.7 Hz wall time and clipped from
+the current vessel pose every render, with no display throttle. See the leading
+`PROJECT_STATE.md` entry for per-stage data, other seeds, tests and caveats.
+The GUI loop still executes compiled planning before 2D rendering; no separate
+physics/render process was introduced because measured work stays within the
+requested 75-FPS target on the tested scenarios. Numba is required to reproduce
+those performance numbers. No dynamics or navigation semantics were tuned.
+
+Next ticket: return to the opt-in B U-shaped progress/replanning-continuity
+failure only if navigation work is resumed. Keep production A as default and
+preserve the 4x performance/freshness regression probes. Do not change 8x/16x
+or start a 200-episode benchmark merely because the 4x ticket finished.
+
+## Earlier navigation continuation order, recorded 2026-09-27
+
+The frozen 3.8 kg m² dynamics, 0.04 s physics step and displayed playback
+mapping remain unchanged. The production GUI still uses the existing
+Gap-assisted, smoothed A* architecture A. The opt-in coarse-route plus
+sampling-based predictive controller B passed a disjoint 24-map paired holdout
+with 24/24 success, but failed the U-shaped dead-end stress case at 140 s after
+the final yaw-command slew constraint; it also runs at about 81 FPS rather than
+the existing A's 101 FPS on the same X11/3D seed-2081 probe. Its terminal-goal
+quality variant passed seven targeted normal/hard seeds but has no disjoint
+holdout. See the leading `PROJECT_STATE.md` entry and
+`NAVIGATION_ARCHITECTURE_REVIEW.md` for exact numbers and limitations.
+
+Next navigation ticket: diagnose the U-shaped exit-progress failure from the
+stored trace and route audit. Change one general coarse-route/controller
+commitment rule only if its mechanism is confirmed; test that geometry and
+hard seeds before running another disjoint paired holdout. Do not tune the
+frozen physical response or benchmark the unaltered rejected variant again.
+
+Next performance ticket, separable from navigation: eliminate or schedule the
+measured A* plus rollout planning-frame work without reducing display freshness,
+physics cadence, collision checks or navigation equivalence. Confirm real-X11
+p99/max and visible prediction freshness before any default B promotion.
+The existing A display is a smoothed route, not a dynamically predicted
+trajectory; label or expose its physical prediction in a later UI synchronization
+ticket. No 200-episode run or commit/push is authorized by this roadmap.
+
+## Previous continuation order, verified 2026-09-26
 
 The frozen dynamics remain yaw inertia 3.8 kg·m² with unchanged thrust, drag, damping, speed, and displayed playback multipliers. The automatic chain remains LiDAR observations → map/clustering → optional accepted Gap corridor → A* raw route → safety-validated smoothed control path → continuous lookahead → predictive controller. No 200-episode validation of this integrated candidate has been run.
 

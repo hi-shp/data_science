@@ -222,7 +222,9 @@ class BoatEnv:
         self.prev_steer = 0.0
         self.emergency_cooldown = 0
         self.reflected_wakes = []
-        for name in ('navigation_map', 'control_path', 'path_geometry', 'raw_route', 'route_plan_frame', 'path_progress', 'selected_gap'):
+        for name in ('navigation_map', 'control_path', 'path_geometry', 'raw_route', 'route_plan_frame', 'path_progress', 'selected_gap',
+                     'predicted_trajectory', 'prediction_frame', 'prediction_stride_steps',
+                     'visual_trajectory', '_rollout_params'):
             if hasattr(self, name):
                 delattr(self, name)
         self.perceived_obstacles = np.empty((0, 3))
@@ -245,17 +247,20 @@ class BoatEnv:
         
         obs = []
         t = 0
+        goal_x, goal_y = map(float, self.target)
+        start_x, start_y = map(float, self.boat_pos)
+        goal_exclusion_sq = 180 * 180
+        obstacle_spacing_sq = self.min_obs * self.min_obs
         while len(obs) < self.obs_n and t < 5000:
             t += 1
             x = random.randint(300, self.map_w - 300)
             y = random.randint(30, self.sim_h - 30)
-            p = np.array([x, y])
-            if np.linalg.norm(p - self.target) < 180: continue
-            if np.linalg.norm(p - self.boat_pos) < 180: continue
+            if (x-goal_x)**2 + (y-goal_y)**2 < goal_exclusion_sq: continue
+            if (x-start_x)**2 + (y-start_y)**2 < goal_exclusion_sq: continue
             
             ok = True
             for (ox, oy, r) in obs:
-                if np.linalg.norm(p - np.array([ox, oy])) < self.min_obs:
+                if (x-ox)**2 + (y-oy)**2 < obstacle_spacing_sq:
                     ok = False
                     break
             if ok:

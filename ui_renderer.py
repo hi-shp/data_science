@@ -180,7 +180,7 @@ class EnvRenderer:
         self._bezier_bg_surf = pygame.Surface((bw, bh), pygame.SRCALPHA)
         self._bezier_bg_surf.fill((10, 22, 38, 240))
         pygame.draw.rect(self._bezier_bg_surf, (0, 180, 255), (0, 0, bw, bh), 2)
-        self._bezier_bg_surf.blit(self.bold_font.render("Guidance Route", True, (255, 255, 255)), (10, 8))
+        self._bezier_bg_surf.blit(self.bold_font.render("Predicted Path", True, (255, 255, 255)), (10, 8))
         self._bezier_bg_surf.blit(self.small_font.render("Y(m)", True, (140, 190, 240)), (4, 30))
         gx, gy, gw, gh = 36, 42, 144, 94
         pygame.draw.rect(self._bezier_bg_surf, (15, 30, 50), (gx, gy, gw, gh))
@@ -221,6 +221,19 @@ class EnvRenderer:
 
     def render(self, hits_x, hits_y):
         env = self.env
+        # A new control prediction is generated on a simulation-time cadence.
+        # Project the latest vessel pose onto its remaining future on every
+        # rendered frame; never write the clipped view back into control_path.
+        if getattr(env, 'prediction_frame', None) is not None and not getattr(env, 'manual_mode', False) and not getattr(env, 'linetrace_mode', False):
+            from trajectory_display import future_trajectory
+            prediction = getattr(env, 'predicted_trajectory', getattr(env, 'control_path', None))
+            env.visual_trajectory = future_trajectory(
+                prediction, env.boat_pos/env.dynamics.pixels_per_m,
+                env.frame-env.prediction_frame,
+                getattr(env, 'prediction_stride_steps', env.control.planning_period_steps))
+        else:
+            env.visual_trajectory = (None if getattr(env, 'manual_mode', False)
+                                     else getattr(env, 'control_path', None))
         cam_x = env.cam_x  # 카메라 X 오프셋
         
         # 헬퍼: 월드좌표 → 스크린좌표 변환
@@ -550,7 +563,7 @@ class EnvRenderer:
         # Draw only the controller's actual path and lookahead target.
         is_lt = getattr(env, 'linetrace_mode', False)
         if not is_lt and getattr(env, 'show_control_path', True):
-            path = getattr(env, 'control_path', None)
+            path = getattr(env, 'visual_trajectory', None)
             if path is not None:
                 if path is not getattr(self, '_draw_path_source', None):
                     self._draw_path_source = path
@@ -901,7 +914,7 @@ class EnvRenderer:
         else:
             # Actual control path plus optional raw-route/perception diagnostics.
             options = (
-                (env.cb1_rect, env.cb1_row_rect, 'show_control_path', 'Show Control Path', (0, 255, 200)),
+                (env.cb1_rect, env.cb1_row_rect, 'show_control_path', 'Show Prediction', (0, 255, 200)),
                 (env.cb2_rect, env.cb2_row_rect, 'show_raw_route', 'Show Raw A* Route', (160, 180, 255)),
                 (env.cb3_rect, env.cb3_row_rect, 'show_lidar', 'Show LiDAR Hits', (225, 220, 130)),
                 (env.cb4_rect, env.cb4_row_rect, 'show_lidar_range', 'Show LiDAR Range', (80, 175, 140)),
@@ -1174,7 +1187,7 @@ class EnvRenderer:
         
         y_center = gy + gh // 2
         
-        control_path = getattr(env, 'control_path', None)
+        control_path = getattr(env, 'visual_trajectory', None)
         path = None if control_path is None else control_path * env.dynamics.pixels_per_m
         bx, by = env.boat_pos
         h = env.boat_heading

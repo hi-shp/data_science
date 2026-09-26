@@ -7,6 +7,7 @@ import heapq
 import math
 import numpy as np
 from control_path import smooth_path, lookahead, path_geometry
+from fast_astar import compiled_astar
 
 
 def route_target(env):
@@ -102,6 +103,16 @@ def build_route(env,start,selected,gap_key,safe):
 
 def a_star(free,cell_weight,xs,ys,start_idx,goal_idx,resolution):
     """Same eight-neighbor weighted search, with per-search invariant costs."""
+    if compiled_astar is not None:
+        free[start_idx] = True
+        path = compiled_astar(free,cell_weight,xs,ys,start_idx[0],start_idx[1],
+                              goal_idx[0],goal_idx[1],resolution)
+        return path if len(path) else None
+    return a_star_reference(free,cell_weight,xs,ys,start_idx,goal_idx,resolution)
+
+
+def a_star_reference(free,cell_weight,xs,ys,start_idx,goal_idx,resolution):
+    """Unchanged Python search retained for path-by-path equivalence checks."""
     # Permit leaving the occupied start cell after a new detection, while
     # the dynamics rollout independently checks every motion.
     free[start_idx] = True

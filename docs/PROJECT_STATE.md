@@ -1,6 +1,227 @@
 # PROJECT_STATE.md
 
-Last verified: 2026-09-26. This verified state supersedes the provisional numbers in `docs/RESUME_PROMPT.md` and older presentation/report text.
+Last verified: 2026-09-27. This verified state supersedes the provisional numbers in `docs/RESUME_PROMPT.md` and older presentation/report text.
+
+## Displayed-4x throughput and prediction freshness — verified 2026-09-27
+
+Scope: performance and live predicted trajectory only. Production remains
+architecture A; the experimental sampling controller B remains opt-in because
+its known U-shaped deadlock is not resolved. Frozen yaw inertia 3.8 kg m²,
+thrust/drag/damping/lag, physics dt 0.04 s, 3-step control period, LiDAR cadence,
+candidate count, prediction horizons and displayed 1x/2x/4x semantics were not
+changed. Displayed 4x requests 200 physics steps and 8 simulated seconds per
+wall second. No navigation tuning, 200-episode benchmark, commit or push.
+
+Initial real-X11/3D seed-2081 profile: A advanced 953 steps in 5.117 wall s
+(186.24 steps/s), drew 24.63 FPS (median/p95/p99/max frame 30.90/93.96/
+111.65/114.12 ms; 4 frames >=100 ms). Opt-in B advanced 521 steps in 5.184 s
+(100.50 steps/s), drew 13.04 FPS (76.01/105.08/119.75/126.40 ms; 7 frames
+>=100 ms). The original probe did not save frame timestamps or backlog, so
+initial 1-second rolling FPS and backlog are unmeasured. B's controller averaged
+24.16 ms/call; its two physical rollouts averaged 10.32 ms/call, swept-hull
+checks accounted for 1495 ms in 5.184 s, and coarse A* averaged 13.16 ms/search.
+A's A*/smoothing/whole route rebuild averaged 11.24/17.81/30.03 ms. Render
+itself averaged 6.64 ms (A) and 6.14 ms (B), confirming synchronous planning
+and rollout work, rather than path drawing, caused the worst frame stalls.
+
+The same fixed-step physical rollout, hull envelope and cost candidates now run
+in optional Numba-compiled CPU kernels (`fast_constant_rollout.py` for A and
+`experiments/fast_rollout.py` for B); Python reference paths remain for tests
+and fallback. Exact corridor-distance prefilter, observed-map clearance and the
+same weighted 8-neighbor A* search use compiled kernels in `fast_corridor.py`,
+`fast_clearance.py`, `fast_astar.py`. The final smoothing and perception-limited
+safety validation remain in force. B's hull check skips expensive geometry only
+when a center-distance lower bound proves that obstacle cannot reduce already
+known clearance. The B rollout still propagates every candidate and substep.
+Repeated random reference/compiled checks match trajectory, clearance,
+blocked flags and A* route; seed-2081 physics hashes match the saved
+pre-optimization runs for A's first 900 and B's first 500 steps. Reset obstacle sampling now compares
+squared scalar distances; 12 saved map hashes match before/after. PNG encoding
+at goal was moved to a prestarted lossless worker, removing the 38 ms in-frame
+save; reset fell from about 106 ms to about 25 ms. `main.py` uses precise
+monotonic wall time, retains unspent fixed-step budget at episode reset, and
+does not discard elapsed wall time. Its eight-step/frame catch-up bound is
+unchanged. No physics step, observation, candidate, collision check, render or
+display update is deliberately omitted.
+
+The prior `control_path` is the safety-validated smoothed route, not a physical
+future prediction. A now publishes the selected candidate's physical rollout;
+B publishes its selected rollout. The actual travel history remains a separate
+white dotted layer; optional raw A* remains a separate debug layer. Every 2D/3D
+render uses the newest completed prediction and projects the current vessel
+position onto its time-consistent future segments; the source prediction and
+control path are never clipped in place. A new controller result replaces the
+display source immediately. On the final measured 4x A/2081 run, replacement
+was 66.72 Hz, render clipping 99.51 Hz, trajectory age mean/max 8.47/49.98 ms,
+and the displayed first-point error was 0 m across 1988 frames with a
+prediction. The 3D completed view was mean/p95/max 3.39/3.94/10.82 ms old;
+at most two physics steps behind.
+The current GUI screenshot is `data/realtime_perf/final_gui.png`.
+
+Final actual X11/3D seed-2081 stress run, displayed 4x, 20 wall seconds:
+
+| Metric | Production A | Opt-in B |
+|---|---:|---:|
+| Steps / wall time | 4001 / 20.009 s | 4001 / 20.009 s |
+| Whole-window actual steps/s | 199.96 | 199.96 |
+| Simulation seconds / wall second | 8.00 within one-step sampling error | 8.00 within one-step sampling error |
+| Maximum / final backlog, simulated s | 0.069 / 0.016 | 0.066 / 0.004 |
+| Average / minimum 1-second rolling FPS | 99.51 / 78 | 112.45 / 102 |
+| Median / p90 / p95 / p99 / max frame, ms | 9.48 / 13.20 / 15.43 / 18.89 / 47.57 | 8.63 / 10.21 / 10.79 / 11.96 / 43.18 |
+| Frames >=16.7 / 33 / 50 / 100 / 250 ms | 57 / 5 / 0 / 0 / 0 | 4 / 4 / 0 / 0 / 0 |
+| Controller / prediction replacement Hz | 66.72 / 66.72 | 66.77 / 66.77 |
+| Prediction age mean / max, ms | 8.47 / 49.98 | 8.97 / 42.11 |
+
+Finite-window step counts can fall fractionally below 200/s by less than one
+step at a stopping boundary. The backlog returns close to zero instead of
+growing; the scheduler is not persistently throughput-limited on these runs.
+For the final A run, the interval between first and last completed physics
+steps gives 200.04 steps/s. An independent A/2081 repeat gave 100.42 FPS and
+rolling minimum 83. A separate first-episode probe reconfirmed the identical
+pre-optimization A physics hash at steps 200, 500 and 900; the B probe matched
+its saved pre-optimization hashes at steps 200 and 500. Production A/2081 now
+averages 0.29 ms A*, 3.17 ms
+smoothing, 4.36 ms total route regeneration and 5.41 ms rendering/frame.
+B/2081 now averages 0.27 ms
+A*, 1.88 ms plan and 0.47 ms/rollout, with 5.31 ms rendering/frame. B/2000
+gave 2001 steps/10.005 s, 111.34 FPS, rolling minimum 103, p99/max
+12.02/40.73 ms, no >=50 ms frame; B/2006 gave 2001/10.007 s, 111.62 FPS,
+rolling minimum 82, p99/max 13.26/75.80 ms, one >=50 ms frame and no >=100 ms
+frame. The 75.8 ms frame combined five physics steps, two controller ticks,
+18.4 ms observed-map update and 23.0 ms rendering; its backlog cleared by
+run end. A/2000 and A/2006 previously recorded rolling minima 80/81 FPS with
+no >=50 ms frames; a final-source A/2000 screenshot run measured 1201 steps/
+6.005 s, 109.75 FPS and rolling minimum 92.
+
+All 43 selected dynamics, perception, route, safety, predictive-equivalence and
+display tests pass. `requirements-realtime.txt` records the measured optional
+Numba/Pillow versions; without Numba the reference fallback is correct but the
+4x FPS result is not established. Neither planner nor controller has been moved
+to another thread or process: the bounded compiled work still precedes 2D
+rendering on the main loop. The PNG writer and existing 3D worker are separate.
+This machine's three tested seeds meet the sustained-FPS and no-100-ms-hitch
+targets; it is not a guarantee against OS contention or untested maps. Next
+navigation ticket may address B's U-shaped progress/replanning continuity
+without conflating that failure with this performance result.
+
+## Navigation architecture rethink — promotion withheld, 2026-09-27
+
+The approved 3.8 kg m² dynamics, 0.04 s physics step, three-step controller cadence,
+and displayed playback mapping are frozen. Production still runs architecture A:
+LiDAR/perception → Gap-assisted A* → validated smoothing → predictive command
+selection. Candidate B remains opt-in under `experiments/`; no navigation
+replacement, commit, push, or 200-episode benchmark was made. The dirty
+`leaderboard.json` and all existing navigation work were preserved. See
+`NAVIGATION_ARCHITECTURE_REVIEW.md` for the complete comparison and gate decision.
+
+The saved disjoint paired holdout `data/architecture_rethink/holdout24/results.json`
+is complete: 24 maps × A/B, identical map hashes and dt, success 24/24 for each,
+collision 0, timeout 0. B's mean/median completion times are 34.11/31.12 s,
+versus A's 58.24/47.58 s; B is faster on all 24 (smallest gain 3.24 s at seed
+2219). Mean path length 33.04 versus 36.00 m, mean minimum ground-truth hull
+clearance 0.174 versus 0.143 m, mean episode-peak yaw acceleration 42.48 versus
+44.96 deg/s², observed worst 47.64 versus 62.73 deg/s², mean reversal 9.29
+versus 10.42. B regresses normalized yaw-command variation (0.747 versus 0.448
+per second) and headless compute (6.97 versus 5.62 wall seconds per episode).
+This holdout was run before the subsequent terminal-goal quality change; it is
+not validation of that changed candidate.
+
+The old episode completion check in `main.py` is position-only (`distance <
+1.4 m`). Baseline 24-map first-entry means were 14.12 deg absolute terminal
+heading error and 8.44 deg/s absolute yaw rate; pre-terminal B had 11.32 deg
+and 3.87 deg/s, but seed 2205 entered stern-first (about 177 deg error). The
+opt-in B prototype now chooses a stable final route tangent within 12 m, adds
+position/heading/yaw-rate/cross-track/reverse-speed cost on the exact physical
+rollout endpoint, and requires a centered forward entry within 1.0 m, heading
+35 deg, yaw rate 0.12 rad/s, lateral speed 0.35 m/s. This changes no physics or
+default GUI completion rule. Targeted seeds 2000, 2081, 2189, 2205, 2069,
+2168, 2037 all succeeded without collision; 2205's first-entry error changed
+from about 177 deg stern-first to 19 deg. Seed 2189 still first entered at
+87 deg error and required another 11.64 s to achieve quality arrival; this
+remains a weak terminal approach. No disjoint holdout has been run for this
+terminal variant.
+
+The decisive topology gate fails for final slew-limited B: the same general
+U-shaped cul-de-sac solved by production A in 58.80 s and by an earlier,
+non-slew B in 52.76 s now times out at 140 s, with minimum goal-center distance
+27.54 m and no collision. A* repeatedly finds a valid exit around the upper
+wall. From about 5 s onward B moves between x≈4.7–6.3 m near y≈6 m,
+alternating forward/reverse without reaching the westward exit. At 15 s its
+guide points northwest (about [2.65, 9.32] m), while the vessel is heading
+southeast and commanded forward; at 25 s it is back near [5.06, 6.54] m.
+The failure begins far outside the 12 m terminal zone, so terminal cost did
+not cause it. A short-horizon sampling objective/resetting coarse-route
+progress appears insufficient to commit to the exit; this is a diagnosis,
+not a verified fix. Do not promote B or change its frozen parameters to mask
+the failure.
+
+Candidate visualization now separates the full control prediction from a
+per-render visual projection: each actual X11/3D render clips elapsed points
+behind the latest vessel state; the selected physical prediction is replaced
+every three physics steps, and the coarse route remains a distinct debug
+overlay. At displayed 1x the measured rates on seed 2081 were about 49 physics
+steps/s, 16.2 prediction replacements/s, 3.3 coarse A* rebuilds/s, and 81.3
+renders/s (per-frame display projection at the render rate). The stored X11
+screenshot `data/realtime_perf/final_gui.png` shows the future path beginning
+at the vessel rather than the passed segment. This opt-in display fix does not
+make the default A path a physical prediction; default A still shows its
+smoothed route. Do not describe the two as equivalent.
+
+Sequential five-second real-X11/3D candidate runs at displayed 1x: seeds
+2081/2000/2006 rendered 81.3/80.1/84.6 FPS; median frame 8.27/8.30/8.29 ms;
+p95 28.59/31.43/28.18 ms; p99 42.12/43.18/39.20 ms; maxima
+43.51/45.87/42.48 ms. Frames ≥33 ms: 17/16/18; ≥50/100/250 ms: zero in all
+three. Same-session A on 2081 rendered 101.1 FPS, p99 51.25 ms, max 84.0 ms,
+17 frames ≥33 ms and seven ≥50 ms. Candidate B reduces the measured tail but
+lowers average FPS and retains visible planning-frame spikes. On B seed 2081,
+mean sampling-controller call 22.72 ms, mean rollout 9.56 ms (typically twice
+per call), mean A* search 14.07 ms when invoked, LiDAR 0.09 ms/step, rendering
+4.64 ms/frame. The largest 43.5 ms frame includes 13.4 ms A* plus 21.1 ms
+rollouts (nested within 36.2 ms planning) and 5.7 ms rendering; 3D wait was
+0.1 ms. No display throttling or physics skips were introduced. The main-thread
+planner still blocks that render frame and the 120 FPS target is unmet.
+
+The relevant 37 unit/navigation/dynamics tests pass, including perception,
+physical rollout equivalence, collision envelope, terminal condition and
+visual-only clipping. Next ticket: resolve the measured U-shaped coarse-route
+deadlock with a general progress/turn commitment mechanism, then repeat only
+targeted topology and hard-seed checks before a fresh disjoint holdout. Separately
+reduce planning-frame CPU time or decouple rendering without changing controller
+decisions; retain A as the default until both gates pass. The default A visual
+route-versus-physical-prediction distinction remains a UI synchronization issue.
+
+## Navigation architecture review — prior milestone, 2026-09-26
+
+The user's latest scope supersedes the previous strict navigation-equivalence FPS
+ticket: navigation may change, but approved dynamics and playback stay frozen.
+Read `KNOWN_GOOD_DYNAMICS.md` and `NAVIGATION_ARCHITECTURE_REVIEW.md` first.
+Starting HEAD is the existing `45e15e0`; only `leaderboard.json` was dirty.
+Source/working-tree backup: `data/architecture_rethink/baseline-sgl_aqsn/`.
+Production navigation has not yet been replaced. All candidates are isolated in
+`experiments/`. No commit/push or 200-episode benchmark.
+
+Fresh dynamics measurement: yaw step t90 1.04 s, peak acceleration 39.7068 deg/s²,
+terminal forward speed 2.26247 m/s. All six frozen source/config hashes still match.
+The existing 26 tests and five new prototype contracts pass (perception boundary,
+fixed-step rollout equivalence, hull envelope, command bounds and command slew).
+
+Three architectures compared on 2000/2081/2189/2069/2168/2037: baseline 5 success,
+0 collision, 1 timeout; coarse route + sampling MPC 6 success, 0 collision;
+direct sampling MPC 6 success, 0 collision. Untuned MPC commands varied more and
+episode peak yaw acceleration reached approximately 72 deg/s². Direct MPC was
+rejected after a U-shaped cul-de-sac timeout and a tuning variant's seed-2081
+timeout. Coarse guidance and baseline solved the cul-de-sac at 52.76 and 58.80 s.
+
+Command-change cost search used only 2000/2081/2189: weights 3, 10, 30 and a
+coarse-to-fine weight 6. Weight 10 passed tuning but regressed seed 2069 to 77.08 s
+versus baseline 34.88 s, so it was not promoted. A final bounded-command candidate
+uses weight 3 and max yaw-command change 0.1 rad/s per 0.12 s command knot;
+physical inertia/allocator gains remain unchanged. Tuning results: 2000 success
+32.24 s, 2081 success 46.48 s, 2189 success 88.76 s; peaks 43.47/47.21/47.66 deg/s².
+The separate hard-map validation, paired holdout, and GUI measurement were
+subsequently completed as documented in the leading 2026-09-27 entry. The
+candidate was not promoted. Traces, maps, parameters and timing JSONs are
+under `data/architecture_rethink/`; no generated evidence is committed.
 
 ## Real-display FPS ticket — measured partial improvement, 2026-09-26
 

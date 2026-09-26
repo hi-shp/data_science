@@ -5,6 +5,7 @@ import numpy as np
 from vessel_dynamics import allocate, integrate
 from utils import wrap
 from route_planner import route_target
+from fast_constant_rollout import compiled_constant_rollout, parameter_vector
 
 
 @dataclass(frozen=True)
@@ -68,33 +69,44 @@ def select_command(env):
     z = np.repeat(state[None,:],len(speeds),axis=0)
     closest = np.full(len(speeds), 10.)
     blocked = np.zeros(len(speeds), dtype=bool)
+    trajectory = np.empty((len(speeds),round(cfg.horizon_s/cfg.prediction_step_s),8))
     local_obs = env.perceived_obstacles
     if len(local_obs):
         # Scan-derived geometry and time-limited observation memory only.
         local_obs = local_obs[np.linalg.norm(local_obs[:,:2]-env.boat_pos,axis=1) < env.lidar_range+20]
     obs = local_obs/p.pixels_per_m
     turn_cost = np.zeros(len(speeds))
-    for _ in range(round(cfg.horizon_s/cfg.prediction_step_s)):
-        left,right = allocate(z,speeds,rate_cmd,p)
-        z = integrate(z,left,right,cfg.prediction_step_s,p)
-        if len(obs):
-            dx = obs[None,:,0]-z[:,None,0]
-            dy = obs[None,:,1]-z[:,None,1]
-            c,s = np.cos(z[:,None,2]),np.sin(z[:,None,2])
-            longitudinal = dx*c+dy*s
-            lateral = -dx*s+dy*c
-            # Union of two hull capsules, including the wider stern corners.
-            longitudinal_gap = np.maximum.reduce([-0.56-longitudinal, longitudinal-0.52, np.zeros_like(longitudinal)])
-            lateral_gap = np.minimum(np.abs(lateral-.22),np.abs(lateral+.22))
-            separation = np.hypot(longitudinal_gap,lateral_gap)-obs[None,:,2]-.32
-            margin = separation.min(axis=1)
-            closest = np.minimum(closest, margin)
-            blocked |= margin < cfg.safety_margin_m
-        wall = np.minimum.reduce([z[:,1]-.93, env.sim_h/p.pixels_per_m-.93-z[:,1],
-                                  z[:,0]-.93, env.map_w/p.pixels_per_m-.93-z[:,0]])
-        closest = np.minimum(closest,wall)
-        blocked |= wall < .05
-        turn_cost += z[:,5]**2*cfg.prediction_step_s
+    horizon_steps = trajectory.shape[1]
+    if compiled_constant_rollout is not None:
+        if not hasattr(env,'_rollout_params'):
+            env._rollout_params = parameter_vector(p)
+        z,closest,blocked,turn_cost,trajectory = compiled_constant_rollout(
+            state,speeds,rate_cmd,obs,env.map_w/p.pixels_per_m,
+            env.sim_h/p.pixels_per_m,cfg.prediction_step_s,horizon_steps,
+            cfg.safety_margin_m,env._rollout_params)
+    else:
+        for step in range(horizon_steps):
+            left,right = allocate(z,speeds,rate_cmd,p)
+            z = integrate(z,left,right,cfg.prediction_step_s,p)
+            trajectory[:,step,:] = z
+            if len(obs):
+                dx = obs[None,:,0]-z[:,None,0]
+                dy = obs[None,:,1]-z[:,None,1]
+                c,s = np.cos(z[:,None,2]),np.sin(z[:,None,2])
+                longitudinal = dx*c+dy*s
+                lateral = -dx*s+dy*c
+                # Union of two hull capsules, including the wider stern corners.
+                longitudinal_gap = np.maximum.reduce([-0.56-longitudinal, longitudinal-0.52, np.zeros_like(longitudinal)])
+                lateral_gap = np.minimum(np.abs(lateral-.22),np.abs(lateral+.22))
+                separation = np.hypot(longitudinal_gap,lateral_gap)-obs[None,:,2]-.32
+                margin = separation.min(axis=1)
+                closest = np.minimum(closest, margin)
+                blocked |= margin < cfg.safety_margin_m
+            wall = np.minimum.reduce([z[:,1]-.93, env.sim_h/p.pixels_per_m-.93-z[:,1],
+                                      z[:,0]-.93, env.map_w/p.pixels_per_m-.93-z[:,0]])
+            closest = np.minimum(closest,wall)
+            blocked |= wall < .05
+            turn_cost += z[:,5]**2*cfg.prediction_step_s
     # Penalize reversals and target changes; speed is reduced when a turn would
     # violate the swept safety envelope. No instantaneous rotation escape.
     previous = getattr(env,'command_yaw_rate',0.)
@@ -120,6 +132,9 @@ def select_command(env):
         best = int(np.argmin(np.where(recovery,-closest+.03*(rate_cmd-previous)**2,np.inf)))
     env.command_speed = float(speeds[best])
     env.command_yaw_rate = float(rate_cmd[best])
+    env.predicted_trajectory = np.vstack([state[:2],trajectory[best,:,:2]])
+    env.prediction_frame = env.frame
+    env.prediction_stride_steps = round(cfg.prediction_step_s/env.dt)
     env.predicted_clearance = float(closest[best])
     env.emergency_mode = bool(np.all(blocked))
     env.min_wide_dist = float(np.min(env.lidar_dists))

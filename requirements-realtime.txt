@@ -1,0 +1,3 @@
+# Add to the project's existing Python environment to reproduce measured 4x GUI performance.
+numba==0.67.0
+Pillow==12.3.0

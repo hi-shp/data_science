@@ -8,6 +8,11 @@ import leaderboard
 from environment import BoatEnv
 from simulation import advance
 from perception import lidar_hits_np
+from fast_astar import warmup_astar
+from fast_corridor import compiled_within_corridor
+from fast_constant_rollout import warmup_constant_rollout
+from frame_capture import save_episode_frame, start_capture_worker
+from fast_clearance import warmup_clearance
 
 BASE_PLAYBACK_RATE = 2.0  # simulation seconds per wall second at displayed 1x
 MAX_PHYSICS_STEPS_PER_RENDER = 8  # bound catch-up latency; never skip a physics step
@@ -15,13 +20,25 @@ MAX_PHYSICS_STEPS_PER_RENDER = 8  # bound catch-up latency; never skip a physics
 
 def run():
     env = BoatEnv()
+    warmup_astar()
+    warmup_constant_rollout()
+    warmup_clearance()
+    start_capture_worker()
+    if compiled_within_corridor is not None:
+        # Compile before the clock starts; warmup never enters planning state.
+        compiled_within_corridor(np.zeros((1,2)),np.zeros((1,2)),
+                                 np.zeros((1,2)),np.ones(1))
     # Do not turn environment/renderer initialization time into catch-up physics.
     env.clock.tick(120)
+    last_tick_time = time.perf_counter()
     accumulator = 0.0
     hits_x = hits_y = np.empty(0)
 
     while True:
-        elapsed = env.clock.tick(120) / 1000.0
+        env.clock.tick(120)
+        now = time.perf_counter()
+        elapsed = now-last_tick_time
+        last_tick_time = now
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 if hasattr(env, 'renderer') and hasattr(env.renderer, 'engine_3d') and env.renderer.engine_3d:
@@ -86,7 +103,7 @@ def run():
 
         # Displayed 1x/2x/4x means 2/4/8 simulation seconds per wall second.
         # Only the step budget changes; dt and simulation-time planning stay fixed.
-        accumulator += min(elapsed, .25) * BASE_PLAYBACK_RATE * env.sim_speed
+        accumulator += elapsed * BASE_PLAYBACK_RATE * env.sim_speed
         sub_steps = min(MAX_PHYSICS_STEPS_PER_RENDER, int(accumulator / env.dt))
         accumulator -= sub_steps * env.dt
         
@@ -125,11 +142,14 @@ def run():
                     try:
                         if hits_x is not None:
                             env.render(hits_x, hits_y)
-                        pygame.image.save(env.screen, p)
+                        save_episode_frame(env.screen, p)
                     except:
                         pass
                     env.reset()
-                    accumulator = 0.0
+                    # A goal can end this frame's step batch early. Return its
+                    # unexecuted fixed-step budget to the accumulator so 4x
+                    # playback never silently loses physics time at a reset.
+                    accumulator += (sub_steps-step_idx-1)*env.dt
                     break
 
         if hits_x is not None:

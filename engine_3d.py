@@ -1,6 +1,7 @@
 import os
 import math
 import atexit
+import time
 import multiprocessing as mp
 from multiprocessing import shared_memory
 import numpy as np
@@ -1136,6 +1137,12 @@ class Engine3D:
         self._closed = False
         self._pending_render = False
         self._pending_dim = (320, 220)
+        self._sent_count = 0
+        self._completed_count = 0
+        self._pending_source_frame = None
+        self._pending_request_wall = None
+        self._last_completed_source_frame = None
+        self._last_completed_request_wall = None
         
         # 패널(320x220) 및 전체화면(full_w x full_h) 공유 메모리 블록 생성
         self.shm_panel = shared_memory.SharedMemory(create=True, size=320 * 220 * 4)
@@ -1192,7 +1199,7 @@ class Engine3D:
             'cam_3d_mode': int(getattr(env, 'cam_3d_mode', 1)),
             'dynamic_obstacles': env.dynamic_obstacles,
             'target': tuple(env.target),
-            'control_path': getattr(env, 'control_path', None),
+            'control_path': getattr(env, 'visual_trajectory', getattr(env, 'control_path', None)),
             'selected_gap': getattr(env, 'selected_gap', None) if getattr(env, 'show_raw_route', False) else None,
             'current_wp': None,
             'next_wp': None,
@@ -1208,6 +1215,9 @@ class Engine3D:
         self.parent_conn.send(req)
         self._pending_render = True
         self._pending_dim = (w, h)
+        self._sent_count += 1
+        self._pending_source_frame = env.frame
+        self._pending_request_wall = time.perf_counter()
 
     def _collect_completed(self):
         if self._pending_render and self.parent_conn.poll():
@@ -1217,6 +1227,9 @@ class Engine3D:
             else:
                 self._completed_full.blit(self.surf_full, (0, 0))
             self._pending_render = False
+            self._completed_count += 1
+            self._last_completed_source_frame = self._pending_source_frame
+            self._last_completed_request_wall = self._pending_request_wall
 
     def finish_render(self, width=None, height=None):
         """비동기 3D 렌더링 완료 대기 및 공유 메모리 뷰포트 서피스 반환"""

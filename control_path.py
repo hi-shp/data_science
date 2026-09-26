@@ -1,6 +1,7 @@
 """Tangent-continuous corner fillets and continuous arc-length lookahead."""
 import math
 import numpy as np
+from fast_corridor import compiled_within_corridor
 
 
 def samples_on_line(a,b,spacing=.04):
@@ -37,6 +38,9 @@ def smooth_path(raw, safe):
     def maybe_within_corridor(points):
         return all((math.floor(x/cell_size),math.floor(y/cell_size)) in corridor_cells for x,y in points)
     def within_corridor(points):
+        if compiled_within_corridor is not None:
+            return bool(compiled_within_corridor(np.asarray(points),raw_segment_starts,
+                                                 delta,segment_length_sq))
         offset=np.asarray(points)[:,None,:]-raw_segment_starts[None,:,:]
         fraction=np.clip(np.sum(offset*delta,axis=2)/segment_length_sq,0,1)
         distance=np.linalg.norm(offset-fraction[:,:,None]*delta,axis=2)

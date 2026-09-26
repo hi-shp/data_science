@@ -6,6 +6,7 @@ about 2.12 s to decay from 20 below its clustering threshold). Free evidence
 expires after 5 s; everything else is explicitly unknown, not observed free.
 """
 import numpy as np
+from fast_clearance import compiled_clearance
 
 
 class NavigationMap:
@@ -83,4 +84,6 @@ class NavigationMap:
     def clearance(self, points, hull_radius=.54):
         points=np.asarray(points).reshape(-1,2)
         if not len(self.obstacles):return np.full(len(points),np.inf)
+        if compiled_clearance is not None:
+            return compiled_clearance(points,self.obstacles,hull_radius)
         return np.min(np.linalg.norm(points[:,None,:]-self.obstacles[None,:,:2],axis=2)-self.obstacles[None,:,2]-hull_radius,axis=1)

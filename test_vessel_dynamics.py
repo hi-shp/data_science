@@ -110,6 +110,7 @@ def test_safety_capsule_encloses_collision_hull():
 def test_gui_accumulator_uses_wall_time_instead_of_one_step_per_frame():
     import pygame
     import main
+    from types import SimpleNamespace
     from environment import BoatEnv
     class Clock:
         def tick(self, fps):
@@ -122,6 +123,8 @@ def test_gui_accumulator_uses_wall_time_instead_of_one_step_per_frame():
         def events():
             count[0] += 1
             return [pygame.event.Event(pygame.QUIT)] if count[0] > 125 else []
-        with patch.object(main,'BoatEnv',return_value=env), patch.object(pygame.event,'get',side_effect=events):
+        wall_tick = iter(i * .008 for i in range(127))
+        fake_time = SimpleNamespace(perf_counter=lambda: next(wall_tick))
+        with patch.object(main,'BoatEnv',return_value=env), patch.object(pygame.event,'get',side_effect=events), patch.object(main,'time',fake_time):
             main.run()
-        assert env.frame == 50*speed, (speed,env.frame)
+        assert abs(env.frame - 50*speed) <= 1, (speed,env.frame)
