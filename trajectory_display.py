@@ -2,6 +2,44 @@
 import numpy as np
 
 
+def end_prediction_at_goal(path, goal, radius):
+    """Display a goal-reaching prediction through the center, never beyond it.
+
+    The short final connector is visual guidance; the physical rollout remains
+    in the original control path. Before the prediction reaches the goal
+    region, show every available future point.
+    """
+    points = np.asarray(path, dtype=float)
+    if len(points) < 2:
+        return points.copy()
+    goal = np.asarray(goal, dtype=float)
+    delta = np.diff(points, axis=0)
+    fraction = np.clip(np.sum((goal-points[:-1])*delta, axis=1)/
+                       np.maximum(np.sum(delta*delta, axis=1), 1e-12), 0., 1.)
+    projected = points[:-1]+fraction[:, None]*delta
+    distance2 = np.sum((projected-goal)**2, axis=1)
+    nearby = np.flatnonzero(distance2 <= radius*radius)
+    if not len(nearby):
+        return points.copy()
+    first = int(nearby[0])
+    last = first
+    while last+1 < len(distance2) and distance2[last+1] <= radius*radius:
+        last += 1
+    segment = first+int(np.argmin(distance2[first:last+1]))
+    result = np.vstack((points[:segment+1], projected[segment], goal))
+    # Avoid zero-length final line when the physical prediction hits center.
+    keep = np.r_[True, np.linalg.norm(np.diff(result, axis=0), axis=1) > 1e-8]
+    return result[keep]
+
+
+def predicted_state_marker(display_path, point_index=9):
+    """Pick a display-only future point, clamped to the visible path end."""
+    points = np.asarray(display_path, dtype=float)
+    if points.ndim != 2 or points.shape[1] != 2 or not len(points):
+        return None
+    return points[min(point_index, len(points)-1)].copy()
+
+
 def future_trajectory(path, position, elapsed_steps, steps_per_knot=3):
     """Return vessel-now → future, discarding the elapsed prediction prefix.
 

@@ -4,6 +4,8 @@ import math
 import datetime
 import time
 import os
+import argparse
+import random
 import leaderboard
 from environment import BoatEnv
 from simulation import advance
@@ -13,16 +15,57 @@ from fast_corridor import compiled_within_corridor
 from fast_constant_rollout import warmup_constant_rollout
 from frame_capture import save_episode_frame, start_capture_worker
 from fast_clearance import warmup_clearance
+from trajectory_modes import NAV_MODES
+from trajectory_objective import flythrough_goal_reached
+from playback_scheduler import playback_budget
 
 BASE_PLAYBACK_RATE = 2.0  # simulation seconds per wall second at displayed 1x
 MAX_PHYSICS_STEPS_PER_RENDER = 8  # bound catch-up latency; never skip a physics step
+DEFAULT_NAV_MODE = 'eta_continuity_forward'
 
 
-def run():
+def run(nav_mode=None, seed=None):
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
     env = BoatEnv()
+    # The original controller remains available for matched comparisons.
+    env.navigation_mode = nav_mode or os.environ.get('KABOAT_NAVIGATION', DEFAULT_NAV_MODE)
+    if env.navigation_mode not in (*NAV_MODES, 'trajectory_control', 'legacy'):
+        raise ValueError(f'Unknown navigation mode: {env.navigation_mode}')
+    # Raw A* stays available through the dashboard debug toggle.
     warmup_astar()
     warmup_constant_rollout()
     warmup_clearance()
+    if env.navigation_mode not in ('legacy_a', 'legacy'):
+        from experiments.fast_rollout import compiled_rollout, parameter_vector
+        if compiled_rollout is not None:
+            if env.navigation_mode in ('eta_continuity_passage_exact',
+                                       'eta_continuity_forward'):
+                from passage_geometry import (physical_hull_polygons,
+                                              prepare_hull_edges, fast_surface_clearances)
+                hull = physical_hull_polygons(env.dynamics.pixels_per_m)
+                edges, bound, box = prepare_hull_edges(hull)
+                compiled_rollout(np.zeros(8), np.zeros((1,1,2)), np.empty((0,3)),
+                                 env.map_w/env.dynamics.pixels_per_m,
+                                 env.sim_h/env.dynamics.pixels_per_m,
+                                 env.dt, parameter_vector(env.dynamics), 0., 0., 1.4,
+                                 hull, None, edges, bound, box)
+                fast_surface_clearances(np.zeros((1, 8)), np.empty((0, 3)),
+                                        env.map_w/env.dynamics.pixels_per_m,
+                                        env.sim_h/env.dynamics.pixels_per_m,
+                                        edges, bound, box)
+                if env.navigation_mode == 'eta_continuity_forward':
+                    compiled_rollout(
+                        np.zeros(8), np.zeros((1, 1, 2)), np.empty((0, 3)),
+                        env.map_w/env.dynamics.pixels_per_m,
+                        env.sim_h/env.dynamics.pixels_per_m,
+                        env.dt, parameter_vector(env.dynamics), 0., 0., 0.,
+                        hull, None, edges, bound, box, np.zeros((1, 8)), True)
+            compiled_rollout(np.zeros(8), np.zeros((1,1,2)), np.empty((0,3)),
+                             env.map_w/env.dynamics.pixels_per_m,
+                             env.sim_h/env.dynamics.pixels_per_m,
+                             env.dt, parameter_vector(env.dynamics), 0., 0., 1.4)
     start_capture_worker()
     if compiled_within_corridor is not None:
         # Compile before the clock starts; warmup never enters planning state.
@@ -32,6 +75,7 @@ def run():
     env.clock.tick(120)
     last_tick_time = time.perf_counter()
     accumulator = 0.0
+    scheduled_speed = env.sim_speed
     hits_x = hits_y = np.empty(0)
 
     while True:
@@ -103,7 +147,12 @@ def run():
 
         # Displayed 1x/2x/4x means 2/4/8 simulation seconds per wall second.
         # Only the step budget changes; dt and simulation-time planning stay fixed.
-        accumulator += elapsed * BASE_PLAYBACK_RATE * env.sim_speed
+        speed_changed = scheduled_speed != env.sim_speed
+        accumulator = playback_budget(accumulator, elapsed, scheduled_speed,
+                                      env.sim_speed, BASE_PLAYBACK_RATE)
+        scheduled_speed = env.sim_speed
+        if speed_changed:
+            last_tick_time = time.perf_counter()
         sub_steps = min(MAX_PHYSICS_STEPS_PER_RENDER, int(accumulator / env.dt))
         accumulator -= sub_steps * env.dt
         
@@ -127,8 +176,9 @@ def run():
                     env.boat_ang_vel = 0.0
                 # 수동 조종 모드에서는 충돌 발생 시 에피소드를 종료/리스폰하지 않고 계속 주행함
             else:
-                if env.collide() or dist_tgt_end < 70:
-                    is_success = (dist_tgt_end < 70 and not env.collide())
+                reached = flythrough_goal_reached(dist_tgt_end/env.dynamics.pixels_per_m)
+                if env.collide() or reached:
+                    is_success = (reached and not env.collide())
                     tag = "SUCCESS" if is_success else "FAIL"
                     subfolder = "success" if is_success else "fail"
                     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -156,4 +206,8 @@ def run():
             env.render(hits_x, hits_y)
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--nav-mode', choices=NAV_MODES, default=None)
+    parser.add_argument('--seed', type=int)
+    args = parser.parse_args()
+    run(args.nav_mode, args.seed)

@@ -7,6 +7,33 @@ import leaderboard
 from engine_3d import Engine3D
 from config import get_dashboard_layout, GRID
 
+
+def wake_virtual_frames(frame, last_frame, birth_frame):
+    """Age visual foam by physics progress, calibrated to the stable 4x view."""
+    advanced=max(0,frame-last_frame)
+    alive=max(0,frame-birth_frame+1)
+    return min(advanced,alive)*.5
+
+
+def advance_wake_visual(wake, frames, reflected=False):
+    """Compose fractional reference-frame drift without render-rate dependence."""
+    if reflected and len(wake)<6:
+        wake[2]+=.38*frames
+        wake[3]-=2.2*frames
+        return
+    damping=.88 if reflected else .93
+    drift=1.0 if reflected else .80
+    fraction=(1.-damping**frames)/(1.-damping)
+    wake[0]+=wake[4]*drift*fraction
+    wake[1]+=wake[5]*drift*fraction
+    wake[4]*=damping**frames
+    wake[5]*=damping**frames
+    if reflected:
+        wake[3]-=6.*frames
+    else:
+        wake[2]+=1.15*frames
+        wake[3]-=2.4*frames
+
 class EnvRenderer:
     def __init__(self, env):
         self.env = env
@@ -61,6 +88,7 @@ class EnvRenderer:
         self.smooth_path_m = 0.0
         self._text_cache = {}
         self._prev_wake_rect = None
+        self._last_wake_frame = env.frame
         self._prev_occ_rect = None
         self._prev_all_gaps_rect = None
 
@@ -225,15 +253,26 @@ class EnvRenderer:
         # Project the latest vessel pose onto its remaining future on every
         # rendered frame; never write the clipped view back into control_path.
         if getattr(env, 'prediction_frame', None) is not None and not getattr(env, 'manual_mode', False) and not getattr(env, 'linetrace_mode', False):
-            from trajectory_display import future_trajectory
+            from trajectory_display import future_trajectory, end_prediction_at_goal, predicted_state_marker
             prediction = getattr(env, 'predicted_trajectory', getattr(env, 'control_path', None))
             env.visual_trajectory = future_trajectory(
                 prediction, env.boat_pos/env.dynamics.pixels_per_m,
                 env.frame-env.prediction_frame,
                 getattr(env, 'prediction_stride_steps', env.control.planning_period_steps))
+            if getattr(env, 'navigation_mode', '') in ('eta_continuity_goal', 'eta_continuity_passage',
+                                                        'eta_continuity_passage_exact', 'eta_continuity_forward'):
+                env.visual_trajectory = end_prediction_at_goal(
+                    env.visual_trajectory,
+                    env.target/env.dynamics.pixels_per_m, .55)
+                marker = predicted_state_marker(env.visual_trajectory)
+                env.visual_controller_target = (None if marker is None else
+                                                marker*env.dynamics.pixels_per_m)
+            else:
+                env.visual_controller_target = getattr(env, 'controller_target', None)
         else:
             env.visual_trajectory = (None if getattr(env, 'manual_mode', False)
                                      else getattr(env, 'control_path', None))
+            env.visual_controller_target = getattr(env, 'controller_target', None)
         cam_x = env.cam_x  # 카메라 X 오프셋
         
         # 헬퍼: 월드좌표 → 스크린좌표 변환
@@ -422,16 +461,11 @@ class EnvRenderer:
                 draw_line(target_surf, ray_color, (sbx_i, sby_i), (int(rx_arr[k]), int(ry_arr[k])), 1)
 
         # 3. 실제 선박 유체역학 항적 웨이크 + 장애물 반사/산란 미세 거품 (120 FPS 고속 더티 렉트 최적화)
+        previous_wake_frame=min(self._last_wake_frame,env.frame)
         wake_draw_list = []
         for w in env.wakes:
-            # w: [x, y, radius, alpha, vx, vy]
-            if len(w) >= 6:
-                w[0] += w[4] * 0.80
-                w[1] += w[5] * 0.80
-                w[4] *= 0.93
-                w[5] *= 0.93
-            w[2] += 1.15  # 웅장하고 풍성한 선미 거품 확장
-            w[3] -= 2.4   # 긴 항적 지속성
+            birth=w[7] if len(w)>=8 else previous_wake_frame+1
+            advance_wake_visual(w,wake_virtual_frames(env.frame,previous_wake_frame,birth))
             if w[3] > 0:
                 wsx = int(sx(w[0]))
                 wsy = int(w[1])
@@ -442,22 +476,22 @@ class EnvRenderer:
         rw_draw_list = []
         if hasattr(env, 'reflected_wakes'):
             for rw in env.reflected_wakes:
-                if len(rw) == 4:
-                    rw[2] += 0.38
-                    rw[3] -= 2.2
+                if len(rw) in (4,5):
+                    birth=rw[4] if len(rw)==5 else previous_wake_frame+1
+                    advance_wake_visual(rw,wake_virtual_frames(env.frame,previous_wake_frame,birth),True)
                     if rw[3] > 0:
                         rwsx = int(sx(rw[0]))
                         if -50 < rwsx < env.w + 50:
                             rw_draw_list.append(('circle', rwsx, int(rw[1]), int(rw[2]), rw[3]))
                 elif len(rw) >= 6:
-                    rw[0] += rw[4]; rw[1] += rw[5]
-                    rw[4] *= 0.88; rw[5] *= 0.88
-                    rw[3] -= 6.0
+                    birth=rw[6] if len(rw)>=7 else previous_wake_frame+1
+                    advance_wake_visual(rw,wake_virtual_frames(env.frame,previous_wake_frame,birth),True)
                     if rw[3] > 0:
                         rwsx = int(sx(rw[0]))
                         if -50 < rwsx < env.w + 50:
                             rw_draw_list.append(('dot', rwsx, int(rw[1]), 1, rw[3]))
             env.reflected_wakes = [rw for rw in env.reflected_wakes if rw[3] > 0]
+        self._last_wake_frame=env.frame
 
         all_wake_pts = [(p[0], p[1], p[2]) for p in wake_draw_list] + [(p[1], p[2], p[3]) for p in rw_draw_list]
         if all_wake_pts:
@@ -560,7 +594,7 @@ class EnvRenderer:
             pygame.draw.line(target_surf, (255, 255, 255, 180), (itgx - 16, itgy), (itgx + 16, itgy), 1)
             pygame.draw.line(target_surf, (255, 255, 255, 180), (itgx, itgy - 16), (itgx, itgy + 16), 1)
         
-        # Draw only the controller's actual path and lookahead target.
+        # The trajectory mode's marker is a predicted state, never a pursuit input.
         is_lt = getattr(env, 'linetrace_mode', False)
         if not is_lt and getattr(env, 'show_control_path', True):
             path = getattr(env, 'visual_trajectory', None)
@@ -572,8 +606,8 @@ class EnvRenderer:
                     pts = self._draw_path_world.copy()
                     pts[:, 0] -= cam_x
                     pygame.draw.lines(target_surf, (50, 210, 255), False, pts.astype(np.int32), 4)
-            if getattr(env, 'controller_target', None) is not None:
-                px_t, py_t = env.controller_target
+            if getattr(env, 'visual_controller_target', None) is not None:
+                px_t, py_t = env.visual_controller_target
                 pygame.draw.circle(target_surf, (255, 255, 255), (int(sx(px_t)), int(py_t)), 10, 2)
                 pygame.draw.circle(target_surf, (255, 50, 150), (int(sx(px_t)), int(py_t)), 5)
 
@@ -690,9 +724,9 @@ class EnvRenderer:
         mm_trail = pygame.transform.scale(env.trail, (mm_w, mm_h))
         mm_surf.blit(mm_trail, (2, 2))
         
-        # Same lookahead used by the controller, in map coordinates.
-        if not getattr(env, 'linetrace_mode', False) and env.controller_target is not None:
-            wp = env.controller_target
+        # In trajectory mode this is a display-only predicted-state marker.
+        if not getattr(env, 'linetrace_mode', False) and env.visual_controller_target is not None:
+            wp = env.visual_controller_target
             pygame.draw.circle(mm_surf, (255, 50, 150), (int(2 + wp[0] * scale_x), int(2 + wp[1] * scale_y)), 3)
         
         # 목표점 (녹색)
@@ -1195,7 +1229,7 @@ class EnvRenderer:
         
         if not hasattr(self, 'scale_x_max'): self.scale_x_max = 4.0; self.scale_y_max = 2.0
         
-        if path is not None and len(path) >= 4:
+        if path is not None and len(path) >= 2:
             pts = path
             diffs = pts - env.boat_pos
             # 선박 기준 로컬 좌표계 변환 (X: 전방 거리, Y: 좌/우 편차 거리)
@@ -1362,6 +1396,9 @@ class EnvRenderer:
         else:
             mode_txt = self.get_text_surf(self.bold_font, "CRUISING", (50, 230, 120))
         hud_surf.blit(mode_txt, (10, 6))
+        nav_name = getattr(env, 'navigation_mode', 'eta_base').upper()
+        nav_txt = self.get_text_surf(self.micro_font, f"NAV: {nav_name}", (150, 190, 215))
+        hud_surf.blit(nav_txt, (10, 20))
         
         # 속도 (math.hypot 고속화)
         bv = env.boat_vel

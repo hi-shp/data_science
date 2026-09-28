@@ -9,6 +9,13 @@ from navigation_map import NavigationMap
 
 
 def advance(env, step_idx=0, sub_steps=1):
+    if (getattr(env, 'navigation_mode', 'legacy') in ('trajectory_control', 'trajectory_reference')
+            or getattr(env, 'navigation_mode', '').startswith('eta_')):
+        if not getattr(env, 'manual_mode', False) and not getattr(env, 'linetrace_mode', False):
+            from trajectory_runtime import advance_trajectory
+            return advance_trajectory(env, step_idx=step_idx, sub_steps=sub_steps)
+        if hasattr(env, 'trajectory_navigator'):
+            del env.trajectory_navigator
     # Planning is tied to simulation time, never to display FPS or speed buttons.
     plan_interval = env.control.planning_period_steps
     new_wp = None

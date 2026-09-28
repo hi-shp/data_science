@@ -6,6 +6,7 @@ sample; it only removes thousands of Python/NumPy dispatches per plan.
 """
 import math
 import numpy as np
+from passage_geometry import surface_clearance_at_pose, fast_surface_clearance_at_pose
 
 try:
     from numba import njit
@@ -26,14 +27,18 @@ def parameter_vector(p):
 
 if njit is not None:
     @njit(cache=True)
-    def compiled_rollout(initial, sequences, obstacles, width, height, dt, params):
+    def compiled_rollout(initial, sequences, obstacles, width, height, dt, params,
+                         goal_x=0., goal_y=0., goal_radius=0., hull_polygons=None,
+                         geometry_stats=None, hull_edges=None, hull_bound=0.,
+                         hull_box=None, initial_states=None, exact_walls=False):
         count, horizon, _ = sequences.shape
         states = np.empty((count, horizon, 8), dtype=np.float64)
         closest = np.full(count, np.inf)
+        finished = np.zeros(count, dtype=np.bool_)
         z = np.empty((count, 8), dtype=np.float64)
         for i in range(count):
             for j in range(8):
-                z[i, j] = initial[j]
+                z[i, j] = initial[j] if initial_states is None else initial_states[i, j]
         mass, inertia = params[0], params[1]
         surge_lin, surge_quad = params[2], params[3]
         sway_lin, sway_quad = params[4], params[5]
@@ -41,8 +46,8 @@ if njit is not None:
         arm, max_thrust = params[8], params[9]
         alpha = -math.expm1(-dt / params[10])
         speed_response, yaw_gain = params[11], params[12]
-        for t in range(horizon):
-            for i in range(count):
+        for i in range(count):
+            for t in range(horizon):
                 x, y, h, u, v, r, fl, fr = (z[i, 0], z[i, 1], z[i, 2], z[i, 3],
                                            z[i, 4], z[i, 5], z[i, 6], z[i, 7])
                 speed, yaw_command = sequences[i, t, 0], sequences[i, t, 1]
@@ -73,23 +78,41 @@ if njit is not None:
                     r += dt*(((next_fr-next_fl)*arm-yaw_lin*rm-yaw_quad*rm*abs(rm))/inertia)
                     fl, fr = next_fl, next_fr
 
-                    margin = min(x-.93, width-.93-x, y-.93, height-.93-y)
-                    c, s = math.cos(h), math.sin(h)
-                    for j in range(len(obstacles)):
-                        ox, oy, radius = obstacles[j, 0], obstacles[j, 1], obstacles[j, 2]
-                        dx, dy = ox-x, oy-y
-                        # Entire twin-capsule hull lies within 0.93 m of the
-                        # vessel center. A farther circle cannot lower the
-                        # best swept clearance already found, so avoid its
-                        # trig/projection/hypot work without dropping checks.
-                        reach = closest[i]+radius+.93
-                        if reach > 0. and dx*dx+dy*dy > reach*reach:
-                            continue
-                        along, lateral = dx*c+dy*s, -dx*s+dy*c
-                        gap = max(-.56-along, along-.52, 0.)
-                        side = min(abs(lateral-.22), abs(lateral+.22))
-                        margin = min(margin, math.hypot(gap, side)-radius-.32)
-                    closest[i] = min(closest[i], margin)
+                    if hull_polygons is not None:
+                        if hull_edges is not None:
+                            margin = fast_surface_clearance_at_pose(
+                                x, y, h, obstacles, width, height, hull_edges,
+                                hull_bound, hull_box,
+                                closest[i],
+                                None if geometry_stats is None else geometry_stats[i],exact_walls)
+                        else:
+                            margin = surface_clearance_at_pose(
+                                x, y, h, obstacles, width, height, hull_polygons,
+                                None if geometry_stats is None else geometry_stats[i])
+                    else:
+                        margin = min(x-.93, width-.93-x, y-.93, height-.93-y)
+                        c, s = math.cos(h), math.sin(h)
+                        for j in range(len(obstacles)):
+                            ox, oy, radius = obstacles[j, 0], obstacles[j, 1], obstacles[j, 2]
+                            dx, dy = ox-x, oy-y
+                            # Entire twin-capsule hull lies within 0.93 m of the
+                            # vessel center. A farther circle cannot lower the
+                            # best swept clearance already found, so avoid its
+                            # trig/projection/hypot work without dropping checks.
+                            reach = closest[i]+radius+.93
+                            if reach > 0. and dx*dx+dy*dy > reach*reach:
+                                continue
+                            along, lateral = dx*c+dy*s, -dx*s+dy*c
+                            gap = max(-.56-along, along-.52, 0.)
+                            side = min(abs(lateral-.22), abs(lateral+.22))
+                            margin = min(margin, math.hypot(gap, side)-radius-.32)
+                    if not finished[i]:
+                        # Include the goal-entry step in safety. The mission
+                        # ends there, so post-finish boundary crossings do not
+                        # invalidate an otherwise safe fly-through arrival.
+                        closest[i] = min(closest[i], margin)
+                        if goal_radius > 0. and (x-goal_x)**2+(y-goal_y)**2 < goal_radius**2:
+                            finished[i] = True
                 states[i, t, 0], states[i, t, 1] = x, y
                 states[i, t, 2], states[i, t, 3] = h, u
                 states[i, t, 4], states[i, t, 5] = v, r
@@ -97,5 +120,6 @@ if njit is not None:
                 for j in range(8):
                     z[i, j] = states[i, t, j]
         return states, closest
+
 else:
     compiled_rollout = None

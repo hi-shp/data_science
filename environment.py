@@ -224,7 +224,7 @@ class BoatEnv:
         self.reflected_wakes = []
         for name in ('navigation_map', 'control_path', 'path_geometry', 'raw_route', 'route_plan_frame', 'path_progress', 'selected_gap',
                      'predicted_trajectory', 'prediction_frame', 'prediction_stride_steps',
-                     'visual_trajectory', '_rollout_params'):
+                     'visual_trajectory', '_rollout_params', 'trajectory_navigator'):
             if hasattr(self, name):
                 delattr(self, name)
         self.perceived_obstacles = np.empty((0, 3))
@@ -482,7 +482,7 @@ class BoatEnv:
         # 부표 중앙을 기준으로 부드러운 백색 원형 구름 파도가 주기적으로 퍼져나감 (벡터화 일괄 생성)
         if self.frame % 36 == 0:
             n_obs = len(self.obstacles)
-            new_rw = [[float(self.dynamic_obstacles[i, 0]), float(self.dynamic_obstacles[i, 1]), float(r[i]) + 1.0, 72] for i in range(n_obs)]
+            new_rw = [[float(self.dynamic_obstacles[i, 0]), float(self.dynamic_obstacles[i, 1]), float(r[i]) + 1.0, 72, self.frame] for i in range(n_obs)]
             self.reflected_wakes.extend(new_rw)
 
     def pwm_to_thrust(self, pwm):
@@ -545,13 +545,13 @@ class BoatEnv:
                 stern_rx = self.boat_pos[0] + sh * GAP - ch * (L * 0.50)
                 stern_ry = self.boat_pos[1] - ch * GAP - sh * (L * 0.50)
                 
-                self.wakes.append([stern_lx + random.uniform(-1.5, 1.5), stern_ly + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
-                self.wakes.append([stern_rx + random.uniform(-1.5, 1.5), stern_ry + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65])
+                self.wakes.append([stern_lx + random.uniform(-1.5, 1.5), stern_ly + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65, 0, self.frame])
+                self.wakes.append([stern_rx + random.uniform(-1.5, 1.5), stern_ry + random.uniform(-1.5, 1.5), 3.0, 180 * intensity, -ch * 0.65, -sh * 0.65, 0, self.frame])
                 
             if self.frame % 3 == 0:
                 cx = self.boat_pos[0] - ch * 42
                 cy = self.boat_pos[1] - sh * 42
-                self.wakes.append([cx + random.uniform(-2.5, 2.5), cy + random.uniform(-2.5, 2.5), 4.5, 130 * intensity, -ch * 0.85, -sh * 0.85])
+                self.wakes.append([cx + random.uniform(-2.5, 2.5), cy + random.uniform(-2.5, 2.5), 4.5, 130 * intensity, -ch * 0.85, -sh * 0.85, 0, self.frame])
 
             # 좌/우 회전 시 외측 선체 유체 저항에 의한 흰색 거품 (Outer Hull Resistance Foam)
             if abs(self.boat_ang_vel) > 0.06:
@@ -568,7 +568,7 @@ class BoatEnv:
                 alpha = random.uniform(140, 200) * turn_p
                 
                 # 7번째 원소=1: 순백색 거품 태그 (뷰쪽 파란색 링 없이 흰색만)
-                self.wakes.append([bx_foam, by_foam, init_r, alpha, drift_vx, drift_vy, 1])
+                self.wakes.append([bx_foam, by_foam, init_r, alpha, drift_vx, drift_vy, 1, self.frame])
 
         # 파도-장애물 물리 상호작용 (Wave Absorption & Frothy Micro-Bubble Scattering) - 렌더링 직전 마지막 서브스텝에서만 연산
         is_last_substep = (sub_step_idx == total_sub_steps - 1) if total_sub_steps > 1 else True
@@ -628,7 +628,7 @@ class BoatEnv:
                                         new_reflected.append([
                                             ox_s + ca * r_off, oy_s + sa * r_off,
                                             random.uniform(0.3, 0.65), w_alpha * 0.85,
-                                            ca * spd, sa * spd
+                                            ca * spd, sa * spd, self.frame
                                         ])
                             if new_reflected:
                                 self.reflected_wakes.extend(new_reflected)
