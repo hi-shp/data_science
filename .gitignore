@@ -8,3 +8,4 @@ data/
 *.pkl
 kabot2026/
 scratch/
+.kaboat_runtime/

@@ -3,7 +3,14 @@ import json
 import time
 import datetime
 
-LEADERBOARD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "leaderboard.json")
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+LEGACY_LEADERBOARD_FILE = os.path.join(PROJECT_DIR, "leaderboard.json")
+# Runtime records must not modify a tracked source file. Keeping them in an
+# ignored local directory also lets Git switch branches after a simulation.
+LEADERBOARD_FILE = os.environ.get(
+    "KABOAT_LEADERBOARD_FILE",
+    os.path.join(PROJECT_DIR, ".kaboat_runtime", "leaderboard.json"),
+)
 
 # 자율운항 GAP 알고리즘 100회 시뮬레이션 기반 고정 벤치마크 (1등 최고 기록 및 평균 기록)
 # - 1등 (최고 기록): 충돌 0회, 화면 표면 시간 18.72초, 누적 회전 313.1도
@@ -34,10 +41,12 @@ AI_BENCHMARK = AI_BENCHMARKS[0]
 
 def load_leaderboard():
     """leaderboard.json 파일에서 주행 기록 목록 로드"""
-    if not os.path.exists(LEADERBOARD_FILE):
+    source = (LEADERBOARD_FILE if os.path.exists(LEADERBOARD_FILE)
+              else LEGACY_LEADERBOARD_FILE)
+    if not os.path.exists(source):
         return []
     try:
-        with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
+        with open(source, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, list):
                 return data
@@ -49,6 +58,7 @@ def load_leaderboard():
 def save_leaderboard(records):
     """주행 기록 목록을 leaderboard.json 파일에 저장"""
     try:
+        os.makedirs(os.path.dirname(LEADERBOARD_FILE), exist_ok=True)
         with open(LEADERBOARD_FILE, "w", encoding="utf-8") as f:
             json.dump(records, f, indent=2, ensure_ascii=False)
         return True
