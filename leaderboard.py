@@ -5,11 +5,17 @@ import datetime
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 LEGACY_LEADERBOARD_FILE = os.path.join(PROJECT_DIR, "leaderboard.json")
+SHARED_RUNTIME_FILE = os.path.join(PROJECT_DIR, ".kaboat_runtime", "leaderboard.json")
+DEFAULT_LEADERBOARD_NAMESPACE = "codex"
 # Runtime records must not modify a tracked source file. Keeping them in an
-# ignored local directory also lets Git switch branches after a simulation.
+# ignored, branch-specific local file lets Git switch branches after a run
+# while keeping the main and codex score histories independent.
+LEADERBOARD_NAMESPACE = os.environ.get(
+    "KABOAT_LEADERBOARD_NAMESPACE", DEFAULT_LEADERBOARD_NAMESPACE)
 LEADERBOARD_FILE = os.environ.get(
     "KABOAT_LEADERBOARD_FILE",
-    os.path.join(PROJECT_DIR, ".kaboat_runtime", "leaderboard.json"),
+    os.path.join(PROJECT_DIR, ".kaboat_runtime",
+                 f"leaderboard-{LEADERBOARD_NAMESPACE}.json"),
 )
 
 # 자율운항 GAP 알고리즘 100회 시뮬레이션 기반 고정 벤치마크 (1등 최고 기록 및 평균 기록)
@@ -41,9 +47,12 @@ AI_BENCHMARK = AI_BENCHMARKS[0]
 
 def load_leaderboard():
     """leaderboard.json 파일에서 주행 기록 목록 로드"""
-    source = (LEADERBOARD_FILE if os.path.exists(LEADERBOARD_FILE)
-              else LEGACY_LEADERBOARD_FILE)
-    if not os.path.exists(source):
+    # SHARED_RUNTIME_FILE is a one-time migration source from the earlier
+    # branch-independent runtime location.
+    source = next((path for path in (
+        LEADERBOARD_FILE, SHARED_RUNTIME_FILE, LEGACY_LEADERBOARD_FILE)
+        if os.path.exists(path)), None)
+    if source is None:
         return []
     try:
         with open(source, "r", encoding="utf-8") as f:
