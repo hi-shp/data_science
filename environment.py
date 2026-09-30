@@ -494,6 +494,11 @@ class BoatEnv:
         z = integrate(self.physics_state(), self.pwm_to_thrust(L), self.pwm_to_thrust(R), self.dt, self.dynamics)
         scale = self.dynamics.pixels_per_m
         self.boat_pos = z[:2]*scale
+        if self.manual_mode:
+            # Match MAIN RC: keep the vessel on screen without treating the
+            # arena edge as an obstacle collision.
+            self.boat_pos[0] = min(max(25.0, float(self.boat_pos[0])), float(self.map_w - 25.0))
+            self.boat_pos[1] = min(max(25.0, float(self.boat_pos[1])), float(self.sim_h - 25.0))
         self.boat_heading = float(z[2])
         c, s = math.cos(z[2]), math.sin(z[2])
         self.boat_vel = np.array([z[3]*c-z[4]*s, z[3]*s+z[4]*c])*scale
@@ -638,8 +643,10 @@ class BoatEnv:
         ch = math.cos(self.boat_heading)
         sh = math.sin(self.boat_heading)
 
-        # 동일한 수조 경계를 모든 모드에서 적용한다.
-        if bx <= 42.0 or bx >= self.map_w - 42.0 or by <= 27.0 or by >= self.sim_h - 27.0:
+        # RC uses MAIN's edge clamp; autonomous boundary safety is unchanged.
+        if (not self.manual_mode and
+                (bx <= 42.0 or bx >= self.map_w - 42.0 or
+                 by <= 27.0 or by >= self.sim_h - 27.0)):
             return True
 
         # 장애물 충돌: 선체 로컬 좌표계로 변환하여 3개 선체 폴리곤(좌/우 선체, 데크)과 원형 장애물 정밀 표면 충돌 검사
