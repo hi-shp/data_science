@@ -1,5 +1,20 @@
 # PROJECT_STATE.md
 
+## CODEX LiDAR-limited predicted display — verified 2026-09-30
+
+The blue `visual_trajectory` is now cut at the first exit from the LiDAR
+circle centered on the current vessel pose, using a segment-circle
+intersection. The same display array feeds 2D, 2D MAP, the world-space
+prediction panel and 3D. The pink display marker still interpolates on that
+array. `predicted_trajectory`, the A* route and controller inputs are unchanged.
+In real X11/3D seed-2000 full episodes, the before/after physics/command,
+prediction and route hashes matched; both succeeded at physics step 776 without
+collision. Across seed 2000 (full), 2069 (500 steps) and 2081 (500 steps),
+maximum displayed distance was 6.4 m within floating-point error, the first
+point was always the vessel, and every observed first-exit endpoint was on
+the 6.4 m boundary. The prior seed-2000 display reached 7.046 m. A short
+displayed-4x comparison retained approximately 241 physics steps/wall second.
+
 ## CODEX playback and predicted marker — verified 2026-09-30
 
 CODEX displayed 1x now requests 2.4 simulated seconds per wall second (60

@@ -254,17 +254,25 @@ class EnvRenderer:
         # Project the latest vessel pose onto its remaining future on every
         # rendered frame; never write the clipped view back into control_path.
         if getattr(env, 'prediction_frame', None) is not None and not getattr(env, 'manual_mode', False) and not getattr(env, 'linetrace_mode', False):
-            from trajectory_display import future_trajectory, end_prediction_at_goal, predicted_state_marker
+            from trajectory_display import (future_trajectory, end_prediction_at_goal,
+                                            clip_trajectory_to_radius, predicted_state_marker)
             prediction = getattr(env, 'predicted_trajectory', getattr(env, 'control_path', None))
+            boat_m = env.boat_pos/env.dynamics.pixels_per_m
             env.visual_trajectory = future_trajectory(
-                prediction, env.boat_pos/env.dynamics.pixels_per_m,
+                prediction, boat_m,
                 env.frame-env.prediction_frame,
                 getattr(env, 'prediction_stride_steps', env.control.planning_period_steps))
-            if getattr(env, 'navigation_mode', '') in ('eta_continuity_goal', 'eta_continuity_passage',
-                                                        'eta_continuity_passage_exact', 'eta_continuity_forward'):
+            goal_display_mode = getattr(env, 'navigation_mode', '') in (
+                'eta_continuity_goal', 'eta_continuity_passage',
+                'eta_continuity_passage_exact', 'eta_continuity_forward')
+            if goal_display_mode:
                 env.visual_trajectory = end_prediction_at_goal(
                     env.visual_trajectory,
                     env.target/env.dynamics.pixels_per_m, .55)
+            env.visual_trajectory = clip_trajectory_to_radius(
+                env.visual_trajectory, boat_m,
+                env.lidar_range/env.dynamics.pixels_per_m)
+            if goal_display_mode:
                 generation = (env.prediction_frame, id(prediction))
                 if generation != getattr(self, '_marker_generation', None):
                     previous = getattr(env, 'visual_controller_target', None)
@@ -289,6 +297,12 @@ class EnvRenderer:
             self._marker_anchor = None
             env.visual_trajectory = (None if getattr(env, 'manual_mode', False)
                                      else getattr(env, 'control_path', None))
+            if env.visual_trajectory is not None:
+                from trajectory_display import clip_trajectory_to_radius
+                env.visual_trajectory = clip_trajectory_to_radius(
+                    env.visual_trajectory,
+                    env.boat_pos/env.dynamics.pixels_per_m,
+                    env.lidar_range/env.dynamics.pixels_per_m)
             env.visual_controller_target = getattr(env, 'controller_target', None)
         cam_x = env.cam_x  # 카메라 X 오프셋
         

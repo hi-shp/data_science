@@ -1,5 +1,46 @@
 """Visual clipping of a completed prediction; never alters control state."""
+import math
 import numpy as np
+
+
+def clip_trajectory_to_radius(path, center, radius):
+    """Keep the visible trajectory through its first exit from a moving circle.
+
+    The result is a new display array beginning at the current vessel pose;
+    the completed physical rollout is never shortened or modified.
+    """
+    boat = np.asarray(center, dtype=float)
+    points = np.asarray(path, dtype=float) if path is not None else np.empty((0, 2))
+    result = [boat.copy()]
+    if (points.ndim != 2 or points.shape[1] != 2 or len(points) < 2 or
+            not np.isfinite(boat).all() or not np.isfinite(radius) or radius <= 0):
+        return np.asarray(result)
+    radius_sq = radius * radius
+    for point in points[1:]:
+        if not np.isfinite(point).all():
+            break
+        offset = point - boat
+        if float(np.dot(offset, offset)) <= radius_sq:
+            result.append(point.copy())
+            continue
+        inside = result[-1]
+        direction = point - inside
+        a = float(np.dot(direction, direction))
+        if a > 0:
+            relative = inside - boat
+            b = 2.0 * float(np.dot(relative, direction))
+            c = float(np.dot(relative, relative)) - radius_sq
+            discriminant = max(0.0, b * b - 4.0 * a * c)
+            fraction = min(1.0, max(0.0, (-b + math.sqrt(discriminant)) / (2.0 * a)))
+            intersection = inside + fraction * direction
+            # Guard against a roundoff point just outside the visible circle.
+            distance = float(np.linalg.norm(intersection - boat))
+            if distance > radius:
+                intersection = boat + (intersection - boat) * (radius / distance)
+            if np.linalg.norm(intersection - inside) > 1e-12:
+                result.append(intersection)
+        break
+    return np.asarray(result)
 
 
 def end_prediction_at_goal(path, goal, radius):

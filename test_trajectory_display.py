@@ -1,7 +1,8 @@
 """Rendered prediction may lose its elapsed prefix; control data may not."""
 import unittest
 import numpy as np
-from trajectory_display import future_trajectory, predicted_state_marker
+from trajectory_display import (future_trajectory, predicted_state_marker,
+                                clip_trajectory_to_radius)
 
 
 class VisualTrajectoryTests(unittest.TestCase):
@@ -73,6 +74,54 @@ class VisualTrajectoryTests(unittest.TestCase):
         changed = predicted_state_marker(path, prediction_path=path,
                                          progress=0., anchor=[8.8, 3.])
         np.testing.assert_allclose(changed, [9., 0.])
+
+    def test_lidar_clip_ends_at_exact_first_segment_exit(self):
+        prediction = np.array([[0., 0.], [1., 0.], [3., 0.],
+                               [1., 0.], [0., 0.]])
+        original = prediction.copy()
+        visible = clip_trajectory_to_radius(prediction, [0., 0.], 2.)
+        np.testing.assert_allclose(visible, [[0., 0.], [1., 0.], [2., 0.]])
+        np.testing.assert_array_equal(prediction, original)
+
+    def test_lidar_clip_follows_turn_to_circle_intersection(self):
+        prediction = np.array([[0., 0.], [.5, 0.], [.5, 3.],
+                               [0., 0.]])
+        visible = clip_trajectory_to_radius(prediction, [0., 0.], 2.)
+        np.testing.assert_allclose(visible[-1], [.5, np.sqrt(3.75)])
+        self.assertEqual(len(visible), 3)
+        self.assertAlmostEqual(np.linalg.norm(visible[-1]), 2.)
+        for start, end in zip(visible[:-1], visible[1:]):
+            for fraction in np.linspace(0., 1., 11):
+                self.assertLessEqual(
+                    np.linalg.norm(start + fraction * (end - start)), 2. + 1e-12)
+
+    def test_lidar_clip_uses_current_boat_center_each_time(self):
+        prediction = np.array([[0., 0.], [1., 0.], [2., 0.], [4., 0.]])
+        first = clip_trajectory_to_radius(prediction, [0., 0.], 2.)
+        moved = clip_trajectory_to_radius(prediction, [.5, 0.], 2.)
+        np.testing.assert_allclose(first[0], [0., 0.])
+        np.testing.assert_allclose(first[-1], [2., 0.])
+        np.testing.assert_allclose(moved[0], [.5, 0.])
+        np.testing.assert_allclose(moved[-1], [2.5, 0.])
+
+    def test_lidar_clipped_marker_and_segments_stay_inside(self):
+        prediction = np.column_stack([np.arange(15., dtype=float), np.zeros(15)])
+        visible = clip_trajectory_to_radius(prediction, [0., 0.], 2.)
+        for phase in (0., .5, 1.):
+            marker = predicted_state_marker(
+                visible, prediction_path=prediction, progress=phase,
+                anchor=[8.8, 0.])
+            self.assertLessEqual(np.linalg.norm(marker), 2. + 1e-12)
+        self.assertTrue(np.all(np.linalg.norm(visible, axis=1) <= 2. + 1e-12))
+
+    def test_lidar_clip_invalid_future_returns_only_current_boat(self):
+        visible = clip_trajectory_to_radius(None, [1., 2.], 6.4)
+        np.testing.assert_array_equal(visible, [[1., 2.]])
+
+    def test_goal_center_inside_lidar_circle_remains_visible(self):
+        prediction = np.array([[0., 0.], [3., 0.], [5., 0.]])
+        visible = clip_trajectory_to_radius(prediction, [0., 0.], 6.4)
+        np.testing.assert_allclose(visible[-1], [5., 0.])
 
 
 if __name__=='__main__':unittest.main()
