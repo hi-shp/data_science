@@ -174,11 +174,7 @@ class EnvRenderer:
         self._cam_bg_surf = pygame.Surface((cam_w, cam_h), pygame.SRCALPHA)
         self._cam_bg_surf.fill((10, 20, 35, 240))
         pygame.draw.rect(self._cam_bg_surf, (0, 180, 255), (0, 0, cam_w, cam_h), 2)
-        txt_title = self.font.render("LiDAR Gauge View", True, (255, 255, 255))
-        self._cam_title_overlay = pygame.Surface((txt_title.get_width() + 12,
-                                                  txt_title.get_height() + 4), pygame.SRCALPHA)
-        self._cam_title_overlay.fill((10, 20, 35, 210))
-        self._cam_title_overlay.blit(txt_title, (2, 2))
+        self._cam_title_surf = self.font.render("LiDAR Gauge View", True, (255, 255, 255))
         legend_bar_y = cam_h - 25
         self._cached_cam_angle_labels = []
         for deg, txt, anchor_x in [(0, "0°", 8), (90, "90°", cam_w // 2), (180, "180°", cam_w - 8)]:
@@ -1179,7 +1175,7 @@ class EnvRenderer:
             self.cam_surf.blit(lbl_ang, (bx_pos, by_pos))
         for label, pos in foreground_labels:
             self.cam_surf.blit(label, pos)
-        self.cam_surf.blit(self._cam_title_overlay, (8, 6))
+        self.cam_surf.blit(self._cam_title_surf, (10, 8))
 
         env.screen.blit(self.cam_surf, (p2_x, p_y))
 
