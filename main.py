@@ -19,7 +19,7 @@ from trajectory_modes import NAV_MODES
 from trajectory_objective import flythrough_goal_reached
 from playback_scheduler import playback_budget
 
-BASE_PLAYBACK_RATE = 2.0  # simulation seconds per wall second at displayed 1x
+BASE_PLAYBACK_RATE = 2.4  # simulation seconds per wall second at displayed 1x
 MAX_PHYSICS_STEPS_PER_RENDER = 8  # bound catch-up latency; never skip a physics step
 DEFAULT_NAV_MODE = 'eta_continuity_forward'
 
@@ -134,6 +134,7 @@ def run(nav_mode=None, seed=None):
 
         if getattr(env, 'paused', False):
             accumulator = 0.0
+            env.display_step_fraction = 0.0
             map_bounds = (0, 0, env.map_w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
             dists, hits_x, hits_y = lidar_hits_np(
                 env.boat_pos, env.boat_heading,
@@ -145,7 +146,7 @@ def run(nav_mode=None, seed=None):
             env.render(hits_x, hits_y)
             continue
 
-        # Displayed 1x/2x/4x means 2/4/8 simulation seconds per wall second.
+        # Displayed 1x/2x/4x means 2.4/4.8/9.6 simulated seconds per wall second.
         # Only the step budget changes; dt and simulation-time planning stay fixed.
         speed_changed = scheduled_speed != env.sim_speed
         accumulator = playback_budget(accumulator, elapsed, scheduled_speed,
@@ -202,6 +203,8 @@ def run(nav_mode=None, seed=None):
                     accumulator += (sub_steps-step_idx-1)*env.dt
                     break
 
+        # Display interpolation only; no controller or physics state reads it.
+        env.display_step_fraction = min(1.0, max(0.0, accumulator / env.dt))
         if hits_x is not None:
             env.render(hits_x, hits_y)
 

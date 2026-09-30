@@ -1,7 +1,7 @@
 """Rendered prediction may lose its elapsed prefix; control data may not."""
 import unittest
 import numpy as np
-from trajectory_display import future_trajectory
+from trajectory_display import future_trajectory, predicted_state_marker
 
 
 class VisualTrajectoryTests(unittest.TestCase):
@@ -38,6 +38,41 @@ class VisualTrajectoryTests(unittest.TestCase):
         path=future_trajectory(control,np.array([0.,.1]),18)
         np.testing.assert_array_equal(path[0],[0.,.1])
         self.assertTrue(np.all(path[1:,0]<=0.))
+
+    def test_predicted_marker_moves_fractionally_between_prediction_knots(self):
+        prediction = np.column_stack([np.arange(15., dtype=float), np.zeros(15)])
+        unchanged = prediction.copy()
+        display = prediction.copy()
+        positions = [predicted_state_marker(display, prediction_path=prediction,
+                                            progress=phase)
+                     for phase in (0., .25, .5, .75, 1.)]
+        np.testing.assert_allclose(np.array(positions)[:, 0],
+                                   [9., 9.25, 9.5, 9.75, 10.])
+        np.testing.assert_array_equal(prediction, unchanged)
+        np.testing.assert_array_equal(display, unchanged)
+
+    def test_marker_interpolates_along_corner_not_across_it(self):
+        path = np.array([[0., 0.], [1., 0.], [1., 1.], [2., 1.]])
+        marker = predicted_state_marker(path, point_index=1,
+                                        prediction_path=path, progress=.5)
+        np.testing.assert_allclose(marker, [1., .5])
+
+    def test_marker_stays_on_goal_clipped_display_path(self):
+        prediction = np.column_stack([np.arange(15., dtype=float), np.zeros(15)])
+        display = np.array([[0., 0.], [1., 0.], [6.5, 0.]])
+        marker = predicted_state_marker(display, prediction_path=prediction,
+                                        progress=.5)
+        np.testing.assert_allclose(marker, [6.5, 0.])
+
+    def test_nearby_replan_releases_anchor_without_backward_snap(self):
+        path = np.column_stack([np.arange(15., dtype=float), np.zeros(15)])
+        positions = [predicted_state_marker(path, prediction_path=path,
+                                            progress=phase, anchor=[8.8, 0.])
+                     for phase in (0., .5, 1.)]
+        np.testing.assert_allclose(np.array(positions)[:, 0], [8.8, 9.4, 10.])
+        changed = predicted_state_marker(path, prediction_path=path,
+                                         progress=0., anchor=[8.8, 3.])
+        np.testing.assert_allclose(changed, [9., 0.])
 
 
 if __name__=='__main__':unittest.main()

@@ -1,6 +1,22 @@
 # PROJECT_STATE.md
 
-Last verified: 2026-09-27. This verified state supersedes the provisional numbers in `docs/RESUME_PROMPT.md` and older presentation/report text.
+## CODEX playback and predicted marker — verified 2026-09-30
+
+CODEX displayed 1x now requests 2.4 simulated seconds per wall second (60
+physics steps/s at the unchanged dt=0.04); 4x requests 240 steps/s. In a short
+real X11/3D seed-2000 run, measured throughput was 59.91 steps/s at 1x and
+241.22 steps/s at 4x, without accumulating step debt. The pink display-only
+predicted-state marker now interpolates along the displayed trajectory between
+prediction knots, with a nearby new prediction projected onto that trajectory.
+Its maximum per-render jump in a full seed-2000 episode fell from 17.64 to
+4.59 pixels. The before/after episode completed at the same physics step 776
+with identical physics and command trace hash; success and collision results
+also matched. The physical prediction, controller, planner and dynamics were
+unchanged. Earlier 2.0/4.0/8.0 playback figures below are historical results.
+
+Last verified: 2026-09-30. The earlier sections below supersede provisional
+numbers in `docs/RESUME_PROMPT.md` and older presentation/report text, except
+where the 2026-09-30 playback note above explicitly updates them.
 
 ## Displayed-4x throughput and prediction freshness — verified 2026-09-27
 

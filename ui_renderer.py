@@ -263,12 +263,28 @@ class EnvRenderer:
                 env.visual_trajectory = end_prediction_at_goal(
                     env.visual_trajectory,
                     env.target/env.dynamics.pixels_per_m, .55)
-                marker = predicted_state_marker(env.visual_trajectory)
+                generation = (env.prediction_frame, id(prediction))
+                if generation != getattr(self, '_marker_generation', None):
+                    previous = getattr(env, 'visual_controller_target', None)
+                    self._marker_anchor = (None if previous is None else
+                                           np.asarray(previous)/env.dynamics.pixels_per_m)
+                    self._marker_generation = generation
+                progress = ((env.frame-env.prediction_frame+
+                             getattr(env, 'display_step_fraction', 0.)) /
+                            max(1, getattr(env, 'prediction_stride_steps',
+                                           env.control.planning_period_steps)))
+                marker = predicted_state_marker(
+                    env.visual_trajectory, prediction_path=prediction,
+                    progress=progress, anchor=self._marker_anchor)
                 env.visual_controller_target = (None if marker is None else
                                                 marker*env.dynamics.pixels_per_m)
             else:
+                self._marker_generation = None
+                self._marker_anchor = None
                 env.visual_controller_target = getattr(env, 'controller_target', None)
         else:
+            self._marker_generation = None
+            self._marker_anchor = None
             env.visual_trajectory = (None if getattr(env, 'manual_mode', False)
                                      else getattr(env, 'control_path', None))
             env.visual_controller_target = getattr(env, 'controller_target', None)

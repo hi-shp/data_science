@@ -32,12 +32,62 @@ def end_prediction_at_goal(path, goal, radius):
     return result[keep]
 
 
-def predicted_state_marker(display_path, point_index=9):
-    """Pick a display-only future point, clamped to the visible path end."""
+def _project_onto_path(points, point):
+    segments = np.diff(points, axis=0)
+    lengths = np.linalg.norm(segments, axis=1)
+    fraction = np.clip(np.sum((point-points[:-1])*segments, axis=1) /
+                       np.maximum(lengths*lengths, 1e-12), 0., 1.)
+    projections = points[:-1]+fraction[:, None]*segments
+    index = int(np.argmin(np.sum((projections-point)**2, axis=1)))
+    arc = np.r_[0., np.cumsum(lengths)]
+    return projections[index], arc[index]+fraction[index]*lengths[index], float(
+        np.linalg.norm(projections[index]-point)), arc
+
+
+def _point_at_arc(points, arc, distance):
+    distance = np.clip(distance, 0., arc[-1])
+    index = min(int(np.searchsorted(arc, distance, side='right'))-1, len(points)-2)
+    index = max(0, index)
+    fraction = (distance-arc[index])/max(arc[index+1]-arc[index], 1e-12)
+    return points[index]+fraction*(points[index+1]-points[index])
+
+
+def predicted_state_marker(display_path, point_index=9, *, prediction_path=None,
+                           progress=0., anchor=None):
+    """Interpolate a display-only future state on the visible polyline.
+
+    `prediction_path` is the unchanged physical rollout. `progress` advances
+    between its knots; the projected result stays on the clipped GUI path.
+    On a nearby replanning replacement, `anchor` releases the previous marker
+    smoothly over one prediction stride. A genuinely different path is used
+    immediately.
+    """
     points = np.asarray(display_path, dtype=float)
     if points.ndim != 2 or points.shape[1] != 2 or not len(points):
         return None
-    return points[min(point_index, len(points)-1)].copy()
+    if prediction_path is None:
+        return points[min(point_index, len(points)-1)].copy()
+    if len(points) < 2:
+        return points[0].copy()
+    prediction = np.asarray(prediction_path, dtype=float)
+    if prediction.ndim != 2 or prediction.shape[1] != 2 or not len(prediction):
+        return points[-1].copy()
+    progress = float(np.clip(progress, 0., 1.))
+    base_index = min(point_index, len(prediction)-1)
+    next_index = min(base_index+1, len(prediction)-1)
+    candidate = prediction[base_index]*(1.-progress)+prediction[next_index]*progress
+    projected, desired_arc, _, arc = _project_onto_path(points, candidate)
+    if anchor is None:
+        return projected.copy()
+    anchor = np.asarray(anchor, dtype=float)
+    prior, prior_arc, prior_distance, _ = _project_onto_path(points, anchor)
+    _, base_arc, _, _ = _project_onto_path(points, prediction[base_index])
+    knot_length = np.linalg.norm(prediction[next_index]-prediction[base_index])
+    nearby = 2.*max(0.1, knot_length)
+    if prior_distance > nearby or abs(prior_arc-base_arc) > 2.*nearby:
+        return projected.copy()
+    marker_arc = desired_arc-(1.-progress)*(base_arc-prior_arc)
+    return _point_at_arc(points, arc, marker_arc)
 
 
 def future_trajectory(path, position, elapsed_steps, steps_per_knot=3):
