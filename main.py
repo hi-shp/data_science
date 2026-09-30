@@ -9,11 +9,29 @@ from environment import BoatEnv
 from perception import lidar_hits_np, update_grid, extract_clusters_from_grid, match_clusters
 from navigation import find_gap, target_is_clear, is_direct_target_safe, is_waypoint_switch_safe, is_front_blocked, line_trace_steering
 from utils import wrap, make_bezier_path, pure_pursuit
+from playback_scheduler import playback_budget
+
+BASE_PLAYBACK_RATE = 120 * 0.04  # MAIN's former 1 step/frame at 120 FPS
+MAX_PHYSICS_STEPS_PER_RENDER = 8  # retain unexecuted budget for later frames
 
 def run():
     env = BoatEnv()
 
+    # Do not charge initialization or renderer warmup to physics playback.
+    env.clock.tick(120)
+    last_tick_time = time.perf_counter()
+    accumulator = 0.0
+    scheduled_speed = env.sim_speed
+    hits_x = hits_y = None
+
     while True:
+        env.clock.tick(120)
+        now = time.perf_counter()
+        elapsed = now - last_tick_time
+        last_tick_time = now
+        before_events = (env.sim_speed, env.manual_mode, env.paused,
+                         env.show_leaderboard, env.fullscreen_3d,
+                         id(env.obstacles))
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 if hasattr(env, 'renderer') and hasattr(env.renderer, 'engine_3d') and env.renderer.engine_3d:
@@ -63,7 +81,18 @@ def run():
                         env.needs_break = False
                         break
 
-        if getattr(env, 'paused', False):
+        after_events = (env.sim_speed, env.manual_mode, env.paused,
+                        env.show_leaderboard, env.fullscreen_3d,
+                        id(env.obstacles))
+        timing_reset = after_events != before_events
+        if timing_reset:
+            accumulator = 0.0
+            elapsed = 0.0
+            hits_x = hits_y = None
+            last_tick_time = time.perf_counter()
+
+        if getattr(env, 'paused', False) or getattr(env, 'show_leaderboard', False):
+            accumulator = 0.0
             map_bounds = (0, 0, env.map_w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
             dists, hits_x, hits_y = lidar_hits_np(
                 env.boat_pos, env.boat_heading,
@@ -73,14 +102,18 @@ def run():
             )
             env.lidar_dists = dists
             env.render(hits_x, hits_y)
-            env.clock.tick(120)
+            last_tick_time = time.perf_counter()
             continue
 
-        # 실시간 배속 설정에 따른 서브스텝 반복 실행 (120 FPS 타겟: 4배속까지 물리 연산 100% 보존 및 적응형 인지/탐색 주기)
-        sub_steps = max(1, int(getattr(env, 'sim_speed', 1)))
-        plan_interval = sub_steps
-        hits_x = None
-        hits_y = None
+        accumulator = playback_budget(accumulator, elapsed, scheduled_speed,
+                                      env.sim_speed, BASE_PLAYBACK_RATE)
+        scheduled_speed = env.sim_speed
+        sub_steps = min(MAX_PHYSICS_STEPS_PER_RENDER, int(accumulator / env.dt))
+        accumulator -= sub_steps * env.dt
+        # At 1x the original MAIN planned on every physics step, even if
+        # several steps now share a render frame.
+        plan_interval = max(1, int(env.sim_speed))
+        keys = pygame.key.get_pressed() if env.manual_mode else None
         new_wp = None
         
         for step_idx in range(sub_steps):
@@ -142,7 +175,6 @@ def run():
                     R = 1500
                     steer = 0.0
                 else:
-                    keys = pygame.key.get_pressed()
                     target_thr = 0.0
                     target_str = 0.0
                     if keys[pygame.K_w] or keys[pygame.K_UP]:
@@ -373,7 +405,12 @@ def run():
                     steer = 0
                 L, R = env.get_pwm(steer)
 
-            env.step(L, R, sub_step_idx=step_idx, total_sub_steps=sub_steps)
+            # One 1x step must retain the old 120-FPS per-step environment
+            # behavior, including work formerly keyed to the render batch.
+            if env.sim_speed == 1:
+                env.step(L, R, sub_step_idx=0, total_sub_steps=1)
+            else:
+                env.step(L, R, sub_step_idx=step_idx, total_sub_steps=sub_steps)
             env.update_camera()
 
             if not getattr(env, 'linetrace_mode', False) and not getattr(env, 'manual_mode', False):
@@ -395,6 +432,8 @@ def run():
                     env.leaderboard_view_only = False
                     env.boat_vel = np.zeros(2)
                     env.boat_ang_vel = 0.0
+                    timing_reset = True
+                    break
                 # 수동 조종 모드에서는 충돌 발생 시 에피소드를 종료/리스폰하지 않고 계속 주행함
             else:
                 if env.collide() or dist_tgt_end < 70:
@@ -416,11 +455,21 @@ def run():
                     except:
                         pass
                     env.reset()
+                    timing_reset = True
+                    hits_x = hits_y = None
                     break
 
-        if hits_x is not None:
-            env.render(hits_x, hits_y)
-        env.clock.tick(120)
+        if hits_x is None:
+            map_bounds = (0, 0, env.map_w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
+            dists, hits_x, hits_y = lidar_hits_np(
+                env.boat_pos, env.boat_heading, env.rel_angles,
+                env.dynamic_obstacles, env.lidar_range, map_bounds=map_bounds
+            )
+            env.lidar_dists = dists
+        env.render(hits_x, hits_y)
+        if timing_reset:
+            accumulator = 0.0
+            last_tick_time = time.perf_counter()
 
 if __name__ == "__main__":
     run()
