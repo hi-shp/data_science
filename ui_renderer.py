@@ -177,14 +177,19 @@ class EnvRenderer:
         self._cam_title_surf = self.font.render("LiDAR Gauge View", True, (255, 255, 255))
         legend_bar_y = cam_h - 25
         self._cached_cam_angle_labels = []
-        for deg in range(0, 181, 30):
+        self._cached_cam_angle_ticks = []
+        gauge_left = self._cached_gauge_slices[0][1]
+        last_slice = self._cached_gauge_slices[-1]
+        gauge_right = last_slice[1] + last_slice[2] - 1
+        for i, deg in enumerate(range(0, 181, 30)):
             txt = f"{deg}°"
-            anchor_x = 2 + (cam_w - 4) * deg / 180
+            tick_x = round(gauge_left + i * (gauge_right - gauge_left) / 6)
             lbl_ang = self.small_font.render(txt, True, (0, 180, 240))
             lbl_shadow = self.small_font.render(txt, True, (10, 20, 35))
             lw, lh = lbl_ang.get_width(), lbl_ang.get_height()
-            bx_pos = max(4, min(round(anchor_x - lw / 2), cam_w - 4 - lw))
+            bx_pos = max(2, min(round(tick_x - lw / 2), cam_w - 2 - lw))
             by_pos = legend_bar_y - lh - 4
+            self._cached_cam_angle_ticks.append((tick_x, by_pos - 7, by_pos - 2))
             self._cached_cam_angle_labels.append((lbl_ang, lbl_shadow, bx_pos, by_pos))
 
         self._cam_dock_bar = pygame.Surface((cam_w, 25), pygame.SRCALPHA)
@@ -1201,6 +1206,9 @@ class EnvRenderer:
 
         # The dock and all gauge graphics precede readable foreground text.
         self.cam_surf.blit(self._cam_dock_bar, (0, legend_bar_y))
+        for tick_x, tick_top, tick_bottom in self._cached_cam_angle_ticks:
+            pygame.draw.line(self.cam_surf, (0, 180, 240),
+                             (tick_x, tick_top), (tick_x, tick_bottom), 1)
         # 전방 180도 화각 표시를 위한 하단 각도 단위 텍스트 (사전 연산 캐시 레이블 고속 블릿)
         for lbl_ang, lbl_shadow, bx_pos, by_pos in self._cached_cam_angle_labels:
             self.cam_surf.blit(lbl_shadow, (bx_pos + 1, by_pos + 1))
