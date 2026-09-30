@@ -2,9 +2,9 @@ import os
 import json
 import time
 import datetime
+from pathlib import Path
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-LEGACY_LEADERBOARD_FILE = os.path.join(PROJECT_DIR, "leaderboard.json")
 DEFAULT_LEADERBOARD_NAMESPACE = "main"
 # Runtime records must not modify a tracked source file. Keeping them in an
 # ignored, branch-specific local file lets Git switch branches after a run
@@ -16,43 +16,32 @@ LEADERBOARD_FILE = os.environ.get(
     os.path.join(PROJECT_DIR, ".kaboat_runtime",
                  f"leaderboard-{LEADERBOARD_NAMESPACE}.json"),
 )
+BENCHMARK_FILE = Path(PROJECT_DIR) / "leaderboard_benchmarks.json"
 
-# 자율운항 GAP 알고리즘 100회 시뮬레이션 기반 고정 벤치마크 (1등 최고 기록 및 평균 기록)
-# - 1등 (최고 기록): 충돌 0회, 화면 표면 시간 18.72초, 누적 회전 313.1도
-# - 평균 기록: 충돌 0회 (성공률 99%), 화면 표면 시간 20.87초, 누적 회전 420.6도
-AI_BENCHMARKS = [
-    {
-        "name": "GAP 알고리즘 (1등)",
-        "player": "GAP 알고리즘 (1등)",
-        "collisions": 0,
-        "time": 18.72,
-        "cumulative_turn_deg": 313.1,
-        "is_ai": True,
-        "date": "GAP 최고"
-    },
-    {
-        "name": "GAP 알고리즘 (평균)",
-        "player": "GAP 알고리즘 (평균)",
-        "collisions": 0,
-        "time": 20.87,
-        "cumulative_turn_deg": 420.6,
-        "is_ai": True,
-        "date": "GAP 평균"
-    }
-]
+BENCHMARK_IDS = (f"{DEFAULT_LEADERBOARD_NAMESPACE}_avg",
+                 f"{DEFAULT_LEADERBOARD_NAMESPACE}_best")
 
-# 이전 호환성 유지용 객체 (기본: 1등 최고 기록)
-AI_BENCHMARK = AI_BENCHMARKS[0]
+
+def load_benchmarks():
+    """Read only this branch's two fixed results without rerunning simulations."""
+    if not BENCHMARK_FILE.exists():
+        return []
+    with BENCHMARK_FILE.open(encoding="utf-8") as source:
+        document = json.load(source)
+    records = document["benchmarks"]
+    if (document.get("branch") != DEFAULT_LEADERBOARD_NAMESPACE or
+            len(records) != len(BENCHMARK_IDS) or
+            {record.get("benchmark_id") for record in records} != set(BENCHMARK_IDS) or
+            any(record.get("type") != "benchmark" for record in records)):
+        raise ValueError("Benchmark file must contain this branch's two distinct benchmark records")
+    return records
 
 def load_leaderboard():
-    """leaderboard.json 파일에서 주행 기록 목록 로드"""
-    source = next((path for path in (
-        LEADERBOARD_FILE, LEGACY_LEADERBOARD_FILE)
-        if os.path.exists(path)), None)
-    if source is None:
+    """Load this branch's human records; old score files stay inactive."""
+    if not os.path.exists(LEADERBOARD_FILE):
         return []
     try:
-        with open(source, "r", encoding="utf-8") as f:
+        with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, list):
                 return data
@@ -62,7 +51,7 @@ def load_leaderboard():
         return []
 
 def save_leaderboard(records):
-    """주행 기록 목록을 leaderboard.json 파일에 저장"""
+    """Save human records to the branch-specific runtime file."""
     try:
         os.makedirs(os.path.dirname(LEADERBOARD_FILE), exist_ok=True)
         with open(LEADERBOARD_FILE, "w", encoding="utf-8") as f:
@@ -85,6 +74,7 @@ def add_record(collisions, arrival_time, cumulative_turn_deg=0.0, cum_turn=None,
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     
     new_record = {
+        "type": "player",
         "player": player_name,
         "collisions": int(collisions),
         "time": round(float(arrival_time), 2),
@@ -98,11 +88,10 @@ def add_record(collisions, arrival_time, cumulative_turn_deg=0.0, cum_turn=None,
     return new_record
 
 def get_unified_records():
-    """사용자 주행 기록과 자율운항 AI 벤치마크(1등, 평균)를 통합하여 1, 2, 3순위로 정렬된 전체 기록 반환"""
+    """Rank human and benchmark records by collisions, time, then turn."""
     records = load_leaderboard()
     all_entries = [dict(r) for r in records]
-    for ai_b in AI_BENCHMARKS:
-        all_entries.append(dict(ai_b))
+    all_entries.extend(dict(record) for record in load_benchmarks())
     all_entries.sort(key=lambda r: (
         r.get("collisions", 999),
         r.get("time", 9999.0),
@@ -118,14 +107,19 @@ def get_top_records(limit=10):
     """상위 N개 통합 기록 반환"""
     return get_unified_records()[:limit]
 
-def get_ai_benchmark_rank(target_name="GAP 알고리즘 (1등)"):
-    """통합 랭킹에서 지정된 AI 알고리즘의 순위(1-indexed) 계산"""
-    unified = get_unified_records()
-    for idx, r in enumerate(unified):
-        if r.get("is_ai", False):
-            if target_name is None or r.get("name") == target_name or r.get("player") == target_name:
-                return idx + 1
-    return 1
+def get_benchmark_rank(benchmark_id):
+    """Full-list rank, even when the benchmark falls below the Top 10."""
+    for rank, record in enumerate(get_unified_records(), 1):
+        if record.get("type") == "benchmark" and record.get("benchmark_id") == benchmark_id:
+            return rank
+    return None
+
+
+def get_display_records(limit=10):
+    """Top 10 plus out-of-range benchmarks, each shown only once."""
+    ranked = list(enumerate(get_unified_records(), 1))
+    return ranked[:limit] + [item for item in ranked[limit:]
+                             if item[1].get("type") == "benchmark"]
 
 def get_player_rank(current_record):
     """통합 랭킹에서 현재 플레이어 기록의 순위(1-indexed) 계산"""
@@ -135,7 +129,7 @@ def get_player_rank(current_record):
     cur_key = (current_record.get("collisions", 999), current_record.get("time", 9999.0), current_record.get("cumulative_turn_deg", 99999.0))
     cur_ts = current_record.get("timestamp", 0)
     for idx, r in enumerate(unified):
-        if r.get("is_ai", False):
+        if r.get("type") == "benchmark":
             continue
         r_key = (r.get("collisions", 999), r.get("time", 9999.0), r.get("cumulative_turn_deg", 99999.0))
         r_ts = r.get("timestamp", 0)

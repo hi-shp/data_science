@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "measurement": "Visible X11/3D main.run perf_counter seconds at displayed 1x",
+  "time_turn_aggregation": "successful arrivals only",
+  "collision_aggregation": "all 1000 episodes, including failures",
+  "seed_start": 3000,
+  "episodes_per_version": 1000,
+  "branch": "main",
+  "source_commit": "f27f0b532fca3d4c6cb7f104ffd94bec38abe303",
+  "outcomes": {
+    "success": 981,
+    "collision": 19,
+    "timeout": 0
+  },
+  "benchmarks": [
+    {
+      "type": "benchmark",
+      "benchmark_id": "main_avg",
+      "player": "MAIN AVG",
+      "collisions": 0.019,
+      "time": 10.6046,
+      "cumulative_turn_deg": 428.5,
+      "date": "1000 GUI runs",
+      "successes": 981
+    },
+    {
+      "type": "benchmark",
+      "benchmark_id": "main_best",
+      "player": "MAIN BEST",
+      "collisions": 0,
+      "time": 9.0188,
+      "cumulative_turn_deg": 241.2,
+      "date": "1000 GUI runs",
+      "best_seed": 3883
+    }
+  ]
+}
