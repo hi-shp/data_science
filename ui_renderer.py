@@ -149,7 +149,10 @@ class EnvRenderer:
         self._cam_bg_surf.fill((10, 20, 35, 240))
         pygame.draw.rect(self._cam_bg_surf, (0, 180, 255), (0, 0, cam_w, cam_h), 2)
         txt_title = self.font.render("LiDAR Gauge View", True, (255, 255, 255))
-        self._cam_bg_surf.blit(txt_title, (10, 8))
+        self._cam_title_overlay = pygame.Surface((txt_title.get_width() + 12,
+                                                  txt_title.get_height() + 4), pygame.SRCALPHA)
+        self._cam_title_overlay.fill((10, 20, 35, 210))
+        self._cam_title_overlay.blit(txt_title, (2, 2))
         legend_bar_y = cam_h - 25
         self._cached_cam_angle_labels = []
         for deg, txt, anchor_x in [(0, "0°", 8), (90, "90°", cam_w // 2), (180, "180°", cam_w - 8)]:
@@ -1275,6 +1278,7 @@ class EnvRenderer:
 
         marker_objs.append(('target', lf_t, lr_t))
 
+        foreground_labels = []
         for obj_type, lf, lr in marker_objs:
             ang_obj = math.atan2(lr, lf)
             if -math.pi/2 <= ang_obj <= math.pi/2:
@@ -1287,21 +1291,21 @@ class EnvRenderer:
                     pygame.draw.circle(self.cam_surf, (255, 255, 255), (mx, 55), 2)
                     lbl_wp1 = self.get_text_surf(self.micro_font, "WP1", (0, 255, 220))
                     tx = mx + 8 if mx + 32 < cam_w else mx - lbl_wp1.get_width() - 8
-                    self.cam_surf.blit(lbl_wp1, (tx, 49))
+                    foreground_labels.append((lbl_wp1, (tx, 49)))
                 elif obj_type == 'wp2':
                     pygame.draw.line(self.cam_surf, (200, 100, 255), (mx, 0), (mx, cam_h - 26), 2)
                     pygame.draw.circle(self.cam_surf, (200, 100, 255), (mx, 90), 6)
                     pygame.draw.circle(self.cam_surf, (255, 255, 255), (mx, 90), 2)
                     lbl_wp2 = self.get_text_surf(self.micro_font, "WP2", (200, 100, 255))
                     tx = mx + 8 if mx + 32 < cam_w else mx - lbl_wp2.get_width() - 8
-                    self.cam_surf.blit(lbl_wp2, (tx, 84))
+                    foreground_labels.append((lbl_wp2, (tx, 84)))
                 elif obj_type == 'target':
                     pygame.draw.line(self.cam_surf, (20, 250, 80), (mx, 0), (mx, cam_h - 26), 3)
                     pygame.draw.circle(self.cam_surf, (20, 250, 80), (mx, 125), 7)
                     pygame.draw.circle(self.cam_surf, (255, 255, 255), (mx, 125), 3)
                     lbl_tgt = self.get_text_surf(self.micro_font, "Target", (20, 250, 80))
                     tx = mx + 9 if mx + 42 < cam_w else mx - lbl_tgt.get_width() - 8
-                    self.cam_surf.blit(lbl_tgt, (tx, 119))
+                    foreground_labels.append((lbl_tgt, (tx, 119)))
 
         is_lt = getattr(env, 'linetrace_mode', False)
 
@@ -1344,7 +1348,7 @@ class EnvRenderer:
                 # 버튼 내부 수직/수평 완벽한 정중앙 정렬
                 lbl_gap = self.small_font.render(gap_txt, True, text_col)
                 text_rect = lbl_gap.get_rect(center=badge_rect.center)
-                self.cam_surf.blit(lbl_gap, text_rect)
+                foreground_labels.append((lbl_gap, text_rect))
 
             elif getattr(env, 'current_wp', None) is None:
                 dir_txt = "Direct"
@@ -1358,7 +1362,7 @@ class EnvRenderer:
                 # 버튼 내부 수직/수평 완벽한 정중앙 정렬
                 lbl_dir = self.small_font.render(dir_txt, True, text_col)
                 text_rect = lbl_dir.get_rect(center=badge_rect.center)
-                self.cam_surf.blit(lbl_dir, text_rect)
+                foreground_labels.append((lbl_dir, text_rect))
         else:
             env.gaps_btn_rect = None
 
@@ -1421,13 +1425,15 @@ class EnvRenderer:
                     pygame.draw.circle(self.cam_surf, (200, 100, 255), (gx2, dot_y), 5)
                     pygame.draw.circle(self.cam_surf, (255, 255, 255), (gx2, dot_y), 2)
 
+        # Finish all graphics and the dock before readable foreground text.
+        self.cam_surf.blit(self._cam_dock_bar, (0, legend_bar_y))
         # 전방 180도 화각 표시를 위한 하단 각도 단위 텍스트 (사전 연산 캐시 레이블 고속 블릿)
         for lbl_ang, lbl_shadow, bx_pos, by_pos in self._cached_cam_angle_labels:
             self.cam_surf.blit(lbl_shadow, (bx_pos + 1, by_pos + 1))
             self.cam_surf.blit(lbl_ang, (bx_pos, by_pos))
-
-        # 패널 하단 거리 색상 범례 도킹 바 (사전 렌더링 도킹 바 고속 블릿)
-        self.cam_surf.blit(self._cam_dock_bar, (0, legend_bar_y))
+        for label, pos in foreground_labels:
+            self.cam_surf.blit(label, pos)
+        self.cam_surf.blit(self._cam_title_overlay, (8, 6))
 
         env.screen.blit(self.cam_surf, (p2_x, p_y))
 
