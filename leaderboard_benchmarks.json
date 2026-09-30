@@ -1,36 +1,47 @@
 {
-  "schema_version": 1,
-  "measurement": "Visible X11/3D main.run perf_counter seconds at displayed 1x",
+  "schema_version": 2,
+  "measurement": "Actual visible X11 RC-equivalent fullscreen 3D main.run wall-clock perf_counter seconds at displayed 1x",
   "time_turn_aggregation": "successful arrivals only",
   "collision_aggregation": "all 1000 episodes, including failures",
-  "seed_start": 3000,
-  "episodes_per_version": 1000,
   "branch": "main",
-  "source_commit": "f27f0b532fca3d4c6cb7f104ffd94bec38abe303",
+  "source_commit": "1b63c940ae9fc1f8c29fbd6ce9fe961934cbfaf5",
+  "source_data": "data/leaderboard_final_20261001_main_full3d",
+  "seed_start": 3000,
+  "seed_end": 3999,
+  "episodes_per_version": 1000,
+  "playback_rate": 4.8,
+  "dt": 0.04,
+  "render_mode": "fullscreen_3d",
+  "window": "real X11",
+  "headless": false,
+  "manual_mode": false,
+  "autonomous_control": true,
   "outcomes": {
-    "success": 981,
-    "collision": 19,
+    "success": 995,
+    "collision": 5,
     "timeout": 0
   },
   "benchmarks": [
     {
       "type": "benchmark",
       "benchmark_id": "main_avg",
-      "player": "MAIN AVG",
-      "collisions": 0.019,
-      "time": 10.6046,
-      "cumulative_turn_deg": 428.5,
-      "date": "1000 GUI runs",
-      "successes": 981
+      "group": "GAP NAVI",
+      "player": "GAP NAVI AVG",
+      "collisions": 0.005,
+      "time": 10.4993,
+      "cumulative_turn_deg": 430.7,
+      "date": "3D GUI 1000",
+      "successes": 995
     },
     {
       "type": "benchmark",
       "benchmark_id": "main_best",
-      "player": "MAIN BEST",
+      "group": "GAP NAVI",
+      "player": "GAP NAVI BEST",
       "collisions": 0,
-      "time": 9.0188,
+      "time": 9.2204,
       "cumulative_turn_deg": 241.2,
-      "date": "1000 GUI runs",
+      "date": "3D GUI 1000",
       "best_seed": 3883
     }
   ]
