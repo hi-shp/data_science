@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "measurement": "Visible X11/3D main.run perf_counter seconds at displayed 1x",
+  "time_turn_aggregation": "successful arrivals only",
+  "collision_aggregation": "all 1000 episodes, including failures",
+  "seed_start": 3000,
+  "episodes_per_version": 1000,
+  "branch": "codex",
+  "source_commit": "7c6c92b1d389f5ca5f8cd48c73cba87cd20d4f49",
+  "outcomes": {
+    "success": 1000,
+    "collision": 0,
+    "timeout": 0
+  },
+  "benchmarks": [
+    {
+      "type": "benchmark",
+      "benchmark_id": "codex_avg",
+      "player": "CODEX AVG",
+      "collisions": 0.0,
+      "time": 15.8674,
+      "cumulative_turn_deg": 337.5,
+      "date": "1000 GUI runs",
+      "successes": 1000
+    },
+    {
+      "type": "benchmark",
+      "benchmark_id": "codex_best",
+      "player": "CODEX BEST",
+      "collisions": 0,
+      "time": 11.7069,
+      "cumulative_turn_deg": 61.3,
+      "date": "1000 GUI runs",
+      "best_seed": 3181
+    }
+  ]
+}

@@ -1618,7 +1618,7 @@ class EnvRenderer:
             env.leaderboard_btn_rect = None
 
     def _draw_leaderboard_modal(self):
-        """RC 수동 조종 모드 목적지 도달 시 상위 10등 랭킹 및 GAP 알고리즘 벤치마크 비교 모달 창 표출"""
+        """Show the Top 10 and this branch's fixed benchmarks at full rank."""
         env = self.env
         mpos = pygame.mouse.get_pos()
 
@@ -1641,7 +1641,7 @@ class EnvRenderer:
         title_surf = self.ko_title_font.render("LEADERBOARD", True, (215, 222, 232))
         modal_surf.blit(title_surf, title_surf.get_rect(center=(mw // 2, 28)))
 
-        sub_surf = self.ko_small_font.render("TOP 10 RANKINGS", True, (115, 130, 148))
+        sub_surf = self.ko_small_font.render("TOP 10 + FIXED BENCHMARKS", True, (115, 130, 148))
         modal_surf.blit(sub_surf, sub_surf.get_rect(center=(mw // 2, 50)))
 
         pygame.draw.line(modal_surf, (32, 40, 52), (30, 66), (mw - 30, 66), 1)
@@ -1663,9 +1663,7 @@ class EnvRenderer:
             cur_turn = last_rec.get("cumulative_turn_deg", 0.0)
 
         player_rank = leaderboard.get_player_rank(last_rec)
-        ai_rank = leaderboard.get_ai_benchmark_rank()
-
-        # 5. 상단 비교 요약 카드 2개 (플레이어 기록 vs GAP 알고리즘 벤치마크)
+        # 5. Player result and the fixed, visible-GUI wall-time benchmarks.
         card_w, card_h = 380, 78
         card_y = 76
 
@@ -1691,30 +1689,21 @@ class EnvRenderer:
         m3_surf = self.ko_font.render(f"누적 회전: {cur_turn:.1f}\u00b0", True, (190, 200, 212))
         modal_surf.blit(m3_surf, (c1_x + 242, card_y + 42))
 
-        # 우측 카드: GAP 알고리즘 벤치마크
+        # Right card: benchmark times. Full ranks are shown in the table.
         c2_x = mw - 30 - card_w
         pygame.draw.rect(modal_surf, (22, 27, 35, 230), (c2_x, card_y, card_w, card_h), border_radius=6)
         pygame.draw.rect(modal_surf, (48, 58, 72), (c2_x, card_y, card_w, card_h), 1, border_radius=6)
 
-        ai_hdr = self.ko_bold_font.render("GAP 알고리즘 기준치 (100회)", True, (160, 195, 225))
+        ai_hdr = self.ko_bold_font.render("1000-RUN GUI BENCHMARKS", True, (160, 195, 225))
         modal_surf.blit(ai_hdr, (c2_x + 14, card_y + 10))
-
-        rank_1st = leaderboard.get_ai_benchmark_rank("GAP 알고리즘 (1등)")
-        rank_avg = leaderboard.get_ai_benchmark_rank("GAP 알고리즘 (평균)")
-        ai_rank_str = f"1등 #{rank_1st}위 / 평균 #{rank_avg}위"
-        ai_rank_surf = self.ko_small_font.render(ai_rank_str, True, (130, 155, 180))
-        modal_surf.blit(ai_rank_surf, (c2_x + card_w - ai_rank_surf.get_width() - 14, card_y + 12))
-
-        b_1st = leaderboard.AI_BENCHMARKS[0]
-        b_avg = leaderboard.AI_BENCHMARKS[1]
-        ai1_surf = self.ko_font.render("무충돌(0회)", True, (110, 190, 135))
-        modal_surf.blit(ai1_surf, (c2_x + 14, card_y + 42))
-
-        ai2_surf = self.ko_font.render(f"1등: {b_1st['time']:.2f}s", True, (215, 200, 150))
-        modal_surf.blit(ai2_surf, (c2_x + 128, card_y + 42))
-
-        ai3_surf = self.ko_font.render(f"평균: {b_avg['time']:.2f}s", True, (190, 200, 212))
-        modal_surf.blit(ai3_surf, (c2_x + 248, card_y + 42))
+        benchmarks = {entry['benchmark_id']: entry for entry in leaderboard.load_benchmarks()}
+        branch = leaderboard.DEFAULT_LEADERBOARD_NAMESPACE
+        best = benchmarks.get(f'{branch}_best')
+        avg = benchmarks.get(f'{branch}_avg')
+        line = (f"{branch.upper()}  BEST {best['time']:.2f}s  AVG {avg['time']:.2f}s"
+                if best and avg else f"{branch.upper()}  measurement pending")
+        line_surf = self.ko_small_font.render(line, True, (190, 200, 212))
+        modal_surf.blit(line_surf, (c2_x + 14, card_y + 42))
 
         # 6. 상위 10등 랭킹 테이블 (TOP 10 LEADERBOARD)
         tbl_y = 166
@@ -1741,16 +1730,13 @@ class EnvRenderer:
             modal_surf.blit(lbl, (col_x, tbl_y + 5))
             col_x += w
 
-        # 전체 목록 로드 및 GAP 알고리즘 벤치마크(1등, 평균) 항목 결합 정렬
-        all_entries = leaderboard.get_unified_records()
-
-        top_10 = all_entries[:10]
+        # Keep every benchmark visible below the Top 10 at its actual rank.
+        display_entries = leaderboard.get_display_records(10)
         row_y = tbl_y + th_h + 3
-        row_h = 25
+        row_h = min(25, max(18, (tbl_h - th_h - 6) // max(1, len(display_entries))))
 
-        for idx, entry in enumerate(top_10):
-            rank_num = idx + 1
-            is_ai = entry.get("is_ai", False)
+        for rank_num, entry in display_entries:
+            is_ai = entry.get("type") == "benchmark"
             is_cur_attempt = (
                 not is_ai and
                 last_rec and
@@ -1795,7 +1781,7 @@ class EnvRenderer:
 
             # 충돌 횟수
             c_val = entry.get("collisions", 0)
-            c_str = f"{c_val}회"
+            c_str = f"{c_val:g}회" if is_ai else f"{c_val}회"
             c_col = (110, 190, 135) if c_val == 0 else (205, 95, 95)
             c_surf = self.ko_font.render(c_str, True, c_col)
             modal_surf.blit(c_surf, (col_x + 6, row_y + 3))
