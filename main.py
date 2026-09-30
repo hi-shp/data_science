@@ -10,12 +10,14 @@ from perception import lidar_hits_np, update_grid, extract_clusters_from_grid, m
 from navigation import find_gap, target_is_clear, is_direct_target_safe, is_waypoint_switch_safe, is_front_blocked, line_trace_steering
 from utils import wrap, make_bezier_path, pure_pursuit
 from playback_scheduler import playback_budget
+from frame_capture import save_episode_frame, start_capture_worker
 
 BASE_PLAYBACK_RATE = 120 * 0.04  # MAIN's former 1 step/frame at 120 FPS
 MAX_PHYSICS_STEPS_PER_RENDER = 8  # retain unexecuted budget for later frames
 
 def run():
     env = BoatEnv()
+    start_capture_worker()
 
     # Do not charge initialization or renderer warmup to physics playback.
     env.clock.tick(120)
@@ -450,10 +452,13 @@ def run():
                     p = os.path.join(outdir, f"{ts}_{tag}.png")
                     try:
                         if hits_x is not None:
+                            env.capture_frame = True
                             env.render(hits_x, hits_y)
-                        pygame.image.save(env.screen, p)
+                        save_episode_frame(env.screen, p)
                     except:
                         pass
+                    finally:
+                        env.capture_frame = False
                     env.reset()
                     timing_reset = True
                     hits_x = hits_y = None

@@ -1138,6 +1138,8 @@ class Engine3D:
         self._closed = False
         self._pending_render = False
         self._pending_dim = (320, 220)
+        self._pending_source_frame = None
+        self._last_completed_source_frame = None
         
         # 패널(320x220) 및 전체화면(full_w x full_h) 공유 메모리 블록 생성
         self.shm_panel = shared_memory.SharedMemory(create=True, size=320 * 220 * 4)
@@ -1146,6 +1148,11 @@ class Engine3D:
         # Pygame Surface를 공유 메모리에 직접 매핑 (고정 참조)
         self.surf_panel = pygame.image.frombuffer(self.shm_panel.buf, (320, 220), 'RGBA')
         self.surf_full = pygame.image.frombuffer(self.shm_full.buf, (full_w, full_h), 'RGBA')
+        # The worker owns shared memory until it acknowledges completion.
+        self._completed_panel = self.surf_panel.copy()
+        self._completed_full = self.surf_full.copy()
+        self._completed_panel.fill((20, 40, 60))
+        self._completed_full.fill((20, 40, 60))
         
         # 클린 프로세스 스폰
         ctx_spawn = mp.get_context('spawn')
@@ -1165,7 +1172,7 @@ class Engine3D:
             
         atexit.register(self.close)
 
-    def start_render(self, env, hits, width=None, height=None):
+    def start_render(self, env, hits, width=None, height=None, wait=False):
         """3D 렌더링 워커에 비동기 렌더링 명령 전송 (블로킹 대기 없음)"""
         if self._closed or not self.proc.is_alive():
             return
@@ -1173,13 +1180,10 @@ class Engine3D:
         w = width or self.width
         h = height or self.height
         
-        # 이전 프레임 응답이 미수거된 경우 수거
+        self._collect_completed(wait=wait)
         if self._pending_render:
-            try:
-                self.parent_conn.recv()
-            except Exception:
-                pass
-            self._pending_render = False
+            # Only an unfinished visual frame is dropped; no physics step is.
+            return
 
         # 최소 상태 페이로드 직렬화 (numpy 배열 직접 전달로 70배 고속 직렬화)
         req = {
@@ -1206,8 +1210,19 @@ class Engine3D:
         self.parent_conn.send(req)
         self._pending_render = True
         self._pending_dim = (w, h)
+        self._pending_source_frame = env.frame
 
-    def finish_render(self, width=None, height=None):
+    def _collect_completed(self, wait=False):
+        if self._pending_render and (wait or self.parent_conn.poll()):
+            self.parent_conn.recv()
+            if self._pending_dim == (320, 220):
+                self._completed_panel.blit(self.surf_panel, (0, 0))
+            else:
+                self._completed_full.blit(self.surf_full, (0, 0))
+            self._pending_render = False
+            self._last_completed_source_frame = self._pending_source_frame
+
+    def finish_render(self, width=None, height=None, wait=False):
         """비동기 3D 렌더링 완료 대기 및 공유 메모리 뷰포트 서피스 반환"""
         if self._closed or not self.proc.is_alive():
             w = width or self.width
@@ -1216,22 +1231,17 @@ class Engine3D:
             s.fill((20, 40, 60))
             return s
             
-        if self._pending_render:
-            try:
-                self.parent_conn.recv()
-            except Exception:
-                pass
-            self._pending_render = False
+        self._collect_completed(wait=wait)
 
-        w, h = self._pending_dim if hasattr(self, '_pending_dim') else (width or self.width, height or self.height)
+        w, h = width or self.width, height or self.height
         if (w, h) == (320, 220):
-            return self.surf_panel
+            return self._completed_panel
         else:
-            return self.surf_full
+            return self._completed_full
 
-    def render(self, env, hits, width=None, height=None):
-        self.start_render(env, hits, width, height)
-        return self.finish_render(width, height)
+    def render(self, env, hits, width=None, height=None, wait=False):
+        self.start_render(env, hits, width, height, wait=wait)
+        return self.finish_render(width, height, wait=wait)
 
     def close(self):
         if self._closed:

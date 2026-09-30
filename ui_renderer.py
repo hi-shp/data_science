@@ -7,6 +7,7 @@ import leaderboard
 from engine_3d import Engine3D
 from config import get_dashboard_layout, GRID
 
+
 class EnvRenderer:
     def __init__(self, env):
         self.env = env
@@ -151,11 +152,13 @@ class EnvRenderer:
         self._cam_title_surf = self.font.render("LiDAR Gauge View", True, (255, 255, 255))
         legend_bar_y = cam_h - 25
         self._cached_cam_angle_labels = []
-        for deg, txt, anchor_x in [(0, "0°", 8), (90, "90°", cam_w // 2), (180, "180°", cam_w - 8)]:
+        for deg in range(0, 181, 30):
+            txt = f"{deg}°"
+            anchor_x = 2 + (cam_w - 4) * deg / 180
             lbl_ang = self.small_font.render(txt, True, (0, 180, 240))
             lbl_shadow = self.small_font.render(txt, True, (10, 20, 35))
             lw, lh = lbl_ang.get_width(), lbl_ang.get_height()
-            bx_pos = anchor_x if deg == 0 else (anchor_x - lw if deg == 180 else anchor_x - lw // 2)
+            bx_pos = max(4, min(round(anchor_x - lw / 2), cam_w - 4 - lw))
             by_pos = legend_bar_y - lh - 4
             self._cached_cam_angle_labels.append((lbl_ang, lbl_shadow, bx_pos, by_pos))
 
@@ -234,7 +237,9 @@ class EnvRenderer:
             # 전체화면 3D 모드 활성화 시:
             # 1. 상단 메인 화면(0, 0, 1800, 630)에 고해상도 3D 엔진 버퍼 렌더링
             try:
-                main_3d = self.engine_3d.render(env, (hits_x, hits_y), env.w, env.sim_h)
+                main_3d = self.engine_3d.render(
+                    env, (hits_x, hits_y), env.w, env.sim_h,
+                    wait=getattr(env, 'capture_frame', False))
                 env.screen.blit(main_3d, (0, 0))
             except Exception as e:
                 print(f"[Warning] Fullscreen 3D render failed: {e}")
@@ -243,7 +248,9 @@ class EnvRenderer:
         else:
             # 기본 2D 모드: 3D 엔진 비동기 렌더링을 미리 시작해두고 2D 월드를 병렬로 렌더링
             if getattr(self, 'engine_3d', None) is not None:
-                self.engine_3d.start_render(env, (hits_x, hits_y), 320, 220)
+                self.engine_3d.start_render(
+                    env, (hits_x, hits_y), 320, 220,
+                    wait=getattr(env, 'capture_frame', False))
             self._draw_2d_world(hits_x, hits_y, sx, cam_x, target_surf=env.screen)
 
         # 7. 하단 대시보드 UI (320x220 슬롯에 3D 또는 스왑된 2D 전술 맵 표출)
@@ -1461,7 +1468,8 @@ class EnvRenderer:
                     env.screen.blit(panel_surf, (p3_x, p_y))
                 else:
                     # 기본 2D 모드: 비동기 백그라운드 프로세스에서 사전 렌더링된 3D 뷰포트 서피스 회수 (블로킹 대기 없음)
-                    surf_3d = self.engine_3d.finish_render(320, 220)
+                    surf_3d = self.engine_3d.finish_render(
+                        320, 220, wait=getattr(env, 'capture_frame', False))
                     env.screen.blit(surf_3d, (p3_x, p_y))
             except Exception as e:
                 print(f"[Warning] 3D render failed: {e}")
