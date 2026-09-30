@@ -232,13 +232,14 @@ class EnvRenderer:
             return world_x - cam_x
 
         is_full_3d = getattr(env, 'fullscreen_3d', False)
+        display_hits = None if getattr(env, 'manual_mode', False) else (hits_x, hits_y)
         
         if is_full_3d and getattr(self, 'engine_3d', None) is not None:
             # 전체화면 3D 모드 활성화 시:
             # 1. 상단 메인 화면(0, 0, 1800, 630)에 고해상도 3D 엔진 버퍼 렌더링
             try:
                 main_3d = self.engine_3d.render(
-                    env, (hits_x, hits_y), env.w, env.sim_h,
+                    env, display_hits, env.w, env.sim_h,
                     wait=getattr(env, 'capture_frame', False))
                 env.screen.blit(main_3d, (0, 0))
             except Exception as e:
@@ -249,7 +250,7 @@ class EnvRenderer:
             # 기본 2D 모드: 3D 엔진 비동기 렌더링을 미리 시작해두고 2D 월드를 병렬로 렌더링
             if getattr(self, 'engine_3d', None) is not None:
                 self.engine_3d.start_render(
-                    env, (hits_x, hits_y), 320, 220,
+                    env, display_hits, 320, 220,
                     wait=getattr(env, 'capture_frame', False))
             self._draw_2d_world(hits_x, hits_y, sx, cam_x, target_surf=env.screen)
 
@@ -405,7 +406,7 @@ class EnvRenderer:
                 draw_circle(target_surf, sparkle_color, (int(sparkle_x[k]), int(sparkle_y[k])), 1)
 
         # 2. 360도 라이다 범위 - 벡터화 고속 렌더링
-        if env.show_lidar_range:
+        if env.show_lidar_range and not getattr(env, 'manual_mode', False):
             pygame.draw.circle(target_surf, (80, 175, 140), (int(sbx), int(sby)), int(env.lidar_range), 1)
             ray_angs = h + env.rel_angles
             rx_arr = (sbx + np.cos(ray_angs) * env.lidar_range).astype(int)
@@ -515,7 +516,7 @@ class EnvRenderer:
                 if -10 < osx < w_max:
                     target_surf.blit(occ_cell, (osx, int(occ_y[i] * GRID)))
             
-        if env.show_lidar:
+        if env.show_lidar and not getattr(env, 'manual_mode', False):
             valid_mask = np.isfinite(hits_x)
             if np.any(valid_mask):
                 hx_v = hits_x[valid_mask]
@@ -1144,7 +1145,7 @@ class EnvRenderer:
         scale_r = 0.55
 
         # 180도 스캔 레이 라인 (저채도 세이지 그린)
-        if env.show_lidar_range:
+        if env.show_lidar_range and not getattr(env, 'manual_mode', False):
             draw_line = pygame.draw.line
             pov_surf = self.pov_surf
             pov_col = (55, 120, 95)
@@ -1153,7 +1154,7 @@ class EnvRenderer:
                 draw_line(pov_surf, pov_col, origin, (pcx + rx_off, pcy + ry_off), 1)
 
         # 라이다 히트 포인트 렌더링 (저채도 소프트 옐로우) - 벡터화 연산
-        if env.show_lidar:
+        if env.show_lidar and not getattr(env, 'manual_mode', False):
             valid_h = np.isfinite(hits_x)
             if np.any(valid_h):
                 hx_v = hits_x[valid_h]
@@ -1236,8 +1237,9 @@ class EnvRenderer:
 
         n_slices = 180
         # 180개 각도 세로 직사각형 게이지 렌더링 (사전 연산 캐시 테이블 활용) - 벡터화 고속 렌더링
-        n_hits = len(hits_x)
-        lidar_dists = getattr(env, 'lidar_dists', None)
+        show_scan = not getattr(env, 'manual_mode', False)
+        n_hits = len(hits_x) if show_scan else 0
+        lidar_dists = getattr(env, 'lidar_dists', None) if show_scan else None
         draw_rect = pygame.draw.rect
         cam_surf = self.cam_surf
         h_gauge = cam_h - 4
