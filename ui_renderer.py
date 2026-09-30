@@ -1747,7 +1747,8 @@ class EnvRenderer:
         branch = leaderboard.DEFAULT_LEADERBOARD_NAMESPACE
         best = benchmarks.get(f'{branch}_best')
         avg = benchmarks.get(f'{branch}_avg')
-        line = (f"{branch.upper()}  BEST {best['time']:.2f}s  AVG {avg['time']:.2f}s"
+        group = best.get('group', branch.upper()) if best else branch.upper()
+        line = (f"{group}  BEST {best['time']:.2f}s  AVG {avg['time']:.2f}s"
                 if best and avg else f"{branch.upper()}  measurement pending")
         line_surf = self.ko_small_font.render(line, True, (190, 200, 212))
         modal_surf.blit(line_surf, (c2_x + 14, card_y + 42))

@@ -1,0 +1,17 @@
+{
+  "outcomes": {
+    "success": 1000,
+    "collision": 0,
+    "timeout": 0
+  },
+  "average_time_s_success": 13.204837600000012,
+  "average_turn_deg_success": 337.4698000000003,
+  "average_collisions_all": 0.0,
+  "best_successful_run": {
+    "seed": 3181,
+    "map_hash": "59b278faef440da5",
+    "outcome": "success",
+    "time_s": 9.7339,
+    "cumulative_turn_deg": 61.3
+  }
+}
