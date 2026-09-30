@@ -177,11 +177,13 @@ class EnvRenderer:
         self._cam_title_surf = self.font.render("LiDAR Gauge View", True, (255, 255, 255))
         legend_bar_y = cam_h - 25
         self._cached_cam_angle_labels = []
-        for deg, txt, anchor_x in [(0, "0°", 8), (90, "90°", cam_w // 2), (180, "180°", cam_w - 8)]:
+        for deg in range(0, 181, 30):
+            txt = f"{deg}°"
+            anchor_x = 2 + (cam_w - 4) * deg / 180
             lbl_ang = self.small_font.render(txt, True, (0, 180, 240))
             lbl_shadow = self.small_font.render(txt, True, (10, 20, 35))
             lw, lh = lbl_ang.get_width(), lbl_ang.get_height()
-            bx_pos = anchor_x if deg == 0 else (anchor_x - lw if deg == 180 else anchor_x - lw // 2)
+            bx_pos = max(4, min(round(anchor_x - lw / 2), cam_w - 4 - lw))
             by_pos = legend_bar_y - lh - 4
             self._cached_cam_angle_labels.append((lbl_ang, lbl_shadow, bx_pos, by_pos))
 
