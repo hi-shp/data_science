@@ -9,6 +9,7 @@ from config import WIDTH, HEIGHT, SIM_H, DASH_H, MAP_W, GRID, GRID_W, GRID_H, ge
 from utils import wrap
 from perception import init_grid
 from navigation import reactive_avoidance
+from hull_collision import hull_collides
 from ui_renderer import EnvRenderer
 
 class BoatEnv:
@@ -656,8 +657,6 @@ class BoatEnv:
 
     def collide(self):
         bx, by = self.boat_pos
-        ch = math.cos(self.boat_heading)
-        sh = math.sin(self.boat_heading)
 
         # 라인트레이싱 모드: 외곽 벽(Boundary Walls)을 장애물로 인식 및 충돌 판정 (목적지 방향 정면 수직벽 xmax 제외)
         if getattr(self, 'linetrace_mode', False):
@@ -667,65 +666,11 @@ class BoatEnv:
                bx >= self.map_w:
                 return True
 
-        # 장애물 충돌: 선체 로컬 좌표계로 변환하여 3개 선체 폴리곤(좌/우 선체, 데크)과 원형 장애물 정밀 표면 충돌 검사
-        if len(self.dynamic_obstacles) == 0:
-            return False
-            
-        ox = self.dynamic_obstacles[:, 0]
-        oy = self.dynamic_obstacles[:, 1]
-        orr = self.dynamic_obstacles[:, 2]
-        
-        dx = ox - bx
-        dy = oy - by
-        
-        x_loc = dx * ch + dy * sh
-        y_loc = -dx * sh + dy * ch
-        
-        # 바운딩 박스 1차 고속 필터링 (선체 길이 L/2=42px, 선폭 W_tot/2=27px)
-        cand_mask = (abs(x_loc) <= 42.0 + orr) & (abs(y_loc) <= 27.0 + orr)
-        if not np.any(cand_mask):
-            return False
-            
-        cand_indices = np.where(cand_mask)[0]
-        polys = (self.left_hull_local, self.right_hull_local, self.deck_local)
-        
-        for idx in cand_indices:
-            px = x_loc[idx]
-            py = y_loc[idx]
-            r = orr[idx]
-            r2 = r * r
-            
-            for poly in polys:
-                # 2-1. 장애물 중심이 선체 폴리곤 내부인지 검사 (Ray-casting)
-                inside = False
-                n = len(poly)
-                for i in range(n):
-                    j = (i - 1) % n
-                    xi, yi = poly[i]
-                    xj, yj = poly[j]
-                    if ((yi > py) != (yj > py)) and (px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi):
-                        inside = not inside
-                if inside:
-                    return True
-                    
-                # 2-2. 장애물 중심과 선체 각 모서리 선분 사이의 최단 거리 검사
-                for i in range(n):
-                    x1, y1 = poly[i]
-                    x2, y2 = poly[(i + 1) % n]
-                    vx = x2 - x1
-                    vy = y2 - y1
-                    seg_len_sq = vx * vx + vy * vy
-                    if seg_len_sq < 1e-8:
-                        dist_sq = (px - x1)**2 + (py - y1)**2
-                    else:
-                        t = max(0.0, min(1.0, ((px - x1) * vx + (py - y1) * vy) / seg_len_sq))
-                        cx = x1 + t * vx
-                        cy = y1 + t * vy
-                        dist_sq = (px - cx)**2 + (py - cy)**2
-                    if dist_sq <= r2:
-                        return True
-                        
-        return False
+        # Shared exact geometry; the shadow predictor receives only a nearby subset.
+        return hull_collides(
+            self.boat_pos, self.boat_heading, self.dynamic_obstacles,
+            (self.left_hull_local, self.right_hull_local, self.deck_local),
+        )
 
     def get_pwm(self, steer):
         dead = 0.02

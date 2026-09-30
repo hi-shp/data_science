@@ -271,7 +271,7 @@ source venv/bin/activate
 
 ```bash
 pip install --upgrade pip
-pip install pygame numpy scikit-learn pillow imageio-ffmpeg moderngl
+pip install pygame numpy numba scikit-learn pillow imageio-ffmpeg moderngl
 ```
 
 ---

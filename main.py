@@ -11,12 +11,14 @@ from navigation import find_gap, target_is_clear, is_direct_target_safe, is_wayp
 from utils import wrap, make_bezier_path, pure_pursuit
 from playback_scheduler import playback_budget
 from frame_capture import save_episode_frame, start_capture_worker
+from main_safety_guard import MainSafetyGuard
 
 BASE_PLAYBACK_RATE = 120 * 0.04  # MAIN's former 1 step/frame at 120 FPS
 MAX_PHYSICS_STEPS_PER_RENDER = 8  # retain unexecuted budget for later frames
 
 def run():
     env = BoatEnv()
+    safety_guard = MainSafetyGuard()
     start_capture_worker()
 
     # Do not charge initialization or renderer warmup to physics playback.
@@ -406,6 +408,7 @@ def run():
                 if steer is None:
                     steer = 0
                 L, R = env.get_pwm(steer)
+                L, R = safety_guard.command(env, L, R, steer)
 
             # One 1x step must retain the old 120-FPS per-step environment
             # behavior, including work formerly keyed to the render batch.
