@@ -8,10 +8,10 @@ from environment import BoatEnv
 from hull_collision import hull_collides
 from main_safety_guard import MainSafetyGuard
 from main_safety_kernels import (packed_hulls, preview_hull_collides,
-                                 preview_lidar_distances, preview_follow_steering,
-                                 preview_pwm)
+                                 preview_lidar_distances, preview_follow_steering)
 from perception import lidar_hits_np
 from utils import pure_pursuit
+from vessel_dynamics import VesselParameters
 
 
 class MainSafetyGuardTest(unittest.TestCase):
@@ -61,7 +61,7 @@ class MainSafetyGuardTest(unittest.TestCase):
                                                obstacles, 320.0)
             self.assertLess(float(np.max(np.abs(reference - compiled))), 0.03)
 
-    def test_shadow_steering_and_pwm_match_main(self):
+    def test_shadow_steering_matches_gap_follower(self):
         generator = np.random.default_rng(42)
         angles = np.linspace(-np.pi, np.pi, 180, endpoint=False)
         params = {'steer_gain': 1.1, 'steer_alpha': 0.3515,
@@ -102,8 +102,6 @@ class MainSafetyGuardTest(unittest.TestCase):
             self.assertAlmostEqual(shadow.prev_steer, next_steer, places=6)
             self.assertEqual(shadow.emergency_mode, next_emergency)
             self.assertEqual(shadow.emergency_cooldown, next_cooldown)
-            self.assertEqual(BoatEnv.get_pwm(shadow, expected),
-                             preview_pwm(actual, params['pwm_rng']))
 
     def test_safe_command_and_shadow_leave_live_state_unchanged(self):
         position = np.array([100.0, 200.0], dtype=np.float32)
@@ -119,7 +117,12 @@ class MainSafetyGuardTest(unittest.TestCase):
             lidar_range=320, mass=10.0, drag=0.2, rot_drag=0.8, inertia=4.5,
             prev_steer=0.0, emergency_mode=False, emergency_cooldown=0,
             min_wide_dist=320.0,
+            dynamics=VesselParameters(),
+            physics_state=lambda: np.array([2.0, 4.0, 0.0, 0.4, 0.0,
+                                            0.0, 0.0, 0.0]),
+            pwm_to_thrust=lambda pwm: (pwm-1500)/400*25.0,
             params={'mom_coeff': 0.00665, 'steer_gain': 1.1,
+                    'yaw_command_gain': 5.0,
                     'steer_alpha': 0.3515, 'avoid_normal': 0.05,
                     'avoid_em': 0.7, 'em_enter': 125.0, 'em_exit': 160.0,
                     'em_hold_frames': 18, 'pwm_rng': 270.36},

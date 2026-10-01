@@ -1,48 +1,7 @@
 {
   "schema_version": 2,
-  "measurement": "Actual visible X11 RC-equivalent fullscreen 3D main.run wall-clock perf_counter seconds at displayed 1x",
-  "time_turn_aggregation": "successful arrivals only",
-  "collision_aggregation": "all 1000 episodes, including failures",
-  "branch": "main",
-  "source_commit": "1b63c940ae9fc1f8c29fbd6ce9fe961934cbfaf5",
-  "source_data": "data/leaderboard_final_20261001_main_full3d",
-  "seed_start": 3000,
-  "seed_end": 3999,
-  "episodes_per_version": 1000,
-  "playback_rate": 4.8,
-  "dt": 0.04,
-  "render_mode": "fullscreen_3d",
-  "window": "real X11",
-  "headless": false,
-  "manual_mode": false,
-  "autonomous_control": true,
-  "outcomes": {
-    "success": 995,
-    "collision": 5,
-    "timeout": 0
-  },
-  "benchmarks": [
-    {
-      "type": "benchmark",
-      "benchmark_id": "main_avg",
-      "group": "GAP NAVI",
-      "player": "GAP NAVI AVG",
-      "collisions": 0.005,
-      "time": 10.4993,
-      "cumulative_turn_deg": 430.7,
-      "date": "3D GUI 1000",
-      "successes": 995
-    },
-    {
-      "type": "benchmark",
-      "benchmark_id": "main_best",
-      "group": "GAP NAVI",
-      "player": "GAP NAVI BEST",
-      "collisions": 0,
-      "time": 9.2204,
-      "cumulative_turn_deg": 241.2,
-      "date": "3D GUI 1000",
-      "best_seed": 3883
-    }
-  ]
+  "branch": "main_heavy",
+  "status": "pending",
+  "measurement": "A separate fullscreen 3D benchmark is required after approval.",
+  "benchmarks": []
 }

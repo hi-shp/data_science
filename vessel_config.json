@@ -1,0 +1,36 @@
+{
+  "physics": {
+    "pixels_per_m": 50.0,
+    "mass_kg": 20.0,
+    "yaw_inertia_kg_m2": 3.8,
+    "surge_linear_drag": 6.0,
+    "surge_quadratic_drag": 7.116009950310329,
+    "sway_linear_drag": 55.0,
+    "sway_quadratic_drag": 45.0,
+    "yaw_linear_drag": 8.0,
+    "yaw_quadratic_drag": 5.0,
+    "thruster_arm_m": 0.22,
+    "max_thrust_N": 25.0,
+    "actuator_tau_s": 0.25,
+    "cruise_speed_m_s": 1.5,
+    "max_yaw_rate_rad_s": 0.5,
+    "yaw_response_s": 0.65,
+    "speed_response_s": 1.5,
+    "yaw_rate_gain_Nm_s": 11.76923076923077
+  },
+  "controller": {
+    "planning_period_steps": 3,
+    "horizon_s": 5.0,
+    "prediction_step_s": 0.2,
+    "lookahead_m": 3.0,
+    "safety_margin_m": 0.2,
+    "target_wall_margin_m": 1.8,
+    "yaw_samples": 21,
+    "heading_gain": 0.65,
+    "cross_track_weight": 0.18,
+    "turning_weight": 0.22,
+    "command_change_weight": 3.0,
+    "terminal_heading_weight": 0.4,
+    "goal_distance_weight": 0.2
+  }
+}

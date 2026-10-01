@@ -5,11 +5,13 @@ import pygame
 import numpy as np
 import math
 import random
+from pathlib import Path
 from config import WIDTH, HEIGHT, SIM_H, DASH_H, MAP_W, GRID, GRID_W, GRID_H, get_dashboard_layout
 from utils import wrap
 from perception import init_grid
 from navigation import reactive_avoidance
 from hull_collision import hull_collides
+from vessel_dynamics import VesselParameters, integrate, allocate
 from ui_renderer import EnvRenderer
 
 class BoatEnv:
@@ -30,6 +32,7 @@ class BoatEnv:
         # 학습된 최적 파라미터 자동 로드
         self.params = {
             'steer_gain': 1.1,
+            'yaw_command_gain': 5.0,
             'steer_alpha': 0.3515,
             'mom_coeff': 0.00665,
             'pwm_rng': 270.36,
@@ -53,10 +56,7 @@ class BoatEnv:
         self.lidar_range = 320
         self.rel_angles = np.linspace(-np.pi, np.pi, self.lidar_beams, endpoint=False)
         
-        self.mass = 10
-        self.inertia = 4.5
-        self.drag = 0.2
-        self.rot_drag = 0.8
+        self.configure_dynamics()
         self.boat_radius = 25
         
         # 선체 표면 기하 형상 (ui_renderer의 선체 렌더링과 100% 일치하는 정밀 히트박스)
@@ -198,8 +198,28 @@ class BoatEnv:
             except Exception:
                 pass
 
+    def configure_dynamics(self):
+        with Path(__file__).with_name('vessel_config.json').open() as source:
+            physics = json.load(source)['physics']
+        self.dynamics = VesselParameters(**physics)
+        self.mass = self.dynamics.mass_kg
+        self.inertia = self.dynamics.yaw_inertia_kg_m2
+
+    def physics_state(self):
+        c, s = math.cos(self.boat_heading), math.sin(self.boat_heading)
+        scale = self.dynamics.pixels_per_m
+        vx, vy = self.boat_vel / scale
+        return np.array([self.boat_pos[0]/scale, self.boat_pos[1]/scale,
+                         self.boat_heading, vx*c+vy*s, -vx*s+vy*c,
+                         self.boat_ang_vel, self.thrust_left, self.thrust_right])
+
     def reset(self):
         self.load_params()
+        self.configure_dynamics()
+        self.command_speed = self.dynamics.cruise_speed_m_s
+        self.command_yaw_rate = 0.0
+        self.thrust_left = self.thrust_right = 0.0
+        self.current_fwd = 0.0
         self.frame = 0
         self.boat_pos = np.array([65, self.sim_h/2], dtype=np.float32)
         self.boat_vel = np.zeros(2)
@@ -256,6 +276,8 @@ class BoatEnv:
         self.wp_check_timer = 0
         self.steer_timer = 0
         self.path_timer = 0
+        self.prev_steer = 0.0
+        self.emergency_cooldown = 0
         self.bezier_path = None
         self.next_bezier_path = None
         self.pursuit_target = None
@@ -467,48 +489,23 @@ class BoatEnv:
             self.reflected_wakes.extend(new_rw)
 
     def pwm_to_thrust(self, p):
-        return p * 10
+        return float(np.clip((p - 1500) / 400, -1, 1)) * self.dynamics.max_thrust_N
 
     def step(self, L, R, sub_step_idx=0, total_sub_steps=1):
-        tL = self.pwm_to_thrust(L)
-        tR = self.pwm_to_thrust(R)
-
-        if getattr(self, 'manual_mode', False):
-            # 수동 조종 모드: W/S 키 입력에 따른 직접 추진력 제어
-            m_thr = getattr(self, 'manual_throttle', 0.0)
-            target_fwd = m_thr * 5500.0
-            mom = (tR - tL) * self.params['mom_coeff']
-        else:
-            # 220도 범위 내 최소 장애물 거리에 따른 순수 연속 함수 속도 제어 (장애물 근접 시 최소 속도를 더욱 낮추어 서행)
-            em_dist = float(getattr(self, 'min_wide_dist', 999.0))
-            speed_factor = (math.tanh(max(0.0, em_dist) / 100.0)) ** 1.35
-            # 라인트레이싱 모드에서는 갭 내비 대비 살짝 느린 속도 (85%)로 주행하여 반응형 회피에 여유 확보
-            if getattr(self, 'linetrace_mode', False):
-                speed_factor *= 0.85
-            target_fwd = ((tL + tR) / 6.0) * speed_factor
-            mom = (tR - tL) * self.params['mom_coeff']
-            
-        if not hasattr(self, 'current_fwd'):
-            self.current_fwd = 0.0
-            
-        self.current_fwd = self.current_fwd * 0.90 + target_fwd * 0.10
-        ch = math.cos(self.boat_heading)
-        sh = math.sin(self.boat_heading)
-        
-        acc = self.current_fwd / self.mass
-        vel0, vel1 = float(self.boat_vel[0]), float(self.boat_vel[1])
-        vel_norm = math.hypot(vel0, vel1)
-        
-        # 유체 항력 및 횡방향 슬립 댐핑 고속 연산 (numpy 임시 배열 할당 제거)
-        lat_speed = -vel0 * sh + vel1 * ch
-        drag0 = -self.drag * vel0 * vel_norm + sh * lat_speed * 18.0
-        drag1 = -self.drag * vel1 * vel_norm - ch * lat_speed * 18.0
-            
         prev0, prev1 = float(self.boat_pos[0]), float(self.boat_pos[1])
-        self.boat_vel[0] = vel0 + (acc * ch + drag0) * self.dt
-        self.boat_vel[1] = vel1 + (acc * sh + drag1) * self.dt
-        self.boat_pos[0] = prev0 + self.boat_vel[0] * self.dt
-        self.boat_pos[1] = prev1 + self.boat_vel[1] * self.dt
+        old_heading = self.boat_heading
+        z = integrate(self.physics_state(), self.pwm_to_thrust(L),
+                      self.pwm_to_thrust(R), self.dt, self.dynamics)
+        scale = self.dynamics.pixels_per_m
+        self.boat_pos = z[:2] * scale
+        self.boat_heading = float(z[2])
+        c, s = math.cos(z[2]), math.sin(z[2])
+        self.boat_vel = np.array([z[3]*c-z[4]*s, z[3]*s+z[4]*c]) * scale
+        self.boat_ang_vel = float(z[5])
+        self.thrust_left, self.thrust_right = float(z[6]), float(z[7])
+        self.current_fwd = self.thrust_left + self.thrust_right
+        d_head = self.boat_heading - old_heading
+        vel_norm = math.hypot(*self.boat_vel)
         
         if getattr(self, 'manual_mode', False):
             self.boat_pos[0] = min(max(25.0, float(self.boat_pos[0])), float(self.map_w - 25.0))
@@ -527,13 +524,6 @@ class BoatEnv:
             if min_ly < self.trail_min_y: self.trail_min_y = float(min_ly)
             if max_ly > self.trail_max_y: self.trail_max_y = float(max_ly)
                              
-        ang_acc = (mom - self.rot_drag * self.boat_ang_vel) / self.inertia
-        self.boat_ang_vel += ang_acc * self.dt
-        self.boat_ang_vel *= 0.84
-        
-        d_head = self.boat_ang_vel * self.dt
-        self.boat_heading += d_head
-        
         # RC 수동 조종 모드 시 누적 회전 각도 및 비단절 충돌 카운트 추적
         if getattr(self, 'manual_mode', False):
             self.manual_cum_turn = getattr(self, 'manual_cum_turn', 0.0) + math.degrees(abs(d_head))
@@ -548,11 +538,6 @@ class BoatEnv:
                     self.manual_collision_flash = 35    # 화면 충돌 알림 플래시 지속 시간
                     self.boat_vel = -self.boat_vel * 0.35 # 부표 충돌 반발 감속
         
-        # 선미 추진 선박의 후방 회전축(L_pivot = 4.0px)에 따른 자연스러운 선회 궤적
-        L_pivot = 4.0
-        lat_vec = np.array([-math.sin(self.boat_heading), math.cos(self.boat_heading)])
-        self.boat_pos += lat_vec * (self.boat_ang_vel * L_pivot * self.dt)
-
         # 실제 선박 유체역학 파도 생성 (Realistic Hydrodynamic Wave System)
         if vel_norm > 2.0:
             h = self.boat_heading
@@ -673,14 +658,24 @@ class BoatEnv:
         )
 
     def get_pwm(self, steer):
-        dead = 0.02
-        if abs(steer) < dead: steer = 0
-        mid = 1500; rng = self.params['pwm_rng']
-        m = (abs(steer) ** 1.15)
-        d = m * rng
-        if steer >= 0: L = mid - d; R = mid + d
-        else: L = mid + d; R = mid - d
-        return int(np.clip(L, 1230, 1770)), int(np.clip(R, 1230, 1770))
+        p = self.dynamics
+        speed_factor = math.tanh(max(0.0, float(getattr(self, 'min_wide_dist', 999.0))) / 100.0) ** 1.35
+        if self.linetrace_mode:
+            speed_factor *= 0.85
+        self.command_speed = p.cruise_speed_m_s * speed_factor
+        self.command_yaw_rate = float(np.clip(steer * self.params['yaw_command_gain'], -1.0, 1.0)) * p.max_yaw_rate_rad_s
+        left, right = allocate(self.physics_state(), self.command_speed,
+                               self.command_yaw_rate, p)
+        return (1500 + 400*float(left)/p.max_thrust_N,
+                1500 + 400*float(right)/p.max_thrust_N)
+
+    def get_manual_pwm(self):
+        p = self.dynamics
+        speed = self.manual_throttle * p.cruise_speed_m_s
+        yaw_rate = self.manual_steer * p.max_yaw_rate_rad_s
+        left, right = allocate(self.physics_state(), speed, yaw_rate, p)
+        return (1500 + 400*float(left)/p.max_thrust_N,
+                1500 + 400*float(right)/p.max_thrust_N)
 
     def validate_wp_grid(self):
         if self.current_wp is None: return

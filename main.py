@@ -13,7 +13,7 @@ from playback_scheduler import playback_budget
 from frame_capture import save_episode_frame, start_capture_worker
 from main_safety_guard import MainSafetyGuard
 
-BASE_PLAYBACK_RATE = 120 * 0.04  # MAIN's former 1 step/frame at 120 FPS
+BASE_PLAYBACK_RATE = 2.4  # CODEX-equivalent display rate; dt remains 0.04 s.
 MAX_PHYSICS_STEPS_PER_RENDER = 8  # retain unexecuted budget for later frames
 
 def run():
@@ -194,10 +194,7 @@ def run():
                     env.manual_throttle = getattr(env, 'manual_throttle', 0.0) * 0.75 + target_thr * 0.25
                     env.manual_steer = getattr(env, 'manual_steer', 0.0) * 0.70 + target_str * 0.30
 
-                    base_pwm = 1500
-                    diff = env.manual_steer * 270.0
-                    L = int(np.clip(base_pwm - diff, 1100, 1900))
-                    R = int(np.clip(base_pwm + diff, 1100, 1900))
+                    L, R = env.get_manual_pwm()
                     steer = env.manual_steer
                 env.prev_steer = steer
                 env.heading_target = env.boat_heading + steer * 0.45
@@ -378,7 +375,7 @@ def run():
                         
                     if env.bezier_path is not None:
                         env.pursuit_target = pure_pursuit(env.bezier_path, env.boat_pos, lookahead=70)
-                        
+
                     if env.current_wp is not None and env.next_wp is not None:
                         if env.bezier_path is not None and len(env.bezier_path) >= 2:
                             t1 = env.bezier_path[-1] - env.bezier_path[-2]

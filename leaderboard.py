@@ -5,7 +5,7 @@ import datetime
 from pathlib import Path
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_LEADERBOARD_NAMESPACE = "main"
+DEFAULT_LEADERBOARD_NAMESPACE = "main_heavy"
 # Runtime records must not modify a tracked source file. Keeping them in an
 # ignored, branch-specific local file lets Git switch branches after a run
 # while keeping the main and codex score histories independent.
@@ -28,6 +28,8 @@ def load_benchmarks():
         return []
     with BENCHMARK_FILE.open(encoding="utf-8") as source:
         document = json.load(source)
+    if document.get("branch") == DEFAULT_LEADERBOARD_NAMESPACE and document.get("status") == "pending":
+        return []
     records = document["benchmarks"]
     if (document.get("branch") != DEFAULT_LEADERBOARD_NAMESPACE or
             len(records) != len(BENCHMARK_IDS) or

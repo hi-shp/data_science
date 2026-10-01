@@ -52,6 +52,9 @@ class _ManualEnv:
     def update_dynamic_obstacles(self):
         pass
 
+    def get_manual_pwm(self):
+        return 1500, 1500
+
     def step(self, left, right, sub_step_idx=0, total_sub_steps=1):
         self.steps.append((self.manual_throttle, sub_step_idx, total_sub_steps))
         self.boat_pos[0] += self.manual_throttle * self.dt
@@ -95,7 +98,7 @@ class PlaybackTimingTest(unittest.TestCase):
     def test_one_second_rc_progress_is_independent_of_120_60_30_fps(self):
         results = [self.run_manual(fps, fps) for fps in (120, 60, 30)]
         for fps, env in zip((120, 60, 30), results):
-            self.assertLessEqual(abs(len(env.steps) - 120), 1)
+            self.assertLessEqual(abs(len(env.steps) - 60), 1)
             self.assertEqual(env.renders, fps)
             self.assertTrue(all(idx == 0 and total == 1
                                 for _, idx, total in env.steps))
@@ -108,26 +111,26 @@ class PlaybackTimingTest(unittest.TestCase):
 
     def test_speed_change_discards_old_debt(self):
         self.assertEqual(playback_budget(3.0, 5.0, 8, 1, main.BASE_PLAYBACK_RATE), 0.0)
-        self.assertEqual(playback_budget(0.02, 0.1, 1, 1, main.BASE_PLAYBACK_RATE), 0.5)
+        self.assertEqual(playback_budget(0.02, 0.1, 1, 1, main.BASE_PLAYBACK_RATE), 0.26)
 
     def test_displayed_multipliers_scale_fixed_step_budget(self):
-        for speed, requested_steps in ((2, 240), (4, 480)):
+        for speed, requested_steps in ((2, 120), (4, 240)):
             env = self.run_manual(60, 60, speed=speed)
             self.assertLessEqual(abs(len(env.steps) - requested_steps), 2)
 
     def test_pause_does_not_accumulate_catch_up_steps(self):
         space = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE)
         env = self.run_manual(60, 60, {21: [space], 41: [space]})
-        # Forty active render intervals request about eighty fixed steps.
-        self.assertGreaterEqual(len(env.steps), 76)
-        self.assertLessEqual(len(env.steps), 82)
+        # Forty active render intervals request about forty fixed steps.
+        self.assertGreaterEqual(len(env.steps), 38)
+        self.assertLessEqual(len(env.steps), 42)
 
     def test_high_speed_debt_does_not_spill_into_lower_speed(self):
         env = self.run_manual(60, 30, speed=8, speed_changes={21: 1})
         # First 20 frames hit the 8-step cap; after the change only the
         # new 1x wall budget may run, rather than the old 8x backlog.
-        self.assertGreaterEqual(len(env.steps), 175)
-        self.assertLessEqual(len(env.steps), 185)
+        self.assertGreaterEqual(len(env.steps), 166)
+        self.assertLessEqual(len(env.steps), 172)
 
 
 if __name__ == '__main__':
