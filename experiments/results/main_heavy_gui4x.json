@@ -1,0 +1,65 @@
+{
+  "seed": 2000,
+  "display": ":0",
+  "fullscreen_3d": true,
+  "seconds": 30.02835798205342,
+  "requested_steps_per_s": 240.0,
+  "actual_steps_per_s": 235.94363715240044,
+  "sim_seconds_per_wall_second": 9.437745486096018,
+  "average_fps": 42.45986413116592,
+  "minimum_rolling_fps": 35,
+  "median_frame_ms": 23.8909994950518,
+  "p95_frame_ms": 29.882707813521844,
+  "p99_frame_ms": 36.68538024649023,
+  "max_frame_ms": 52.63815389480442,
+  "frames_ge_100_ms": 0,
+  "max_backlog_steps": 9.203690337017107,
+  "final_backlog_steps": 0.15385233238334323,
+  "stage_ms_per_call": {
+    "lidar_hits_np": {
+      "mean": 0.05406729689010278,
+      "max": 0.14617701526731253,
+      "calls": 7092
+    },
+    "update_grid": {
+      "mean": 0.02057350557113438,
+      "max": 0.1138539519160986,
+      "calls": 7085
+    },
+    "extract_clusters_from_grid": {
+      "mean": 0.5793517391564234,
+      "max": 1.0816899593919516,
+      "calls": 3214
+    },
+    "match_clusters": {
+      "mean": 0.049181650202911445,
+      "max": 0.10243605356663465,
+      "calls": 3214
+    },
+    "find_gap": {
+      "mean": 0.35146212569800933,
+      "max": 1.5353710623458028,
+      "calls": 5598
+    },
+    "make_bezier_path": {
+      "mean": 0.060830852725381385,
+      "max": 0.12381898704916239,
+      "calls": 5034
+    },
+    "safety_guard": {
+      "mean": 0.17522511257472576,
+      "max": 12.219235999509692,
+      "calls": 7085
+    },
+    "physics_step": {
+      "mean": 0.11155470713102847,
+      "max": 13.166074058972299,
+      "calls": 7085
+    },
+    "render": {
+      "mean": 17.135040605915528,
+      "max": 29.51136790215969,
+      "calls": 1275
+    }
+  }
+}
