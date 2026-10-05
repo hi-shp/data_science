@@ -5,6 +5,7 @@ import time
 import os
 import leaderboard
 from engine_3d import Engine3D
+from lidar_hit_display import obstacle_hit_mask
 from config import get_dashboard_layout, GRID
 
 
@@ -595,7 +596,7 @@ class EnvRenderer:
                     target_surf.blit(occ_cell, (osx, int(occ_y[i] * GRID)))
             
         if env.show_lidar and not getattr(env, 'manual_mode', False):
-            valid_mask = np.isfinite(hits_x)
+            valid_mask = obstacle_hit_mask(hits_x, hits_y, env.map_w, env.sim_h)
             if np.any(valid_mask):
                 hx_v = hits_x[valid_mask]
                 hy_v = hits_y[valid_mask]
@@ -1077,7 +1078,7 @@ class EnvRenderer:
 
         # 라이다 히트 포인트 렌더링 (저채도 소프트 옐로우) - 벡터화 연산
         if env.show_lidar and not getattr(env, 'manual_mode', False):
-            valid_h = np.isfinite(hits_x)
+            valid_h = obstacle_hit_mask(hits_x, hits_y, env.map_w, env.sim_h)
             if np.any(valid_h):
                 hx_v = hits_x[valid_h]
                 hy_v = hits_y[valid_h]

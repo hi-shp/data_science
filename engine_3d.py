@@ -7,6 +7,7 @@ from multiprocessing import shared_memory
 import numpy as np
 import pygame
 import moderngl
+from lidar_hit_display import obstacle_hit_mask
 
 class _Engine3DCore:
     """
@@ -927,6 +928,7 @@ class _Engine3DCore:
             if isinstance(hits, tuple) and len(hits) == 2:
                 hx_arr, hy_arr = hits
                 if hx_arr is not None and len(hx_arr) > 0:
+                    marker_mask = obstacle_hit_mask(hx_arr, hy_arr, env.map_w, env.sim_h)
                     for k in range(0, len(hx_arr), 2):
                         hx_v = hx_arr[k]
                         if np.isfinite(hx_v):
@@ -935,6 +937,8 @@ class _Engine3DCore:
                             # 발사 광선
                             line_verts.extend(lidar_src + col_laser)
                             line_verts.extend([hx, hy, hz] + col_laser)
+                            if not marker_mask[k]:
+                                continue  # Preserve the wall ray, hide only its amber marker.
                             # 히트 지점 마커 (0.08m 3D 십자 스타)
                             s_m = 0.08
                             line_verts.extend([hx - s_m, hy, hz] + col_hit); line_verts.extend([hx + s_m, hy, hz] + col_hit)
@@ -949,6 +953,8 @@ class _Engine3DCore:
                         # 발사 광선
                         line_verts.extend(lidar_src + col_laser)
                         line_verts.extend([hx, hy, hz] + col_laser)
+                        if not obstacle_hit_mask(hp[0], hp[1], env.map_w, env.sim_h):
+                            continue  # Preserve rays; exclude only wall hit markers.
                         # 히트 지점 마커 (0.08m 3D 십자 스타)
                         s_m = 0.08
                         line_verts.extend([hx - s_m, hy, hz] + col_hit); line_verts.extend([hx + s_m, hy, hz] + col_hit)
@@ -1094,6 +1100,8 @@ def _engine_3d_worker_proc(pipe, shm_panel_name, shm_full_name, full_w=1840, ful
         h = req['h']
         hits = req.get('hits')
         
+        p_env.map_w = req['map_w']
+        p_env.sim_h = req['sim_h']
         p_env.boat_pos = req['boat_pos']
         p_env.boat_heading = req['boat_heading']
         p_env.boat_vel = req['boat_vel']
@@ -1192,6 +1200,7 @@ class Engine3D:
         # 최소 상태 페이로드 직렬화 (numpy 배열 직접 전달로 70배 고속 직렬화)
         req = {
             'w': w, 'h': h,
+            'map_w': env.map_w, 'sim_h': env.sim_h,
             'boat_pos': tuple(env.boat_pos),
             'boat_heading': float(env.boat_heading),
             'boat_vel': tuple(getattr(env, 'boat_vel', [0.0, 0.0])),
