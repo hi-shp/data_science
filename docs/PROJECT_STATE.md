@@ -1,5 +1,97 @@
 # PROJECT_STATE.md
 
+## CODEX 2D frame pacing — verified 2026-10-06
+
+Work performed directly in `/home/soonhong/kaboat` on `codex` (starting
+64d0f6b), without creating worktrees. MAIN and MAIN_HEAVY were not modified.
+Reference: MAIN_HEAVY 763e80e. Real X11 production default 2D dashboard,
+normal small 3D panel, 1x/2x/4x/8x/16x; seed sequence 2069/2000/2081.
+Twelve wall seconds per rate, 22 seconds for CODEX before/after 4x.
+Cold initialization is excluded, rendering/display flips are included.
+The harness disables screenshot PNG saving equally in all runs; the existing
+extra final frame is still drawn. No frame, sensor or physics step is skipped.
+
+Measured bottleneck: synchronous fixed-step planning blocked display frames;
+4x planning averaged 5.91 ms (p95 8.90 ms), rendering 5.58 ms/frame.
+Repeated scalar observed-track norms, wall hull projections, preliminary
+passage sorts, noise-knot dispatch and yaw-slew dispatch added avoidable cost.
+
+Retained changes:
+- Batch the identical observation norms while preserving sequential matching.
+- Reuse per-update immutable wall geometry and a single stable passage sort.
+- Cache noise knot indices with identical RNG draws/arithmetic.
+- Compile the identical yaw-slew loop, with NumPy reference/fallback and warmup.
+- Skip the unused pure legacy objective in ETA mode only.
+- Bounded spawned worker evaluates the unchanged `advance_trajectory` pipeline.
+  The GUI consumes packets strictly in physics order, applies BoatEnv.step,
+  and verifies exact authoritative state on every step. Original sensing,
+  planning cadence, sampled candidates, safety and commands remain intact.
+  Grid updates replay the same scan, avoiding a 423 KB/tick IPC payload.
+  Pause does not apply packets; episode/mode reset epochs discard stale packets.
+  Manual/line-trace stay on the original synchronous path. The synchronous ETA
+  comparison override is `KABOAT_SYNC_TRAJECTORY=1 python3 main.py`.
+
+A thread prototype lost throughput through the GIL; a process prototype with
+full per-step grid serialization also lost throughput. Neither was retained.
+Simple synchronous reuse alone reached 77.09 FPS at 4x; bounded computation
+separation is necessary to approach the reference frame pacing.
+
+### MAIN_HEAVY reference
+
+| Rate | FPS | rolling min | mean ms | p95 ms | p99 ms | >=100 ms | physics/s | request/s | backlog max/final (sim s) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1x | 121.49 | 97 | 8.23 | 11.03 | 12.10 | 0 | 60.00 | 60 | 0.060/0.032 |
+| 2x | 120.63 | 118 | 8.29 | 10.71 | 11.63 | 0 | 120.03 | 120 | 0.192/0.032 |
+| 4x | 108.96 | 101 | 9.18 | 10.96 | 11.97 | 0 | 239.96 | 240 | 0.438/0.014 |
+| 8x | 100.67 | 93 | 9.93 | 12.15 | 13.42 | 0 | 331.47 | 480 | 71.350/71.301 |
+| 16x | 106.17 | 97 | 9.42 | 11.46 | 12.58 | 0 | 359.25 | 960 | 288.567/288.567 |
+
+### CODEX before
+
+| Rate | FPS | rolling min | mean ms | p95 ms | p99 ms | >=100 ms | physics/s | request/s | backlog max/final (sim s) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1x | 108.50 | 102 | 9.22 | 17.17 | 19.71 | 0 | 60.06 | 60 | 0.040/0.009 |
+| 2x | 97.18 | 86 | 10.29 | 17.43 | 18.99 | 0 | 120.21 | 120 | 0.040/0.015 |
+| 4x | 63.02 | 35 | 15.87 | 27.62 | 36.96 | 0 | 240.06 | 240 | 0.337/0.002 |
+| 8x | 38.11 | 31 | 26.24 | 36.13 | 40.77 | 0 | 301.50 | 480 | 85.720/85.720 |
+| 16x | 37.78 | 31 | 26.47 | 36.72 | 40.87 | 0 | 298.58 | 960 | 317.595/317.595 |
+
+### CODEX final
+
+| Rate | FPS | rolling min | mean ms | p95 ms | p99 ms | >=100 ms | physics/s | request/s | backlog max/final (sim s) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1x | 123.79 | 123 | 8.08 | 8.93 | 9.31 | 0 | 60.07 | 60 | 0.040/0.008 |
+| 2x | 123.64 | 121 | 8.09 | 8.99 | 9.50 | 0 | 120.07 | 120 | 0.273/0.023 |
+| 4x | 122.74 | 115 | 8.15 | 9.07 | 9.84 | 0 | 239.99 | 240 | 0.606/0.033 |
+| 8x | 122.19 | 120 | 8.18 | 9.32 | 10.60 | 0 | 384.51 | 480 | 45.902/45.902 |
+| 16x | 122.33 | 118 | 8.17 | 9.33 | 11.10 | 0 | 377.10 | 960 | 279.989/279.989 |
+
+Validation: 54 relevant unit/regression tests passed. Seeds 2000 and 2069
+completed at the original steps 776 and 888. Every-step physics, commands,
+LiDAR and planned/predicted routes have exact baseline hashes; the full 2D
+RGB stream hash also matches (fixed 3D panel pixels and FPS text isolate
+asynchronous panel timing). Real production X11 screenshot was inspected.
+Pause/resume, RC enter/exit, line-trace enter/exit, 8x -> 1x switching and QUIT
+passed a production-loop GUI smoke check. Worker ordering, queued reset,
+map-memory resume and clean shutdown have targeted tests.
+
+Integrity: no environment, renderer, vessel integrator, safety threshold,
+playback mapping (2.4), dt (0.04), planner/control policy, candidate count,
+LiDAR semantics or cadence change. Headless evaluation uses the same
+synchronous pipeline. No algorithm or dynamics were imported from MAIN_HEAVY.
+
+Limitation: 1x/2x/4x meet requested throughput without persistent debt; 8x/16x
+still accumulate debt in both MAIN_HEAVY and CODEX. CODEX final improves the
+high-rate throughput and frame pacing relative to both references, but does
+not meet 480/960 steps/s. No timing budget was dropped to hide that limitation.
+
+Artifacts (ignored local data): `data/codex_2d_performance/` holds
+`before_*x`, `after_*x`, `heavy_*x` summaries, raw frame timestamps and PNGs,
+`before_parity.json`, `committed_candidate_parity.json`, full state arrays and profile.
+Synchronous-only candidate summaries are preserved as `sync_optimized_*x`.
+Next action: user GUI comparison; investigate remaining high-rate control CPU
+cost only if additional 8x/16x throughput is needed, retaining parity gates.
+
 ## CODEX LiDAR-limited predicted display — verified 2026-09-30
 
 The blue `visual_trajectory` is now cut at the first exit from the LiDAR

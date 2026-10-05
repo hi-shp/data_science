@@ -9,6 +9,7 @@ Physical integration and thrust allocation are imported unchanged.
 from dataclasses import dataclass
 import time
 import numpy as np
+from fast_command_arrays import slew_yaw
 from vessel_dynamics import allocate, integrate
 from route_planner import a_star
 from control_path import lookahead, path_geometry
@@ -250,10 +251,16 @@ class SamplingNavigator:
             self.sequence = np.vstack([self.sequence[1:], self.sequence[-1:]])
         # Correlated perturbations avoid using hundreds of independent switches.
         knots = self.rng.normal(size=(cfg.samples, (horizon+4)//5+1, 2))
-        noise = np.empty((cfg.samples, horizon, 2))
-        for t in range(horizon):
-            f = (t%5)/5.
-            noise[:, t] = (1-f)*knots[:, t//5]+f*knots[:, t//5+1]
+        # The knot mapping is immutable for a given horizon. Broadcasting keeps
+        # the exact multiply/add order and RNG draw, avoiding per-knot dispatch.
+        if getattr(self, '_noise_horizon', None) != horizon:
+            steps = np.arange(horizon)
+            self._noise_index = steps//5
+            self._noise_fraction = ((steps%5)/5.)[None, :, None]
+            self._noise_horizon = horizon
+        f = self._noise_fraction
+        noise = ((1-f)*knots[:, self._noise_index]+
+                 f*knots[:, self._noise_index+1])
         sequences = self.sequence[None, :, :]+noise*np.array([cfg.noise_speed, cfg.noise_yaw])
         sequences[0] = self.sequence
         # Broad turn-then-straight primitives provide multi-modal exploration,
@@ -272,10 +279,14 @@ class SamplingNavigator:
         passage_slots = np.empty(0, dtype=int)
         if cfg.passage_guidance:
             visible = observed_passages(observation.obstacles, state[:2], state[2], goal,
-                                        cfg.margin, hull_polygons=self.hull_polygons)
+                                        cfg.margin, hull_polygons=self.hull_polygons,
+                                        sort=not cfg.forward_policy)
             if cfg.forward_policy:
                 visible += observed_wall_passages(observation.obstacles,state[:2],state[2],
-                    goal,cfg.margin,observation.width,observation.height,self.hull_polygons)
+                    goal,cfg.margin,observation.width,observation.height,self.hull_polygons,
+                    sort=False)
+                # One stable sort replaces both preliminary family sorts and
+                # this combined sort, with identical keys and equal-key order.
                 visible.sort(key=lambda p:np.linalg.norm(p.center-state[:2])+
                              .5*np.linalg.norm(goal-p.center))
             if self.passage_commitment is not None:
@@ -329,12 +340,7 @@ class SamplingNavigator:
         sequences[:, :, 0] = np.clip(sequences[:, :, 0], -.25*p.cruise_speed_m_s, p.cruise_speed_m_s)
         sequences[:, :, 1] = np.clip(sequences[:, :, 1], -p.max_yaw_rate_rad_s, p.max_yaw_rate_rad_s)
         if cfg.yaw_command_step is not None:
-            prior = np.full(cfg.samples, self.previous[1])
-            for t in range(horizon):
-                sequences[:, t, 1] = np.clip(sequences[:, t, 1],
-                                             prior-cfg.yaw_command_step,
-                                             prior+cfg.yaw_command_step)
-                prior = sequences[:, t, 1]
+            slew_yaw(sequences, self.previous[1], cfg.yaw_command_step)
         # Same perception map, bounded local subset; no simulator object access.
         obs = observation.obstacles
         obstacle_ids = np.flatnonzero(np.linalg.norm(obs[:, :2]-state[:2], axis=1) < 6.8)
@@ -378,7 +384,10 @@ class SamplingNavigator:
             cost += .05*np.mean(u[:, :, 0]**2, axis=1)
             cost += terminal_cost(z[:, -1], state[:2], goal, self.goal_heading)
             return cost
-        costs = objective(sequences, states, closest)
+        # The ETA branch never reads this legacy weighted objective. It is a
+        # pure calculation, not a safety gate or a source of random draws.
+        costs = (objective(sequences, states, closest)
+                 if cfg.objective != 'eta' else None)
         feasible = closest >= cfg.margin
         if cfg.objective == 'eta':
             terms = arrival_terms(states, sequences, path, geometry[2], goal, p, 3*self.dt,

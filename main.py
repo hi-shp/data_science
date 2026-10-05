@@ -15,6 +15,7 @@ from fast_corridor import compiled_within_corridor
 from fast_constant_rollout import warmup_constant_rollout
 from frame_capture import save_episode_frame, start_capture_worker
 from fast_clearance import warmup_clearance
+from fast_command_arrays import warmup_command_arrays
 from trajectory_modes import NAV_MODES
 from trajectory_objective import flythrough_goal_reached
 from playback_scheduler import playback_budget
@@ -37,6 +38,7 @@ def run(nav_mode=None, seed=None):
     warmup_astar()
     warmup_constant_rollout()
     warmup_clearance()
+    warmup_command_arrays()
     if env.navigation_mode not in ('legacy_a', 'legacy'):
         from experiments.fast_rollout import compiled_rollout, parameter_vector
         if compiled_rollout is not None:
@@ -67,6 +69,14 @@ def run(nav_mode=None, seed=None):
                              env.sim_h/env.dynamics.pixels_per_m,
                              env.dt, parameter_vector(env.dynamics), 0., 0., 1.4)
     start_capture_worker()
+    worker = None
+    if (not env.headless and env.navigation_mode.startswith('eta_') and
+            os.environ.get('KABOAT_SYNC_TRAJECTORY', '') != '1'):
+        from trajectory_worker import TrajectoryWorker
+        worker = TrajectoryWorker(env)
+        env._trajectory_worker = worker
+        worker.prime()
+    worker_active = worker is not None
     if compiled_within_corridor is not None:
         # Compile before the clock starts; warmup never enters planning state.
         compiled_within_corridor(np.zeros((1,2)),np.zeros((1,2)),
@@ -85,6 +95,8 @@ def run(nav_mode=None, seed=None):
         last_tick_time = now
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
+                if worker is not None:
+                    worker.close()
                 if hasattr(env, 'renderer') and hasattr(env.renderer, 'engine_3d') and env.renderer.engine_3d:
                     env.renderer.engine_3d.close()
                 pygame.quit()
@@ -121,6 +133,8 @@ def run(nav_mode=None, seed=None):
                 elif e.key == pygame.K_F11:
                     env.toggle_fullscreen()
                 elif e.key == pygame.K_ESCAPE:
+                    if worker is not None:
+                        worker.close()
                     if hasattr(env, 'renderer') and hasattr(env.renderer, 'engine_3d') and env.renderer.engine_3d:
                         env.renderer.engine_3d.close()
                     pygame.quit()
@@ -132,6 +146,11 @@ def run(nav_mode=None, seed=None):
                         env.needs_break = False
                         break
 
+        use_worker = (worker is not None and not env.manual_mode and
+                      not env.linetrace_mode)
+        if use_worker and not worker_active:
+            worker.reset(env)
+        worker_active = use_worker
         if getattr(env, 'paused', False):
             accumulator = 0.0
             env.display_step_fraction = 0.0
@@ -155,10 +174,15 @@ def run(nav_mode=None, seed=None):
         if speed_changed:
             last_tick_time = time.perf_counter()
         sub_steps = min(MAX_PHYSICS_STEPS_PER_RENDER, int(accumulator / env.dt))
+        if use_worker:
+            # Retain all unexecuted wall-clock budget while showing frames during
+            # planning. Completed packets are applied once, in physics order.
+            sub_steps = min(sub_steps, worker.available())
         accumulator -= sub_steps * env.dt
         
         for step_idx in range(sub_steps):
-            hits_x, hits_y = advance(env, step_idx, sub_steps)
+            hits_x, hits_y = (worker.advance(env, step_idx, sub_steps) if use_worker
+                              else advance(env, step_idx, sub_steps))
 
             dist_tgt_end = math.hypot(env.target[0] - env.boat_pos[0], env.target[1] - env.boat_pos[1])
             if getattr(env, 'manual_mode', False):
@@ -197,6 +221,8 @@ def run(nav_mode=None, seed=None):
                     except:
                         pass
                     env.reset()
+                    if worker is not None:
+                        worker.reset(env)
                     # A goal can end this frame's step batch early. Return its
                     # unexecuted fixed-step budget to the accumulator so 4x
                     # playback never silently loses physics time at a reset.

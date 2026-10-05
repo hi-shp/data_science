@@ -5,6 +5,7 @@ All thresholds here define meaningful progress/short continuation, not a
 replacement for the 0.20 m physical safety gate.
 """
 import numpy as np
+from fast_command_arrays import slew_yaw
 
 
 def forward_probes(state, passage, physics, horizon, previous, yaw_step):
@@ -73,11 +74,7 @@ def forward_probes(state, passage, physics, horizon, previous, yaw_step):
                 candidate[a:b, 1] = sign*second
                 candidate[b:, 1] = sign*.2
         sequences = np.concatenate((sequences,extra),axis=0)
-    last = np.full(len(sequences), previous[1])
-    for t in range(horizon):
-        sequences[:, t, 1] = np.clip(sequences[:, t, 1],
-                                    last-yaw_step, last+yaw_step)
-        last = sequences[:, t, 1]
+    slew_yaw(sequences, previous[1], yaw_step)
     return sequences
 
 
@@ -139,10 +136,7 @@ def continuation_safe(navigator, terminal, last_commands, observation,
     previous = np.repeat(last_commands[:, 1], 3)
     step = navigator.cfg.yaw_command_step
     if step is not None:
-        for t in range(knot_count):
-            variants[:, t, 1] = np.clip(variants[:, t, 1],
-                                        previous-step, previous+step)
-            previous = variants[:, t, 1]
+        slew_yaw(variants, previous, step)
     from experiments.fast_rollout import compiled_rollout
     initial_states = np.repeat(terminal, 3, axis=0)
     if compiled_rollout is not None:

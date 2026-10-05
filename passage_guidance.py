@@ -38,7 +38,7 @@ class Passage:
 
 
 def observed_passages(obstacles, position, heading, goal, safety_margin, max_range=6.8,
-                      hull_polygons=None):
+                      hull_polygons=None, sort=True):
     """Recompute each observed circle-pair gap and the current hull projection."""
     obstacles = np.asarray(obstacles, dtype=float).reshape(-1, 3)
     if len(obstacles) < 2:
@@ -75,34 +75,46 @@ def observed_passages(obstacles, position, heading, goal, safety_margin, max_ran
                         float(current_needed[k]),
                         (int(first_indices[index]), int(second_indices[index])))
                 for k, index in enumerate(indices)]
-    passages.sort(key=lambda passage: np.linalg.norm(passage.center-position)+
-                  .5*np.linalg.norm(np.asarray(goal)-passage.center))
+    if sort:
+        passages.sort(key=lambda passage: np.linalg.norm(passage.center-position)+
+                      .5*np.linalg.norm(np.asarray(goal)-passage.center))
     return passages
 
 
 def observed_wall_passages(obstacles, position, heading, goal, safety_margin,
-                           width, height, hull_polygons, max_range=6.8):
+                           width, height, hull_polygons, max_range=6.8, sort=True):
     """Surveyed walls paired with currently observed circle surfaces only."""
     result=[];position=np.asarray(position);goal=np.asarray(goal)
     goal_direction=(goal-position)/max(np.linalg.norm(goal-position),1e-9)
     needed=float(projected_width(0.,hull_polygons)+2*safety_margin)
+    # These four directions and hull projections are identical for every
+    # observed circle in this update. Reuse them without changing arithmetic.
+    wall_geometry=[]
+    for name,normal in (('left',np.array([1.,0.])),
+                        ('right',np.array([-1.,0.])),
+                        ('bottom',np.array([0.,1.])),
+                        ('top',np.array([0.,-1.]))):
+        tangent=np.array([-normal[1],normal[0]])
+        if tangent@goal_direction<0:tangent=-tangent
+        alignment=tangent@goal_direction
+        angle=heading-np.arctan2(tangent[1],tangent[0])
+        current=float(projected_width(angle,hull_polygons)+2*safety_margin)
+        wall_geometry.append((name,normal,tangent,alignment,current))
     for i,(x,y,r) in enumerate(np.asarray(obstacles).reshape(-1,3)):
-        boundaries=(('left',x-r,np.array([0.,y]),np.array([1.,0.])),
-                    ('right',width-x-r,np.array([width,y]),np.array([-1.,0.])),
-                    ('bottom',y-r,np.array([x,0.]),np.array([0.,1.])),
-                    ('top',height-y-r,np.array([x,height]),np.array([0.,-1.])))
-        for name,gap,wall_point,normal in boundaries:
+        boundaries=((x-r,np.array([0.,y])),
+                    (width-x-r,np.array([width,y])),
+                    (y-r,np.array([x,0.])),
+                    (height-y-r,np.array([x,height])))
+        for (gap,wall_point),(name,normal,tangent,alignment,current) in zip(boundaries,wall_geometry):
+            if gap<=needed or alignment<.65:continue
             center=wall_point+normal*gap/2
-            tangent=np.array([-normal[1],normal[0]])
-            if tangent@goal_direction<0:tangent=-tangent
             offset=center-position
-            if (gap<=needed or np.linalg.norm(offset)>max_range or
-                offset@tangent<=.3 or tangent@goal_direction<.65):continue
-            angle=heading-np.arctan2(tangent[1],tangent[0])
-            current=float(projected_width(angle,hull_polygons)+2*safety_margin)
+            if (np.linalg.norm(offset)>max_range or offset@tangent<=.3):continue
             result.append(Passage(center,tangent,float(gap),needed,current,(i,),name))
-    return sorted(result,key=lambda p:np.linalg.norm(p.center-position)+
-                  .5*np.linalg.norm(goal-p.center))
+    if sort:
+        result.sort(key=lambda p:np.linalg.norm(p.center-position)+
+                    .5*np.linalg.norm(goal-p.center))
+    return result
 
 
 def passage_sequences(state, passage, physics, horizon, knot_dt):

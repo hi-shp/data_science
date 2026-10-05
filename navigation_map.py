@@ -32,9 +32,12 @@ class NavigationMap:
         bearings = heading+angles
         hits = position + distances[:,None]*np.c_[np.cos(bearings),np.sin(bearings)]
         valid = distances < max_range-1e-4
+        # A live group always ends at the preceding beam. Batch those identical
+        # 2D norms instead of dispatching np.linalg.norm once per beam.
+        adjacent_distance=np.linalg.norm(hits[1:]-hits[:-1],axis=1)
         groups=[];group=[]
         for i in range(len(hits)):
-            if not valid[i] or (group and np.linalg.norm(hits[i]-hits[group[-1]]) > .35):
+            if not valid[i] or (group and adjacent_distance[i-1] > .35):
                 if group: groups.append(group)
                 group=[]
             if valid[i]:group.append(i)
@@ -60,12 +63,18 @@ class NavigationMap:
                 # Unfittable surfaces (including walls): conservative hit discs.
                 detections.extend(np.c_[pts,np.full(len(pts),.06)])
         self.tracks=[(o,t) for o,t in self.tracks if now-t<=self.occupied_ttl]
+        centers=np.empty((len(self.tracks)+len(detections),2))
+        for i,(obstacle,_) in enumerate(self.tracks):
+            centers[i]=obstacle[:2]
         for obstacle in detections:
             if self.tracks:
-                distance=np.array([np.linalg.norm(o[:2]-obstacle[:2]) for o,_ in self.tracks])
+                distance=np.linalg.norm(centers[:len(self.tracks)]-obstacle[:2],axis=1)
                 idx=int(distance.argmin())
                 if distance[idx]<max(.12,min(.5,float(obstacle[2])*.8)):
-                    self.tracks[idx]=(obstacle,now);continue
+                    self.tracks[idx]=(obstacle,now)
+                    centers[idx]=obstacle[:2]
+                    continue
+            centers[len(self.tracks)]=obstacle[:2]
             self.tracks.append((obstacle,now))
         self.obstacles=np.array([o for o,_ in self.tracks]).reshape(-1,3)
         dx,dy=self.gx-position[0],self.gy-position[1]

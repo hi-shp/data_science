@@ -127,4 +127,5 @@ def test_gui_accumulator_uses_wall_time_instead_of_one_step_per_frame():
         fake_time = SimpleNamespace(perf_counter=lambda: next(wall_tick))
         with patch.object(main,'BoatEnv',return_value=env), patch.object(pygame.event,'get',side_effect=events), patch.object(main,'time',fake_time):
             main.run()
-        assert abs(env.frame - 50*speed) <= 1, (speed,env.frame)
+        requested_steps = main.BASE_PLAYBACK_RATE / env.dt * speed
+        assert abs(env.frame - requested_steps) <= 1, (speed,env.frame)
