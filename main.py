@@ -24,7 +24,8 @@ MAX_PHYSICS_STEPS_PER_RENDER = 8  # retain unexecuted budget for later frames
 
 def run():
     env = BoatEnv()
-    phase5_mode = os.environ.get('MAIN_HEAVY_MOMENTUM_GAP', '') == '1'
+    # main_heavy runs V2.1 by default; explicit 0 retains the debug fallback.
+    phase5_mode = os.environ.get('MAIN_HEAVY_MOMENTUM_GAP', '1') == '1'
     geometric_portals = (phase5_mode and
                          os.environ.get('MAIN_HEAVY_GEOMETRIC_PORTALS', '1') == '1')
     adaptive_pp_ab = (phase5_mode and

@@ -2,9 +2,12 @@
 
 ## Current inspection candidate: V2.1_GAP_PERSISTENCE (2026-10-06)
 
-Ready for user GUI inspection. Run
-`MAIN_HEAVY_MOMENTUM_GAP=1 python3 main.py`. No commit/push, large regression,
-controller tuning or MAIN/CODEX branch changes in this ticket.
+Ready for user GUI inspection. On main_heavy, run `python3 main.py`:
+V2.1 is now the default, identical to explicit `MAIN_HEAVY_MOMENTUM_GAP=1`.
+Use `MAIN_HEAVY_MOMENTUM_GAP=0` only for the development fallback, or
+`MAIN_HEAVY_MOTION_VERSION=V1` for the previous momentum controller.
+The default-mode promotion changes startup selection only; controller, GUI and
+physics are unchanged. MAIN/CODEX branches remain untouched.
 
 - Valid first/second pair identities are retained before any new ranking.
   Intersections update on the actual current displayed route; a moving point on

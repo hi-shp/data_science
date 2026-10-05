@@ -1,4 +1,5 @@
 """MAIN's fixed-step playback must not depend on rendered frame count."""
+import os
 import unittest
 from unittest.mock import patch
 
@@ -83,7 +84,9 @@ class PlaybackTimingTest(unittest.TestCase):
                 env.sim_speed = speed_changes[count[0]]
             return events.get(count[0], [])
 
-        with patch.object(main, 'BoatEnv', return_value=env), \
+        # This minimal manual fixture isolates scheduler behavior, not V2 startup.
+        with patch.dict(os.environ, {'MAIN_HEAVY_MOMENTUM_GAP': '0'}), \
+             patch.object(main, 'BoatEnv', return_value=env), \
              patch.object(main.time, 'perf_counter', side_effect=lambda: wall_time[0]), \
              patch.object(main.pygame.event, 'get', side_effect=get_events), \
              patch.object(main.pygame.key, 'get_pressed', return_value=_Keys()), \
