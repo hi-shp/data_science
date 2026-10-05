@@ -1,0 +1,39 @@
+{
+  "source_branch": "main",
+  "source_commit": "757243cc68f25f5d6fbbac4dc955dab02d5f4010",
+  "seeds": [
+    2000,
+    2069,
+    2081
+  ],
+  "units": "meters (MAIN render coordinates measured at 50 pixels per meter)",
+  "method": "Unmodified MAIN run at deterministic 1x scheduling, per-physics-step GUI selection snapshots before integration; renderer disabled for geometry statistics only. Not a GUI performance benchmark.",
+  "sample_counts": {
+    "first_route_distance": 3230,
+    "first_segment_length": 3230,
+    "second_route_separation": 2335,
+    "second_segment_length": 2335
+  },
+  "quantiles": {
+    "first_route_distance": {
+      "p25": 1.986836586129528,
+      "median": 2.7259763551423557,
+      "p75": 3.6893801744073778
+    },
+    "first_segment_length": {
+      "p25": 2.4856052017211914,
+      "median": 2.794293212890625,
+      "p75": 3.759378204345703
+    },
+    "second_route_separation": {
+      "p25": 1.45566396062734,
+      "median": 1.6829204379116416,
+      "p75": 2.82447552154033
+    },
+    "second_segment_length": {
+      "p25": 2.6170106506347657,
+      "median": 3.0448428344726564,
+      "p75": 3.801080780029297
+    }
+  }
+}

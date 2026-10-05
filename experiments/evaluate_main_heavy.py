@@ -34,7 +34,7 @@ class _Renderer:
 
 
 def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
-        shadow_horizon=0):
+        shadow_horizon=0, stop_on_failure=False):
     import environment
     import main
     if shadow_horizon:
@@ -46,6 +46,8 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
     rows = [json.loads(line) for line in output.read_text().splitlines()] if output.exists() else []
     if [row['seed'] for row in rows] != seeds[:len(rows)]:
         raise ValueError('Existing evaluation rows are not this seed prefix')
+    if stop_on_failure and any(row['outcome'] != 'success' for row in rows):
+        return rows
     if len(rows) == len(seeds):
         return rows
 
@@ -56,6 +58,7 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
     original_time = main.time
     original_guard = main.MainSafetyGuard
     original_find_gap = main.find_gap
+    from momentum_gap_router import portal_crossing
     clock = {'wall': 0.0}
     state = {'seed': seeds[len(rows)], 'active': False, 'guard': None,
              'last_pos': None, 'last_heading': None, 'distance': 0.0,
@@ -66,7 +69,9 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
              'straight_steps': 0, 'straight_tv': 0.0,
              'straight_yaw_sq': 0.0, 'straight_heading_sq': 0.0,
              'straight_lateral_sq': 0.0, 'straight_last_diff': None,
-             'straight_last_sign': 0, 'straight_reversals': 0}
+             'straight_last_sign': 0, 'straight_reversals': 0,
+             'portal_crossings': [], 'portal_switches': 0,
+             'last_portal_pair': None}
     trace = []
     recent = deque(maxlen=125)
 
@@ -107,6 +112,15 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                 state['guard_predictions'] = state['guard'].predictions
                 state['guard_alarms'] = state['guard'].alarms
             left, right = float(args[0]), float(args[1])
+            router = getattr(env, 'momentum_gap_router', None)
+            active_gap = env.current_wp if router is not None else None
+            active_pair = (None if active_gap is None else
+                           tuple(map(int, active_gap['pair'])))
+            if (active_pair is not None and state['last_portal_pair'] is not None
+                    and active_pair != state['last_portal_pair']):
+                state['portal_switches'] += 1
+            state['last_portal_pair'] = active_pair
+            before_position = np.asarray(env.boat_pos).copy()
             differential = (right-left)/800.0
             if state['last_diff'] is not None:
                 state['command_tv'] += abs(differential-state['last_diff'])
@@ -159,6 +173,18 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                         tuple(round(float(v), 1) for v in env.bezier_path[-1]),
                 })
             result = original_step(*args, **kwargs)
+            if active_gap is not None:
+                interval = router.gap_interval(env, active_gap)
+                crossed, crossing_s = portal_crossing(
+                    before_position, env.boat_pos, active_gap, interval,
+                    env.target)
+                if crossed:
+                    state['portal_crossings'].append({
+                        'pair': active_pair,
+                        's': round(float(crossing_s), 4),
+                        'heading_rad': round(float(env.boat_heading), 4),
+                        'time_sim_s': round(env.frame * env.dt, 2),
+                    })
             if diagnose:
                 recent.append({
                     't': round(env.frame*env.dt, 2),
@@ -175,6 +201,11 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                     'guard_interventions': state['guard'].interventions,
                 })
             if state['seed'] == trace_seed and (os.environ.get('MAIN_HEAVY_PORTAL_TRACE') == '1' or state['steps'] % 5 == 0):
+                from main_safety_kernels import packed_hulls, preview_hull_surface_clearance
+                hulls, sizes = packed_hulls((env.left_hull_local, env.right_hull_local, env.deck_local))
+                actual_clearance = preview_hull_surface_clearance(
+                    env.boat_pos[0], env.boat_pos[1], env.boat_heading,
+                    env.dynamic_obstacles, hulls, sizes, env.map_w, env.sim_h)
                 current = env.current_wp
                 path = env.bezier_path
                 next_path = env.next_bezier_path
@@ -183,6 +214,9 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                     tangent = path[-1] - path[-2]
                     path_tangent = round(math.atan2(float(tangent[1]), float(tangent[0])), 3)
                 trace.append({
+                    'left_pwm': left, 'right_pwm': right,
+                    'surge': float(env.physics_state()[3]),
+                    'actual_clearance_m': float(actual_clearance/env.dynamics.pixels_per_m),
                     't': round(env.frame*env.dt, 2),
                     'x': round(float(env.boat_pos[0]), 1),
                     'y': round(float(env.boat_pos[1]), 1),
@@ -196,10 +230,13 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                     'wp': None if env.current_wp is None else [round(float(v), 1) for v in env.current_wp['pos']],
                     'next_wp': None if env.next_wp is None else [round(float(v), 1) for v in env.next_wp['pos']],
                     'new_wp': state.get('new_wp'),
+                    'candidate_pairs': [list(map(int, candidate['pair']))
+                                        for candidate in getattr(env, 'candidate_wps', [])[:8]],
                     'pursuit': None if env.pursuit_target is None else [round(float(v), 1) for v in env.pursuit_target],
                     'anticipation_blend': round(float(getattr(env, 'anticipation_blend', 0.0)), 3),
                     'guard': state['guard'].interventions,
                     'portal_pair': None if current is None else list(map(int, current['pair'])),
+                    'phase5_new_pair': getattr(env, 'phase5_new_wp_pair', None),
                     'portal_endpoints': None if current is None else [list(map(float, current['c1'])), list(map(float, current['c2']))],
                     'portal_interval': None if current is None else current.get('portal_safe_interval'),
                     'portal_s': None if current is None else current.get('portal_s'),
@@ -225,6 +262,13 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                     'momentum_safe': (getattr(getattr(env, 'momentum_gap_router', None),
                                               'last_result', None) or {}).get('safe')
                     if getattr(env, 'momentum_gap_router', None) is not None else None,
+                    'momentum_progress_px': (getattr(getattr(env, 'momentum_gap_router', None),
+                                                     'last_result', None) or {}).get('progress_px')
+                    if getattr(env, 'momentum_gap_router', None) is not None else None,
+                    'momentum_detour_active': (getattr(env.momentum_gap_router,
+                                                      'last_detour_active')
+                                                if getattr(env, 'momentum_gap_router', None)
+                                                is not None else None),
                     'momentum_observations': (getattr(env.momentum_gap_router,
                                                       'last_observations').tolist()
                                               if getattr(env, 'momentum_gap_router', None) is not None
@@ -232,6 +276,10 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                     'momentum_scores': (getattr(env.momentum_gap_router, 'last_scores')
                                         if getattr(env, 'momentum_gap_router', None) is not None
                                         else None),
+                    'momentum_candidate_states': (
+                        getattr(env.momentum_gap_router, 'last_candidate_states')
+                        if getattr(env, 'momentum_gap_router', None) is not None
+                        else None),
                 })
             state['distance'] += float(np.linalg.norm(env.boat_pos-state['last_pos']))/env.dynamics.pixels_per_m
             state['turn_deg'] += math.degrees(abs(env.boat_heading-state['last_heading']))
@@ -271,6 +319,9 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                     'safety_predictions': state['guard'].predictions-state['guard_predictions'],
                     'safety_alarms': state['guard'].alarms-state['guard_alarms'],
                 }
+                if getattr(env, 'momentum_gap_router', None) is not None:
+                    row['portal_crossings'] = state['portal_crossings']
+                    row['portal_switches'] = state['portal_switches']
                 if shadow_horizon:
                     detections = [item for item in state['shadow_records']
                                   if item['collision_step']]
@@ -348,6 +399,8 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                         'steps': trace, 'obstacles': env.obstacles.tolist(),
                         'shadow': state['shadow_records'],
                     }, indent=2))
+                if stop_on_failure and row['outcome'] != 'success':
+                    raise Finished()
                 if len(rows) == len(seeds):
                     raise Finished()
                 state['seed'] = seeds[len(rows)]
@@ -362,7 +415,9 @@ def run(seeds, output, timeout_s, trace_seed=None, diagnose=False,
                          straight_steps=0, straight_tv=0.0,
                          straight_yaw_sq=0.0, straight_heading_sq=0.0,
                          straight_lateral_sq=0.0, straight_last_diff=None,
-                         straight_last_sign=0, straight_reversals=0)
+                         straight_last_sign=0, straight_reversals=0,
+                         portal_crossings=[], portal_switches=0,
+                         last_portal_pair=None)
             recent.clear()
             return result
 
@@ -408,6 +463,7 @@ if __name__ == '__main__':
     parser.add_argument('--collision-seeds-from')
     parser.add_argument('--shadow-horizon', type=int, default=0,
                         help='Diagnostic-only follower preview length in physics steps')
+    parser.add_argument('--stop-on-failure', action='store_true')
     args = parser.parse_args()
     seeds = []
     for item in args.seeds.split(','):
@@ -420,6 +476,11 @@ if __name__ == '__main__':
         seeds = [json.loads(line)['seed'] for line in Path(args.collision_seeds_from).read_text().splitlines()
                  if json.loads(line)['outcome'] == 'collision']
     result = run(seeds, args.output, args.timeout_sim, args.trace_seed,
-                 args.diagnose, args.shadow_horizon)
+                 args.diagnose, args.shadow_horizon, args.stop_on_failure)
+    if args.stop_on_failure:
+        failed = next((row for row in result if row['outcome'] != 'success'), None)
+        print(f"FAIL seed {failed['seed']}: {failed['outcome']}" if failed else
+              f'PASS {len(result)}/{len(seeds)}')
+        sys.exit(1 if failed else 0)
     print(json.dumps({kind: sum(row['outcome']==kind for row in result)
                       for kind in ('success', 'collision', 'timeout')}))

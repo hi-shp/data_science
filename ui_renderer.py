@@ -8,6 +8,38 @@ from engine_3d import Engine3D
 from config import get_dashboard_layout, GRID
 
 
+def momentum_display_path(prediction, position):
+    """Clip a selected rollout at the current boat pose for display only."""
+    if prediction is None or len(prediction) < 2:
+        return None
+    points = np.asarray(prediction[:, :2], dtype=np.float64)
+    position = np.asarray(position, dtype=np.float64)
+    segments = points[1:] - points[:-1]
+    lengths_sq = np.sum(segments * segments, axis=1)
+    fractions = np.clip(np.sum((position - points[:-1]) * segments, axis=1) /
+                        np.maximum(lengths_sq, 1e-12), 0.0, 1.0)
+    projected = points[:-1] + fractions[:, None] * segments
+    index = int(np.argmin(np.sum((projected - position) ** 2, axis=1)))
+    return np.vstack((position, projected[index], points[index + 1:]))
+
+
+def momentum_display_portal(env):
+    """Selected GAP line, safe subsegment, and predicted crossing in world px."""
+    router = getattr(env, 'phase5_visuals', None) or getattr(env, 'momentum_gap_router', None)
+    result = None if router is None else router.last_result
+    gap = None if result is None else result.get('portal')
+    if gap is None or gap['interval'] is None:
+        return None
+    interval = gap['interval']
+    first = np.asarray(gap['c1'], dtype=np.float64)
+    second = np.asarray(gap['c2'], dtype=np.float64)
+    axis = second - first
+    crossing_s = (None if router.last_result is None else
+                  router.last_result.get('crossing_s'))
+    crossing = (None if crossing_s is None else first + crossing_s * axis)
+    return first, second, first + interval[0] * axis, first + interval[1] * axis, crossing
+
+
 class EnvRenderer:
     def __init__(self, env):
         self.env = env
@@ -577,7 +609,9 @@ class EnvRenderer:
             if env.next_bezier_path is not None:
                 pts = [(int(sx(x)), int(y)) for x, y in env.next_bezier_path]
                 if len(pts) > 1:
-                    pygame.draw.lines(target_surf, (255, 200, 50), False, pts, 3)
+                    pygame.draw.lines(target_surf,
+                        (50, 210, 255) if getattr(env, 'motion_core_v2', False) else (255, 200, 50),
+                        False, pts, 4 if getattr(env, 'motion_core_v2', False) else 3)
 
             if env.next_pursuit_target is not None:
                 px_nt, py_nt = env.next_pursuit_target

@@ -87,6 +87,82 @@ def packed_hulls(polygons):
     return packed, lengths
 
 
+@njit(cache=True)
+def preview_hull_surface_clearance(x, y, heading, obstacles, polygons, lengths,
+                                   map_width, map_height):
+    """Surface separation for recovery diagnostics, with the same three polygons."""
+    clearance = preview_hull_wall_clearance(x, y, heading, polygons, lengths,
+                                            map_width, map_height)
+    ch, sh = math.cos(heading), math.sin(heading)
+    for obstacle in obstacles:
+        dx, dy = obstacle[0]-x, obstacle[1]-y
+        px, py = dx*ch+dy*sh, -dx*sh+dy*ch
+        for part in range(3):
+            inside = False
+            distance_sq = 1e30
+            for i in range(lengths[part]):
+                x1, y1 = polygons[part, i]
+                x2, y2 = polygons[part, (i+1) % lengths[part]]
+                if ((y1 > py) != (y2 > py)) and (px < (x2-x1)*(py-y1)/(y2-y1+1e-12)+x1):
+                    inside = not inside
+                vx, vy = x2-x1, y2-y1
+                t = max(0., min(1., ((px-x1)*vx+(py-y1)*vy)/max(vx*vx+vy*vy, 1e-12)))
+                distance_sq = min(distance_sq, (px-x1-t*vx)**2+(py-y1-t*vy)**2)
+            distance = math.sqrt(distance_sq)
+            clearance = min(clearance, (-distance if inside else distance)-obstacle[2])
+    return clearance
+
+
+@njit(cache=True)
+def preview_hull_wall_clearance(x, y, heading, polygons, lengths,
+                                map_width, map_height):
+    """Smallest signed distance from the oriented hull to a known arena wall."""
+    ch = math.cos(heading)
+    sh = math.sin(heading)
+    clearance = 1e9
+    half_length = 0.
+    half_beam = 0.
+    for part in range(3):
+        for i in range(lengths[part]):
+            local_x, local_y = polygons[part, i]
+            half_length = max(half_length, abs(local_x))
+            half_beam = max(half_beam, abs(local_y))
+            world_x = x + ch * local_x - sh * local_y
+            world_y = y + sh * local_x + ch * local_y
+            clearance = min(clearance, world_x, map_width-world_x,
+                            world_y, map_height-world_y)
+    # CODEX exact mode also retains BoatEnv's axis-aligned center guard.
+    return min(clearance, x-half_length, map_width-x-half_length,
+               y-half_beam, map_height-y-half_beam)
+
+
+@njit(cache=True)
+def preview_hull_wall_turning_room(x, y, heading, surge, sway, yaw_rate,
+                                   polygons, lengths, map_width, map_height,
+                                   pixels_per_m, margin_px, response_s):
+    """Terminal wall slack after one actuator/yaw response interval."""
+    ch = math.cos(heading)
+    sh = math.sin(heading)
+    velocity_x = pixels_per_m * (surge*ch-sway*sh)
+    velocity_y = pixels_per_m * (surge*sh+sway*ch)
+    slack = 1e9
+    for part in range(3):
+        for i in range(lengths[part]):
+            local_x, local_y = polygons[part, i]
+            rotated_x = ch*local_x-sh*local_y
+            rotated_y = sh*local_x+ch*local_y
+            world_x = x+rotated_x
+            world_y = y+rotated_y
+            vertex_vx = velocity_x-yaw_rate*rotated_y
+            vertex_vy = velocity_y+yaw_rate*rotated_x
+            slack = min(slack,
+                        world_x-margin_px-max(0.0, -vertex_vx)*response_s,
+                        map_width-world_x-margin_px-max(0.0, vertex_vx)*response_s,
+                        world_y-margin_px-max(0.0, -vertex_vy)*response_s,
+                        map_height-world_y-margin_px-max(0.0, vertex_vy)*response_s)
+    return slack
+
+
 def warm_preview_kernels():
     empty = np.empty((0, 3), dtype=np.float32)
     polygons = np.zeros((3, 8, 2), dtype=np.float64)

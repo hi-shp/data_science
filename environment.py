@@ -283,6 +283,7 @@ class BoatEnv:
         self.pursuit_target = None
         self.next_pursuit_target = None
         self.wakes = []
+        self.reflected_wakes = []
         self.emergency_mode = False
         if getattr(self, 'linetrace_queued', False):
             self.linetrace_mode = True
@@ -296,6 +297,8 @@ class BoatEnv:
         self.manual_collision_flash = 0
         self.show_leaderboard = False
         self.last_manual_result = None
+        if getattr(self, 'motion_core_v2', False):
+            self.phase5_visuals.reset_episode(self)
 
     def handle_click(self, pos):
         # 0-0. 랭킹 모달 창이 열려 있을 때의 클릭 이벤트 처리
@@ -642,6 +645,24 @@ class BoatEnv:
 
     def collide(self):
         bx, by = self.boat_pos
+        if getattr(self, 'motion_core_v2', False) and not self.manual_mode:
+            # CODEX's independent center gates, alongside its predictive hull walls.
+            if bx <= 42. or bx >= self.map_w-42. or by <= 27. or by >= self.sim_h-27.:
+                return True
+
+        # Phase 5 uses the same known arena rectangle in actual collision
+        # accounting and in its oriented-hull prediction. Other modes retain
+        # their existing boundary behavior.
+        if getattr(self, 'momentum_gap_router', None) is not None and not self.manual_mode:
+            from main_safety_kernels import packed_hulls, preview_hull_wall_clearance
+            if not hasattr(self, '_momentum_wall_hulls'):
+                self._momentum_wall_hulls = packed_hulls(
+                    (self.left_hull_local, self.right_hull_local, self.deck_local))
+            polygons, lengths = self._momentum_wall_hulls
+            if preview_hull_wall_clearance(
+                    float(bx), float(by), float(self.boat_heading),
+                    polygons, lengths, float(self.map_w), float(self.sim_h)) <= 0.0:
+                return True
 
         # 라인트레이싱 모드: 외곽 벽(Boundary Walls)을 장애물로 인식 및 충돌 판정 (목적지 방향 정면 수직벽 xmax 제외)
         if getattr(self, 'linetrace_mode', False):
@@ -659,6 +680,13 @@ class BoatEnv:
 
     def get_pwm(self, steer):
         p = self.dynamics
+        if getattr(self, 'motion_core_v2', False) and not self.manual_mode and not self.linetrace_mode:
+            # Same allocation as CODEX. Display references never enter control.
+            self.command_yaw_rate = float(np.clip(steer, -1., 1.)) * p.max_yaw_rate_rad_s
+            left, right = allocate(self.physics_state(), self.command_speed,
+                                   self.command_yaw_rate, p)
+            return (1500 + 400*float(left)/p.max_thrust_N,
+                    1500 + 400*float(right)/p.max_thrust_N)
         speed_factor = math.tanh(max(0.0, float(getattr(self, 'min_wide_dist', 999.0))) / 100.0) ** 1.35
         if self.linetrace_mode:
             speed_factor *= 0.85
@@ -837,4 +865,7 @@ class BoatEnv:
         self.cam_x = self.cam_x * 0.85 + target_cam_x * 0.15
 
     def render(self, hits_x, hits_y):
-        self.renderer.render(hits_x, hits_y)
+        if getattr(self, 'motion_core_v2', False):
+            self.phase5_visuals.render(self, (hits_x, hits_y))
+        else:
+            self.renderer.render(hits_x, hits_y)
