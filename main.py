@@ -1,9 +1,11 @@
+import os
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+
 import pygame
 import numpy as np
 import math
 import datetime
 import time
-import os
 import argparse
 import random
 import leaderboard
