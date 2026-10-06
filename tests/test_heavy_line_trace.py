@@ -8,7 +8,7 @@ from unittest.mock import patch
 import numpy as np
 from environment import BoatEnv
 import main_line_compat as compat
-from experiments.evaluate_main_line_compat import NoRenderer, verify_pinned_sources, reference
+from experiments.success_rate.evaluate_main_line_compat import NoRenderer, verify_pinned_sources, reference
 from vessel_dynamics import allocate
 
 class LineCompatibilityTests(unittest.TestCase):

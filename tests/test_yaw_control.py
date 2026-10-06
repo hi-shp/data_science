@@ -2,7 +2,7 @@
 import unittest
 from dataclasses import replace
 import numpy as np
-from test_dynamics_tuning import configured
+from tests.test_dynamics_tuning import configured
 from vessel_dynamics import allocate, integrate
 
 

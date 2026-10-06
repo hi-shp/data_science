@@ -1,7 +1,11 @@
 """Evaluate the same fixed-step controller used by main.py.
 
-python3 test_success_rate.py 100 --headless --seed 2000
+python3 experiments/success_rate/evaluate_success_rate.py 100 --headless --seed 2000
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import argparse
 from datetime import datetime
 from pathlib import Path

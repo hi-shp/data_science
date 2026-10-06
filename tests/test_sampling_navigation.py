@@ -2,8 +2,8 @@
 import unittest
 import numpy as np
 from experiments.sampling_navigation import SamplingNavigator, SamplingConfig, hull_clearance
-import test_navigation_pipeline
-from test_dynamics_tuning import configured
+from tests import test_navigation_pipeline
+from tests.test_dynamics_tuning import configured
 from vessel_dynamics import allocate, integrate
 
 

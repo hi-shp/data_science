@@ -9,7 +9,7 @@ from vessel_dynamics import VesselParameters, integrate, allocate
 
 
 def configured():
-    return VesselParameters(**json.loads(Path(__file__).with_name('vessel_config.json').read_text())['physics'])
+    return VesselParameters(**json.loads((Path(__file__).resolve().parents[1]/'vessel_config.json').read_text())['physics'])
 
 
 def baseline():

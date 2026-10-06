@@ -50,7 +50,7 @@ command bounds and actual integration timestep above remain fixed.
 ## Reproduction and source identity
 
 Baseline HEAD: `45e15e0` (pre-existing commit, not created by this ticket).
-The pre-existing `leaderboard.json` working change is preserved.
+The pre-existing `data/legacy/leaderboard.json` working change is preserved.
 Backup: `data/architecture_rethink/baseline-sgl_aqsn/`, containing source copies,
 full source SHA256 manifest, Git status, HEAD and binary working-tree diff.
 Runtime values and measurements: `data/architecture_rethink/frozen_dynamics.json`.

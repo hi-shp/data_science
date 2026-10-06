@@ -1,7 +1,11 @@
 """One frozen paired holdout. Do not tune on the output of this script."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import json
 from pathlib import Path
-from experiments.compare_navigation import run
+from experiments.success_rate.compare_navigation import run
 from experiments.sampling_navigation import SamplingConfig
 
 

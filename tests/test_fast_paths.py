@@ -4,7 +4,7 @@ import numpy as np
 from route_planner import a_star, a_star_reference
 from fast_constant_rollout import compiled_constant_rollout, parameter_vector
 from fast_corridor import compiled_within_corridor
-from test_dynamics_tuning import configured
+from tests.test_dynamics_tuning import configured
 from vessel_dynamics import allocate, integrate
 
 

@@ -6,7 +6,7 @@ import numpy as np
 
 from experiments.sampling_navigation import SamplingNavigator
 from navigation_map import NavigationMap
-from test_dynamics_tuning import configured
+from tests.test_dynamics_tuning import configured
 from trajectory_modes import config_for_mode
 
 

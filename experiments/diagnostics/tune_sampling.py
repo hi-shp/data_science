@@ -1,8 +1,12 @@
 """Small deterministic one-parameter search on the declared tuning split only."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from dataclasses import replace
 import json
 from pathlib import Path
-from experiments.compare_navigation import run
+from experiments.success_rate.compare_navigation import run
 from experiments.sampling_navigation import SamplingConfig
 
 

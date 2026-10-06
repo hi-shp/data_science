@@ -1,8 +1,12 @@
 """Isolated paired architecture trials. Never changes the default GUI pipeline.
 
-python3 -m experiments.compare_navigation --mode corridor --seeds 2000 2081 \
+python3 -m experiments.success_rate.compare_navigation --mode corridor --seeds 2000 2081 \
     --output data/architecture_rethink/corridor
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import argparse
 import csv
 from dataclasses import asdict

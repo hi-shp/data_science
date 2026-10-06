@@ -1,4 +1,8 @@
 """Run the existing real-display profiler with an opt-in navigation prototype."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import argparse
 import importlib.util
 import json
@@ -21,7 +25,7 @@ def main():
     # Importing the headless comparison helper sets SDL defaults; restore the
     # real display selection before constructing the GUI environment.
     driver=os.environ.get('SDL_VIDEODRIVER')
-    from experiments.compare_navigation import experimental_step
+    from experiments.success_rate.compare_navigation import experimental_step
     from experiments.sampling_navigation import SamplingNavigator,SamplingConfig
     if args.mode!='baseline':
         # Compile outside the timed/rendered loop; the kernel has the same

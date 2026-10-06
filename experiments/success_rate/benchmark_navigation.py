@@ -131,7 +131,7 @@ def main():
         p.error('episodes/timeout must be positive; width must be at least 1200')
     if args.render and args.legacy_root:
         p.error('--render cannot be used with an archived legacy root')
-    root = (args.legacy_root or Path(__file__).parent).resolve()
+    root = (args.legacy_root or Path(__file__).resolve().parents[2]).resolve()
     output = args.output.resolve()
     overrides = json.loads(args.params.read_text()) if args.params else {}
     jobs = [(seed, str(root), bool(args.legacy_root), args.timeout, args.width, overrides, 5, args.render)

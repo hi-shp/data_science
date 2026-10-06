@@ -65,18 +65,18 @@
 ```bash
 KABOAT_WIDTH=1800 python3 main.py
 python3 -m unittest test_vessel_dynamics -v
-python3 test_success_rate.py 200 --headless --seed 2000 --output data/new_validation
+python3 experiments/success_rate/evaluate_success_rate.py 200 --headless --seed 2000 --output data/new_validation
 python3 report5/plot_validation.py
 ```
 
-`test_success_rate.py`에서 `--headless`를 생략하면 화면을 표시하는 평가가 실행된다. 새 결과 폴더를 지정해야 기존 실험을 덮어쓰지 않는다. 기본 `data/`는 Git에서 제외되며, 이 보고서에 사용한 결과만 `report5/`에 보존했다.
+`experiments/success_rate/evaluate_success_rate.py`에서 `--headless`를 생략하면 화면을 표시하는 평가가 실행된다. 새 결과 폴더를 지정해야 기존 실험을 덮어쓰지 않는다. 기본 `data/`는 Git에서 제외되며, 이 보고서에 사용한 결과만 `report5/`에 보존했다.
 
 기준 코드 재현:
 
 ```bash
 mkdir -p /tmp/kaboat-original-e9418fb
 git archive e9418fb | tar -x -C /tmp/kaboat-original-e9418fb
-python3 benchmark_navigation.py --legacy-root /tmp/kaboat-original-e9418fb --seed 2000 --episodes 200 --output data/original_validation
+python3 experiments/success_rate/benchmark_navigation.py --legacy-root /tmp/kaboat-original-e9418fb --seed 2000 --episodes 200 --output data/original_validation
 ```
 
 두 결과 폴더에는 다음 파일이 있다.
