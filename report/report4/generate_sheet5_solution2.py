@@ -17,7 +17,7 @@ from matplotlib.patches import Circle, Rectangle, Polygon, FancyBboxPatch, Wedge
 plt.rcParams['font.family'] = 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False
 
-OUTPUT_DIR = '/home/soonhong/kaboat/report4'
+OUTPUT_DIR = '/home/soonhong/kaboat/report/report4'
 OUT_PNG = os.path.join(OUTPUT_DIR, 'sheet5_solution2_bezier_purepursuit.png')
 
 # Color Palette Constants

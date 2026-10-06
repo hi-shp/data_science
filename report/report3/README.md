@@ -213,9 +213,9 @@ $$\delta_{\text{servo}} = \text{constrain}\Big(90.0^\circ - K_p \cdot \kappa, \;
    ```bash
    cp kabot2026/isv/launch_isv/course1.py kabot2026/isv/launch_isv/course1_backup.py
    ```
-2. 제공된 템플릿 파일([course1_gapnav_replacement.py](file:///home/soonhong/kaboat/report3/template/course1_gapnav_replacement.py))을 해당 위치에 적용합니다:
+2. 제공된 템플릿 파일([course1_gapnav_replacement.py](file:///home/soonhong/kaboat/report/report3/template/course1_gapnav_replacement.py))을 해당 위치에 적용합니다:
    ```bash
-   cp report3/template/course1_gapnav_replacement.py kabot2026/isv/launch_isv/course1.py
+   cp report/report3/template/course1_gapnav_replacement.py kabot2026/isv/launch_isv/course1.py
    ```
 3. ROS 2 워크스페이스를 빌드합니다:
    ```bash
@@ -233,7 +233,7 @@ $$\delta_{\text{servo}} = \text{constrain}\Big(90.0^\circ - K_p \cdot \kappa, \;
 
 ### 7.1 제공 템플릿 아카이브 구성
 ```
-report3/template/
+report/report3/template/
 ├── gap_nav_params.yaml              # 현장 튜닝용 통합 파라미터 설정 파일
 ├── gap_navigation_node.py           # 단독 실행 가능한 독립형 ROS 2 제어 노드
 └── course1_gapnav_replacement.py    # KABOT 2026 기존 시스템 1:1 드롭인 교체 코드
@@ -241,7 +241,7 @@ report3/template/
 
 ### 7.2 타 대학 학생들을 위한 3단계 빠른 시작 가이드 (Quick-Start)
 
-#### [1단계] 선체 제원 입력 ([gap_nav_params.yaml](file:///home/soonhong/kaboat/report3/template/gap_nav_params.yaml))
+#### [1단계] 선체 제원 입력 ([gap_nav_params.yaml](file:///home/soonhong/kaboat/report/report3/template/gap_nav_params.yaml))
 자신의 보트 실측 규격에 맞게 3개 항목을 설정합니다:
 ```yaml
 boat_width: 0.80     # 보트 전폭 (m)
