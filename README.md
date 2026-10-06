@@ -4,13 +4,13 @@ Gap Navigation · Bezier · 2D/3D Simulation
 
 조선해양공학을 공부하면서 자율운항 제어를 직접 이해해 보고 싶어 만든 프로젝트입니다. 처음에는 가까운 장애물을 피하는 단순한 방식으로 시작했고, 문제가 보일 때마다 LiDAR 처리, 통과 공간 선택, 경로 생성과 추종 방식을 하나씩 추가했습니다.
 
-![현재 2D 자율주행](images/readme/main_2d_2x.gif)
+<img src="images/readme/main_2d_2x.gif" width="100%" alt="현재 2D 자율주행" />
 
 2D 시뮬레이션 · 2x
 
 LiDAR가 보는 장애물과 앞으로 지나갈 경로를 한 화면에서 확인할 수 있습니다. 같은 주행을 3D 추종 카메라로도 볼 수 있습니다.
 
-![현재 3D 자율주행](images/readme/main_3d_2x.gif)
+<img src="images/readme/main_3d_2x.gif" width="100%" alt="현재 3D 자율주행" />
 
 3D 시뮬레이션 · 2x
 
@@ -24,7 +24,7 @@ LiDAR가 보는 장애물과 앞으로 지나갈 경로를 한 화면에서 확�
 
 처음 구현한 방식은 지금의 Line Tracing 비교 모드로 남겨 두었습니다. 현재는 이전 MAIN의 물리와 제어를 함께 사용하는 호환 모드입니다.
 
-![현재 Line Tracing 주행](images/readme/line_trace_2x.gif)
+<img src="images/readme/line_trace_2x.gif" width="100%" alt="현재 Line Tracing 주행" />
 
 Line Tracing · 2x
 
@@ -36,19 +36,15 @@ Line Tracing · 2x
 
 처음 정리했던 센서 범위와 장애물 인지 개념도입니다.
 
-![개발 당시 LiDAR View](images/panel_lidar_view.gif)
+<img src="images/panel_lidar_view.gif" width="70%" alt="개발 당시 LiDAR View" />
 
 LiDAR View에서는 장애물이 어느 방향에 얼마나 가까이 있는지 볼 수 있습니다.
 
 거리값을 옆으로 펼치면 빈 구간이 더 잘 보였습니다. “이 빈 공간의 가운데를 찍고 따라가면 어떨까?”라는 생각이 Gauge와 GAP 방식으로 이어졌습니다.
 
-![개발 당시 LiDAR Gauge](images/panel_gauge_view.gif)
+<img src="images/panel_gauge_view.gif" width="70%" alt="개발 당시 LiDAR Gauge" />
 
 전방 거리값과 waypoint 방향을 함께 보여주는 Gauge입니다. 현재 센서는 180개 빔으로 주변 360°를 관측하고, Gauge는 전방 180°를 표시합니다.
-
-![현재 LiDAR와 Gauge](images/readme/lidar_panels.png)
-
-현재 화면에서는 같은 거리 정보를 방향 뷰와 색상 막대로 함께 확인합니다.
 
 ## 장애물보다 통과할 공간 보기
 
@@ -105,32 +101,27 @@ Bezier와 분홍색 Pure Pursuit 점은 예상경로를 읽기 쉽게 보여줍�
 
 처음에는 단순한 운동 모델로 시작했습니다. 이후 질량과 회전 관성, 저항, 추력 응답을 조정하면서 방향을 틀어도 배가 바로 돌아가지 않는 상황을 더 많이 다뤘습니다. 현재 설정은 [vessel_config.json](vessel_config.json)에 있습니다.
 
-![개발 당시 cockpit](images/kaboat_cockpit_overview.png)
-
-LiDAR, Gauge, 경로, GAP 정보와 선박 상태를 한 화면에 모아 놓았던 cockpit입니다.
+LiDAR, Gauge, 경로, GAP 정보와 선박 상태를 한 화면에 모았습니다.
 
 ![현재 cockpit](images/readme/main_2d_cockpit.png)
 
-지금도 이 구성을 유지합니다. 경로와 센서 표시를 켜고 끄면서 판단과 실제 움직임을 함께 볼 수 있습니다.
+경로와 센서 표시를 켜고 끄면서 판단과 실제 움직임을 함께 볼 수 있습니다.
 
 배속을 올리자 그리는 작업과 반복 계산도 부담이 됐습니다. 바뀐 영역만 다시 그리는 Dirty Rect, 텍스트 캐시, 반복 계산 재사용을 적용했습니다. 물리 진행은 화면 FPS와 분리한 시간 누적 방식으로 처리합니다.
 
-<details>
-<summary>이전 주행 화면</summary>
+## 이전 주행 기록
 
 초기 대시보드에서 경로와 센서 표시를 함께 확인하던 1x 화면입니다.
 
-![이전 1x 주행](images/simulation_1x.gif)
+<img src="images/simulation_1x.gif" width="100%" alt="이전 1x 주행" />
 
 배속을 올려 반복 주행과 화면 갱신을 확인했던 2x 화면입니다.
 
-![이전 2x 주행](images/simulation_2x.gif)
+<img src="images/simulation_2x.gif" width="100%" alt="이전 2x 주행" />
 
 당시 4x로 저장했던 개발 데모도 남겨 두었습니다.
 
-![이전 4x 개발 데모](images/simulation_demo.gif)
-
-</details>
+<img src="images/simulation_demo.gif" width="100%" alt="이전 4x 개발 데모" />
 
 ## 3D로 보고 직접 조종하기
 
@@ -148,8 +139,7 @@ M을 누르면 RC 모드로 들어가 직접 조종할 수 있습니다. WASD나
 
 개발 과정에서는 회피 로직과 파라미터를 바꿀 때마다 반복 실행해 결과를 남겼습니다. 각 기록은 당시 버전과 조건을 기준으로 보관하고 있습니다.
 
-<details>
-<summary>이전 테스트 기록 보기</summary>
+### 이전 테스트 기록
 
 [보고서 2의 요약](report/report2/benchmark_5000_summary.json)에는 이전 물리 모델에서 비교한 결과가 있습니다.
 
@@ -158,7 +148,7 @@ M을 누르면 RC 모드로 들어가 직접 조종할 수 있습니다. WASD나
 | Line Tracing | 5,000 | 4,256 | 726 | 18 |
 | Gap Navigation | 5,000 | 4,811 | 189 | 0 |
 
-아래는 개발 중 각 버전에서 저장한 성공률 기록입니다. 진행 중 저장된 파일은 목표 횟수 대신 실제 완료 횟수를 적었습니다.
+개발하면서 버전별로 남겨둔 주행 기록입니다. 진행 중 저장된 파일은 실제 완료 횟수를 적었습니다.
 
 | 기록 | 완료 | 성공 | 충돌 | 성공률 |
 | --- | ---: | ---: | ---: | ---: |
@@ -169,8 +159,6 @@ M을 누르면 RC 모드로 들어가 직접 조종할 수 있습니다. WASD나
 | [2026-09-10](data/success_rate/success_rate_10000_20260910.txt) | 10,000 | 9,716 | 284 | 97.16% |
 
 [report1](report/report1/)에는 가중치 분석, [report2](report/report2/)에는 당시 비교 실험, [report3](report/report3/)에는 ROS2 이식 검토, [report4](report/report4/)에는 전시 자료가 있습니다.
-
-</details>
 
 ## 아직 남아 있는 점
 
