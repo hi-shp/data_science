@@ -1,0 +1,106 @@
+{
+  "seed": 3000,
+  "episode_seeds": [
+    3000,
+    2026,
+    2000,
+    2003,
+    2004,
+    2005,
+    3000
+  ],
+  "mode": "2d",
+  "playback": 4,
+  "capture_fps": 60,
+  "events": [
+    {
+      "episode": 1,
+      "success": true,
+      "wall_seconds": 9.21267750300467,
+      "distance_to_goal": 68.95215997250284,
+      "seed": 3000,
+      "min_obs": 100,
+      "obstacle_count": 55,
+      "minimum_obstacle_center_spacing_px": 100.23971268913334
+    },
+    {
+      "episode": 2,
+      "success": true,
+      "wall_seconds": 15.183374569984153,
+      "distance_to_goal": 67.44966646543371,
+      "seed": 2026,
+      "min_obs": 100,
+      "obstacle_count": 56,
+      "minimum_obstacle_center_spacing_px": 100.22474744293447
+    },
+    {
+      "episode": 3,
+      "success": true,
+      "wall_seconds": 19.725268783047795,
+      "distance_to_goal": 69.5164326926703,
+      "seed": 2000,
+      "min_obs": 100,
+      "obstacle_count": 53,
+      "minimum_obstacle_center_spacing_px": 100.04498987955368
+    },
+    {
+      "episode": 4,
+      "success": true,
+      "wall_seconds": 34.03892041801009,
+      "distance_to_goal": 68.27467376796805,
+      "seed": 2003,
+      "min_obs": 100,
+      "obstacle_count": 56,
+      "minimum_obstacle_center_spacing_px": 100.0199980003999
+    },
+    {
+      "episode": 5,
+      "success": true,
+      "wall_seconds": 40.456004385021515,
+      "distance_to_goal": 68.7193590606533,
+      "seed": 2004,
+      "min_obs": 100,
+      "obstacle_count": 56,
+      "minimum_obstacle_center_spacing_px": 100.23971268913334
+    },
+    {
+      "episode": 6,
+      "success": true,
+      "wall_seconds": 55.17365560296457,
+      "distance_to_goal": 67.98564821195393,
+      "seed": 2005,
+      "min_obs": 100,
+      "obstacle_count": 55,
+      "minimum_obstacle_center_spacing_px": 100.16985574512923
+    },
+    {
+      "episode": 7,
+      "success": true,
+      "wall_seconds": 64.39837527403142,
+      "distance_to_goal": 68.95215997250284,
+      "seed": 3000,
+      "min_obs": 100,
+      "obstacle_count": 55,
+      "minimum_obstacle_center_spacing_px": 100.23971268913334
+    }
+  ],
+  "consecutive": 7,
+  "clip_bounds": [
+    0.0,
+    64.39837527403142
+  ],
+  "source": "e50a5d5014195174a8cb762126c59023293e8785",
+  "window": "real X11",
+  "headless": false,
+  "manual_mode": false,
+  "autonomous_control": true,
+  "middle_cuts": false,
+  "default_min_obs": 120,
+  "min_obs": 100,
+  "seed_policy": "Fixed episode seeds selected before the continuous recording; seeds applied only at production reset. No episode stitching or failure removal.",
+  "source_resolution": [
+    1840,
+    920
+  ],
+  "gif_created": false
+}

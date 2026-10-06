@@ -10,7 +10,7 @@ Gap Navigation · Bezier · 2D/3D Simulation
 
 LiDAR가 보는 장애물과 앞으로 지나갈 경로를 한 화면에서 확인할 수 있습니다. 같은 주행을 3D 추종 카메라로도 볼 수 있습니다.
 
-<img src="images/readme/main_3d_2x.gif" width="100%" alt="현재 3D 자율주행" />
+<img src="images/readme/main_3d_2x.webp" width="100%" alt="현재 3D 자율주행" />
 
 3D 시뮬레이션 · 2x
 
@@ -24,7 +24,7 @@ LiDAR가 보는 장애물과 앞으로 지나갈 경로를 한 화면에서 확�
 
 처음 구현한 방식은 지금의 Line Tracing 비교 모드로 남겨 두었습니다. 현재는 이전 MAIN의 물리와 제어를 함께 사용하는 호환 모드입니다.
 
-<img src="images/readme/line_trace_2x.gif" width="100%" alt="현재 Line Tracing 주행" />
+<img src="images/readme/line_trace_2x.webp" width="100%" alt="현재 Line Tracing 주행" />
 
 Line Tracing · 2x
 
@@ -36,13 +36,13 @@ Line Tracing · 2x
 
 처음 정리했던 센서 범위와 장애물 인지 개념도입니다.
 
-<img src="images/panel_lidar_view.gif" width="70%" alt="개발 당시 LiDAR View" />
+<img src="images/readme/panel_lidar_view.webp" width="70%" alt="개발 당시 LiDAR View" />
 
 LiDAR View에서는 장애물이 어느 방향에 얼마나 가까이 있는지 볼 수 있습니다.
 
 거리값을 옆으로 펼치면 빈 구간이 더 잘 보였습니다. “이 빈 공간의 가운데를 찍고 따라가면 어떨까?”라는 생각이 Gauge와 GAP 방식으로 이어졌습니다.
 
-<img src="images/panel_gauge_view.gif" width="70%" alt="개발 당시 LiDAR Gauge" />
+<img src="images/readme/panel_gauge_view.webp" width="70%" alt="개발 당시 LiDAR Gauge" />
 
 전방 거리값과 waypoint 방향을 함께 보여주는 Gauge입니다. 현재 센서는 180개 빔으로 주변 360°를 관측하고, Gauge는 전방 180°를 표시합니다.
 
@@ -113,15 +113,15 @@ LiDAR, Gauge, 경로, GAP 정보와 선박 상태를 한 화면에 모았습니�
 
 초기 대시보드에서 경로와 센서 표시를 함께 확인하던 1x 화면입니다.
 
-<img src="images/simulation_1x.gif" width="100%" alt="이전 1x 주행" />
+<img src="images/readme/simulation_1x.webp" width="100%" alt="이전 1x 주행" />
 
 배속을 올려 반복 주행과 화면 갱신을 확인했던 2x 화면입니다.
 
-<img src="images/simulation_2x.gif" width="100%" alt="이전 2x 주행" />
+<img src="images/readme/simulation_2x.webp" width="100%" alt="이전 2x 주행" />
 
 당시 4x로 저장했던 개발 데모도 남겨 두었습니다.
 
-<img src="images/simulation_demo.gif" width="100%" alt="이전 4x 개발 데모" />
+<img src="images/readme/simulation_demo.webp" width="100%" alt="이전 4x 개발 데모" />
 
 ## 3D로 보고 직접 조종하기
 
@@ -141,9 +141,9 @@ M을 누르면 RC 모드로 들어가 직접 조종할 수 있습니다. WASD나
 
 ### 장애물 간격을 더 좁혀서
 
-장애물 최소 간격을 105 px로 낮춘 조건에서도 주행을 확인해 보았습니다.
+장애물 사이 간격을 더 좁힌 조건에서도 주행을 확인해 보았습니다.
 
-<img src="images/readme/min_obs_105_4x.gif" width="100%" alt="장애물 간격을 좁힌 2D 주행" />
+<img src="images/readme/min_obs_100_4x.webp" width="100%" alt="장애물 간격을 좁힌 2D 주행" />
 
 2D 시뮬레이션 · 4x
 

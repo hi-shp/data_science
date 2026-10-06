@@ -1,0 +1,183 @@
+{
+  "baseline_commit": "8495ef4",
+  "assets": [
+    {
+      "previous_asset": "images/readme/main_2d_2x.gif",
+      "webp": "images/readme/main_2d_2x.webp",
+      "before_bytes": 104630032,
+      "after_bytes": 33270924,
+      "reduction_percent": 68.2,
+      "resolution": [
+        1200,
+        600
+      ],
+      "frames": 1035,
+      "duration_s": 43.166,
+      "loop": 0,
+      "sha256": "3c8097180f2fb6511759d1e6951a5c3765855f28024231ae482e83ef801078ce",
+      "target_fps": 24,
+      "quality": 80,
+      "compression_level": 3,
+      "transcode_source": "Preserved matching X11 MP4 recording"
+    },
+    {
+      "previous_asset": "images/readme/main_3d_2x.gif",
+      "webp": "images/readme/main_3d_2x.webp",
+      "before_bytes": 77013978,
+      "after_bytes": 35610300,
+      "reduction_percent": 53.76,
+      "resolution": [
+        1200,
+        600
+      ],
+      "frames": 1062,
+      "duration_s": 44.291,
+      "loop": 0,
+      "sha256": "f033132a7a5a9149940403ec5482414404052b472a3bccda0c9ce376486adb4a",
+      "target_fps": 24,
+      "quality": 80,
+      "compression_level": 3,
+      "transcode_source": "Preserved matching X11 MP4 recording"
+    },
+    {
+      "previous_asset": "images/readme/line_trace_2x.gif",
+      "webp": "images/readme/line_trace_2x.webp",
+      "before_bytes": 96891699,
+      "after_bytes": 28103960,
+      "reduction_percent": 70.99,
+      "resolution": [
+        1200,
+        600
+      ],
+      "frames": 1019,
+      "duration_s": 42.457,
+      "loop": 0,
+      "sha256": "a3eb9c05e48ca1bb82aada465dd3dd077933f53a6b8cf504e5248fa89f18067d",
+      "target_fps": 24,
+      "quality": 75,
+      "compression_level": 3,
+      "transcode_source": "images/readme/line_trace_2x.gif"
+    },
+    {
+      "previous_asset": "images/panel_lidar_view.gif",
+      "webp": "images/readme/panel_lidar_view.webp",
+      "before_bytes": 5341098,
+      "after_bytes": 3235952,
+      "reduction_percent": 39.41,
+      "resolution": [
+        640,
+        440
+      ],
+      "frames": 468,
+      "duration_s": 29.233,
+      "loop": 0,
+      "sha256": "ff3161d0ae2970342f5b86a614221f50694365140c1dea07210fc2d991c5179b",
+      "target_fps": 30,
+      "quality": 75,
+      "compression_level": 3,
+      "transcode_source": "images/panel_lidar_view.gif"
+    },
+    {
+      "previous_asset": "images/panel_gauge_view.gif",
+      "webp": "images/readme/panel_gauge_view.webp",
+      "before_bytes": 8931789,
+      "after_bytes": 1467570,
+      "reduction_percent": 83.57,
+      "resolution": [
+        640,
+        440
+      ],
+      "frames": 457,
+      "duration_s": 29.233,
+      "loop": 0,
+      "sha256": "8c7d2316067652babaa25d1f50921035838ed09aa579d8158c987468c5b840b0",
+      "target_fps": 30,
+      "quality": 75,
+      "compression_level": 3,
+      "transcode_source": "images/panel_gauge_view.gif"
+    },
+    {
+      "previous_asset": "images/simulation_1x.gif",
+      "webp": "images/readme/simulation_1x.webp",
+      "before_bytes": 34145955,
+      "after_bytes": 10835794,
+      "reduction_percent": 68.27,
+      "resolution": [
+        720,
+        360
+      ],
+      "frames": 828,
+      "duration_s": 75.249,
+      "loop": 0,
+      "sha256": "1ab70ca45c3917f7f0452ab4c207697fca89ac3890b758560d14f03e54ef954d",
+      "target_fps": 24,
+      "quality": 75,
+      "compression_level": 3,
+      "transcode_source": "images/simulation_1x.gif"
+    },
+    {
+      "previous_asset": "images/simulation_2x.gif",
+      "webp": "images/readme/simulation_2x.webp",
+      "before_bytes": 26270449,
+      "after_bytes": 7278460,
+      "reduction_percent": 72.29,
+      "resolution": [
+        760,
+        380
+      ],
+      "frames": 494,
+      "duration_s": 35.291,
+      "loop": 0,
+      "sha256": "507a10285ef43f68ac9e5571d45ee7d48ccb88c46a7ac06e37c71505ee824a50",
+      "target_fps": 24,
+      "quality": 75,
+      "compression_level": 3,
+      "transcode_source": "images/simulation_2x.gif"
+    },
+    {
+      "previous_asset": "images/simulation_demo.gif",
+      "webp": "images/readme/simulation_demo.webp",
+      "before_bytes": 24144184,
+      "after_bytes": 5433302,
+      "reduction_percent": 77.5,
+      "resolution": [
+        760,
+        380
+      ],
+      "frames": 367,
+      "duration_s": 30.582,
+      "loop": 0,
+      "sha256": "8499eeb732d1446c60d6a6966dc73fc0b32929138bd27de2b743e884db20d668",
+      "target_fps": 24,
+      "quality": 75,
+      "compression_level": 3,
+      "transcode_source": "images/simulation_demo.gif"
+    },
+    {
+      "previous_asset": "images/readme/min_obs_105_4x.gif",
+      "webp": "images/readme/min_obs_100_4x.webp",
+      "before_bytes": 94572643,
+      "after_bytes": 50033798,
+      "reduction_percent": 47.09,
+      "resolution": [
+        1200,
+        600
+      ],
+      "frames": 1549,
+      "duration_s": 64.582,
+      "loop": 0,
+      "sha256": "469bcef2ed092e59a95d14af7ed4c5a5068d1fe6b1db11ff4fa07ba6ea07ac62",
+      "target_fps": 24,
+      "quality": 75,
+      "compression_level": 4,
+      "transcode_source": "Continuous X11 MP4"
+    }
+  ],
+  "total_before_bytes": 471941827,
+  "total_after_bytes": 175270060,
+  "static_images_changed": false,
+  "original_gifs_retained": true,
+  "representative_source": "Same preserved recordings for main 2D/3D; no new representative capture. Remaining existing animations transcoded from GIF. New min_obs=100 animation encoded directly from its continuous X11 recording.",
+  "encoder": "ffmpeg libwebp_anim; representative and new clips 1200x600 / 24 FPS; panels retain dimensions / 30 FPS; q75-80; no middle cuts.",
+  "total_reduction_percent": 62.86
+}
