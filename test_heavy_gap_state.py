@@ -1,7 +1,7 @@
-"""Display persistence releases immediately on actual crossing or invalidity."""
+"""Display persistence releases using MAIN waypoint completion semantics."""
 import unittest
 import numpy as np
-from heavy_gap_state import GapAnnotationState,crossed_portal
+from heavy_gap_state import GapAnnotationState,crossed_portal,waypoint_completion_reason
 from heavy_gap_annotation import (clipped_display_route,select_second_gap,second_gap_band,
                                   crossing_in_front,forward_crossings)
 from heavy_motion_core.passage_geometry import physical_hull_polygons
@@ -30,6 +30,20 @@ class PersistentGapTests(unittest.TestCase):
         self.assertEqual(self.state.second_gap_switch_count,0)
         self.assertEqual(self.state.diagnostics(4)['first_gap_age'],3)
 
+    def test_new_narrower_candidates_cannot_evict_valid_first_or_second(self):
+        a,b=gate(200.),gate(450.,(2,3))
+        for gap in (a,b):
+            gap['c1'][1]=40.;gap['c2'][1]=440.
+        self.update([a,b])
+        narrower_first=gate(215.,(0,4));narrower_second=gate(465.,(2,5))
+        from unittest.mock import patch
+        with patch('heavy_gap_state.select_route_gaps',side_effect=AssertionError('reranked first')), \
+             patch('heavy_gap_state.select_second_gap',side_effect=AssertionError('reranked second')):
+            first,second=self.update([a,narrower_first,b,narrower_second],frame=4)
+        self.assertIs(first,a);self.assertIs(second,b)
+        self.assertEqual(self.state.first_gap_switch_count,0)
+        self.assertEqual(self.state.second_gap_switch_count,0)
+
     def test_actual_finite_crossing_promotes_existing_second(self):
         a,b,c=gate(200.),gate(450.,(2,3)),gate(550.,(4,5))
         self.update([a,b,c])
@@ -49,18 +63,83 @@ class PersistentGapTests(unittest.TestCase):
         self.assertIsNone(selected)
         selected,_=self.update([looping],frame=7,boat=[210.,240.],valid={first['pair']:looping})
         self.assertIsNone(selected)
-        # Once the old passage region is left, a real future return is allowed.
+        # MAIN keeps the completed obstacle pair visited for the whole episode.
         selected,_=self.update([looping],frame=10,boat=[300.,240.],valid={first['pair']:looping})
         self.assertIsNone(selected)
         selected,_=self.update([looping],frame=13,boat=[300.,240.],valid={first['pair']:looping})
-        self.assertIs(selected,looping)
+        self.assertIsNone(selected)
+        self.assertIn((0,1),self.state.completed_identities)
 
-    def test_waypoint_proximity_is_not_a_crossing(self):
+    def test_main_proximity_releases_before_crossing_and_promotes_second(self):
         a,b=gate(200.),gate(450.,(2,3))
         self.update([a,b])
-        first,_=self.update([a,b],frame=4,boat=[198.,240.])
-        self.assertIs(first,a)
+        first,_=self.update([a,b],frame=4,boat=[141.,240.])
+        self.assertIs(first,b)
+        self.assertEqual(self.state.switch_reason['first'],'promoted_second')
+        self.assertIn((0,1),self.state.completed_identities)
+        self.assertFalse(crossed_portal(np.array([100.,240.]),np.array([141.,240.]),a))
         self.assertFalse(crossed_portal(np.array([100.,500.]),np.array([300.,500.]),a))
+
+    def test_main_proximity_boundary_is_strict_and_uses_dynamic_point(self):
+        a=gate(200.)
+        a['pos']=np.array([200.,255.]) # not the obstacle midpoint
+        self.assertEqual(waypoint_completion_reason(a,[140.01,255.],0.),'proximity')
+        self.assertIsNone(waypoint_completion_reason(a,[140.,255.],0.))
+        self.assertIsNone(waypoint_completion_reason(a,[139.99,255.],0.))
+
+    def test_main_gate_normal_and_lateral_boundaries(self):
+        a=gate(200.)
+        self.assertEqual(waypoint_completion_reason(a,[215.,340.],0.),'gate_passed')
+        self.assertIsNone(waypoint_completion_reason(a,[214.99,340.],0.))
+        self.assertEqual(waypoint_completion_reason(a,[259.99,340.],0.),'gate_passed')
+        self.assertIsNone(waypoint_completion_reason(a,[260.,340.],0.))
+        self.assertEqual(waypoint_completion_reason(a,[220.,359.99],0.),'gate_passed')
+        self.assertIsNone(waypoint_completion_reason(a,[220.,360.],0.))
+
+    def test_main_near_rear_completion_without_gate_geometry(self):
+        a=dict(pos=np.array([0.,0.]))
+        self.assertEqual(waypoint_completion_reason(a,[74.99,0.],0.),'behind_nearby')
+        self.assertIsNone(waypoint_completion_reason(a,[75.,0.],0.))
+        for degrees,expected in ((94.99,None),(95.01,'behind_nearby')):
+            angle=np.deg2rad(degrees)
+            boat=-70.*np.array([np.cos(angle),np.sin(angle)])
+            self.assertEqual(waypoint_completion_reason(a,boat,0.),expected)
+
+    def test_presentation_latch_holds_main_zone_until_hull_approaches(self):
+        self.state=GapAnnotationState(completion_hull=self.hull)
+        a,b=gate(200.),gate(450.,(2,3))
+        self.update([a,b],heading=0.)
+        self.state.latch_first(a)
+        first,_=self.update([a,b],frame=4,boat=[141.,240.],heading=0.)
+        self.assertIs(first,a)
+        self.assertTrue(self.state.first_latched)
+        self.assertNotIn((0,1),self.state.completed_identities)
+        bow=float(np.max(self.hull[:,:,0]))
+        first,_=self.update([a,b],frame=5,boat=[200.-bow,240.],heading=0.)
+        self.assertIs(first,b)
+        self.assertFalse(self.state.first_latched)
+        self.assertEqual(self.state.switch_reason['first'],'promoted_second')
+
+    def test_latch_releases_immediately_on_gate_crossing_away_from_waypoint(self):
+        self.state=GapAnnotationState(completion_hull=self.hull)
+        a,b=gate(200.),gate(450.,(2,3))
+        self.update([a,b],boat=[180.,300.],heading=0.)
+        self.state.latch_first(a)
+        first,_=self.update([a,b],frame=4,boat=[201.,300.],heading=0.)
+        self.assertIs(first,b)
+        self.assertFalse(self.state.first_latched)
+        self.assertIn((0,1),self.state.completed_identities)
+
+    def test_route_invalidity_cancels_latch_without_marking_gap_complete(self):
+        self.state=GapAnnotationState(completion_hull=self.hull)
+        a=gate(200.);self.update([a],heading=0.)
+        self.state.latch_first(a)
+        first,_=self.update([],frame=4,valid={},heading=0.)
+        self.assertIsNone(first)
+        self.assertFalse(self.state.first_latched)
+        self.assertNotIn((0,1),self.state.completed_identities)
+        self.state.reset()
+        self.assertFalse(self.state.first_latched)
 
     def test_invalid_first_hides_immediately_and_replacement_requires_confirmation(self):
         a=gate(200.);new=gate(260.,(2,3))
@@ -92,11 +171,14 @@ class PersistentGapTests(unittest.TestCase):
 
     def test_reset_clears_identity_age_counters_and_previous_episode_position(self):
         self.update([gate(200.),gate(450.,(2,3))])
+        self.update([gate(450.,(2,3))],frame=4,boat=[141.,240.])
+        self.assertTrue(self.state.completed_identities)
         self.state.reset()
         self.assertIsNone(self.state.current_first_gap)
         self.assertIsNone(self.state.current_second_crossing)
         self.assertIsNone(self.state.previous_boat)
         self.assertEqual(self.state.passed_annotations,[])
+        self.assertEqual(self.state.completed_identities,set())
         self.assertEqual(self.state.diagnostics(20)['first_gap_age'],0)
 
     def test_goal_removes_hidden_persistent_markers(self):

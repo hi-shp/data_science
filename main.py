@@ -18,6 +18,7 @@ from dynamic_path_feasibility import DynamicsPathSelector
 from momentum_gap_router import (MomentumGapRouter, perceived_circles,
                                  portal_crossing, portal_interval, wall_lidar_hits)
 from vessel_dynamics import allocate
+import main_line_compat as main_line
 from portal_navigation import (choose_portal_crossing, path_has_hull_clearance,
                                remaining_path, portal_crossing_status)
 
@@ -81,6 +82,7 @@ def run():
         now = time.perf_counter()
         elapsed = now - last_tick_time
         last_tick_time = now
+        mode_generation = getattr(env, 'line_mode_generation', 0)
         before_events = (env.sim_speed, env.manual_mode, env.paused,
                          env.show_leaderboard, env.fullscreen_3d,
                          id(env.obstacles))
@@ -140,6 +142,9 @@ def run():
         after_events = (env.sim_speed, env.manual_mode, env.paused,
                         env.show_leaderboard, env.fullscreen_3d,
                         id(env.obstacles))
+        if getattr(env, 'line_mode_generation', 0) != mode_generation:
+            hits_x = hits_y = None
+            safety_guard = MainSafetyGuard()
         timing_reset = after_events != before_events
         if timing_reset:
             if motion_v2 is not None and after_events[1] != before_events[1]:
@@ -153,7 +158,9 @@ def run():
             accumulator = 0.0
             map_bounds = (0, 0, env.map_w, env.sim_h) if (v2_mode or getattr(env, 'linetrace_mode', False)) else None
             raycast = lidar_hits_np
-            if v2_mode:
+            if main_line.active(env):
+                raycast = main_line.lidar_hits_np
+            elif v2_mode:
                 from heavy_motion_core.perception import lidar_hits_np as raycast
             dists, hits_x, hits_y = raycast(
                 env.boat_pos, env.boat_heading,
@@ -161,7 +168,7 @@ def run():
                 env.lidar_range,
                 map_bounds=map_bounds
             )
-            if phase5_mode and not v2_mode and not env.manual_mode:
+            if phase5_mode and not v2_mode and not env.manual_mode and not main_line.active(env):
                 dists, hits_x, hits_y = wall_lidar_hits(env, dists, hits_x, hits_y)
             env.lidar_dists = dists
             env.render(hits_x, hits_y)
@@ -193,14 +200,15 @@ def run():
                 env.update_dynamic_obstacles()
 
                 map_bounds = (0, 0, env.map_w, env.sim_h) if (v2_mode or getattr(env, 'linetrace_mode', False)) else None
-                dists, hits_x, hits_y = lidar_hits_np(
+                raycast = main_line.lidar_hits_np if main_line.active(env) else lidar_hits_np
+                dists, hits_x, hits_y = raycast(
                     env.boat_pos, env.boat_heading,
                     env.rel_angles, env.dynamic_obstacles,
                     env.lidar_range,
                     map_bounds=map_bounds
                 )
                 buoy_hits_x, buoy_hits_y = hits_x, hits_y
-                if phase5_mode and not v2_mode and not env.manual_mode:
+                if phase5_mode and not v2_mode and not env.manual_mode and not main_line.active(env):
                     dists, hits_x, hits_y = wall_lidar_hits(env, dists, hits_x, hits_y)
                 env.lidar_dists = dists
 
@@ -209,7 +217,10 @@ def run():
 
                 # 연산 부하 절감을 위한 적응형 인지/탐색 주기 (4배속 이하는 매 스텝 100% 실행)
                 should_plan = (step_idx % plan_interval == 0 or step_idx == sub_steps - 1)
-                if should_plan:
+                # Line Tracing consumes raw LiDAR directly and clears all
+                # GAP annotations below. Clustering those same rays here is
+                # unused work; keep the occupancy grid/rendering unchanged.
+                if should_plan and not getattr(env, 'linetrace_mode', False):
                     if portal_trace:
                         env.portal_decisions = []
                     new_c = extract_clusters_from_grid(env.grid)
@@ -280,13 +291,14 @@ def run():
                     env.all_gaps = []
                     env.total_gaps_count = 0
                 elif getattr(env, 'linetrace_mode', False):
-                    steer, h_target, min_front, c_hit = line_trace_steering(
+                    steer, h_target, nearest_distance, c_hit = line_trace_steering(
                         env.boat_pos, env.boat_heading, env.target,
                         dists, env.rel_angles,
                         env.boat_ang_vel, env.prev_steer
                     )
                     env.heading_target = h_target
-                    env.min_wide_dist = min_front
+                    # MAIN uses its original wide-angle speed input.
+                    env.min_wide_dist = nearest_distance
                     env.closest_avoid_hit = c_hit
                     env.prev_steer = steer
                     env.current_wp = None
@@ -707,14 +719,14 @@ def run():
                     else:
                         L, R = env.get_pwm(steer)
                     L, R = safety_guard.command(env, L, R, steer)
-                    if (dynamic_path_mode and
+                    if (dynamic_path_mode and not main_line.active(env) and
                             path_selector.last_reason == 'brake_no_feasible_path' and
                             safety_guard.hold_steps == 0):
                         left, right = allocate(env.physics_state(), 0.0, 0.0,
                                                env.dynamics)
                         L = 1500 + 400*float(left)/env.dynamics.max_thrust_N
                         R = 1500 + 400*float(right)/env.dynamics.max_thrust_N
-                    if portal_mode and getattr(env, 'portal_no_safe_route', False):
+                    if portal_mode and not main_line.active(env) and getattr(env, 'portal_no_safe_route', False):
                         L = R = 1500
 
                 # One 1x step must retain the old 120-FPS per-step environment
@@ -749,8 +761,10 @@ def run():
                     break
                 # 수동 조종 모드에서는 충돌 발생 시 에피소드를 종료/리스폰하지 않고 계속 주행함
             else:
-                if env.collide() or (dist_tgt_end <= 70 if v2_mode else dist_tgt_end < 70):
-                    is_success = ((dist_tgt_end <= 70 if v2_mode else dist_tgt_end < 70) and not env.collide())
+                reached = (main_line.goal_reached(dist_tgt_end) if main_line.active(env)
+                           else dist_tgt_end <= 70 if v2_mode else dist_tgt_end < 70)
+                if env.collide() or reached:
+                    is_success = (reached and not env.collide())
                     tag = "SUCCESS" if is_success else "FAIL"
                     subfolder = "success" if is_success else "fail"
                     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -783,13 +797,15 @@ def run():
         if hits_x is None:
             map_bounds = (0, 0, env.map_w, env.sim_h) if (v2_mode or getattr(env, 'linetrace_mode', False)) else None
             raycast = lidar_hits_np
-            if v2_mode:
+            if main_line.active(env):
+                raycast = main_line.lidar_hits_np
+            elif v2_mode:
                 from heavy_motion_core.perception import lidar_hits_np as raycast
             dists, hits_x, hits_y = raycast(
                 env.boat_pos, env.boat_heading, env.rel_angles,
                 env.dynamic_obstacles, env.lidar_range, map_bounds=map_bounds
             )
-            if phase5_mode and not v2_mode and not env.manual_mode:
+            if phase5_mode and not v2_mode and not env.manual_mode and not main_line.active(env):
                 dists, hits_x, hits_y = wall_lidar_hits(env, dists, hits_x, hits_y)
             env.lidar_dists = dists
         env.render(hits_x, hits_y)

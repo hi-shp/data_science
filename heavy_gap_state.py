@@ -1,9 +1,42 @@
 """Persistent, display-only passage identities; control never reads this state."""
+import math
 import numpy as np
+from utils import wrap
 from heavy_gap_annotation import (gap_identity,nearly_same_gate,
                                   select_route_gaps,select_second_gap,
                                   second_gap_band,second_gap_separated,
-                                  crossing_in_front,forward_crossings,segments_intersect)
+                                  crossing_in_front,forward_crossings,segments_intersect,
+                                  local_passage_groups)
+
+MAIN_WAYPOINT_COMPLETION_RADIUS = 60.
+
+
+def waypoint_completion_reason(gap,boat,heading):
+    """MAIN main.py's completion predicates, applied to the dynamic waypoint.
+
+    Coordinates and all boundaries are the existing MAIN pixel conventions;
+    the waypoint remains the route intersection, not the obstacle midpoint.
+    """
+    if gap is None:
+        return None
+    point=gap['pos'];dx=point[0]-boat[0];dy=point[1]-boat[1]
+    distance=math.hypot(dx,dy)
+    if distance<MAIN_WAYPOINT_COMPLETION_RADIUS:
+        return 'proximity'
+    c1,c2=gap.get('c1'),gap.get('c2')
+    if c1 is not None and c2 is not None:
+        gx=c2[0]-c1[0];gy=c2[1]-c1[1];length=math.hypot(gx,gy)
+        if length>1e-3:
+            ux=gx/length;uy=gy/length;nx=-uy;ny=ux
+            if nx*math.cos(heading)+ny*math.sin(heading)<0:
+                nx=-nx;ny=-ny
+            rx=boat[0]-point[0];ry=boat[1]-point[1]
+            normal=rx*nx+ry*ny;lateral=abs(rx*ux+ry*uy)
+            if 15.0<=normal<60.0 and lateral<length/2.0+20.0:
+                return 'gate_passed'
+    if abs(wrap(math.atan2(dy,dx)-heading))>1.6580627893946132 and distance<75:
+        return 'behind_nearby'
+    return None
 
 
 def crossed_portal(previous,current,gap):
@@ -22,7 +55,11 @@ def crossed_portal(previous,current,gap):
 
 
 class GapAnnotationState:
-    def __init__(self):
+    def __init__(self,completion_hull=None):
+        # Optional presentation latch; never a controller input. Geometry is
+        # the existing physical hull in the same pixel units as MAIN's zone.
+        self.completion_hull=(None if completion_hull is None else
+                              np.asarray(completion_hull).reshape(-1,2))
         self.reset()
 
     def reset(self):
@@ -33,6 +70,8 @@ class GapAnnotationState:
         self.first_gap_switch_count=self.second_gap_switch_count=0
         self.previous_boat=None
         self.passed_annotations=[]
+        self.completed_identities=set()
+        self.first_latched=False
         self.switch_reason={'first':'reset','second':'reset'}
         self.second_preferred_band=None
         self.last_gap={'first':None,'second':None}
@@ -42,10 +81,38 @@ class GapAnnotationState:
         self.lifetimes={'first':[],'second':[]}
         self.selection_events=[]
 
+    def completion_reason(self,gap,boat,heading):
+        reason=waypoint_completion_reason(gap,boat,heading)
+        if gap is None or self.completion_hull is None:
+            return reason
+        # A physical finite gate crossing must release even before MAIN's
+        # downstream normal-distance test, and even if no render latched yet.
+        if crossed_portal(self.previous_boat,np.asarray(boat),gap):
+            return 'gate_crossed'
+        if reason!='proximity':
+            return reason
+        delta=gap['pos']-boat;distance=float(np.linalg.norm(delta))
+        if distance==0. or not crossing_in_front(gap,boat,heading):
+            return reason
+        # Inside MAIN's existing completion zone, let the hull approach the
+        # intersection before releasing it. No hold timer: at higher speed
+        # this geometry naturally clears sooner. Never wait for exact center.
+        c,s=math.cos(heading),math.sin(heading)
+        direction=np.array([c*delta[0]+s*delta[1],-s*delta[0]+c*delta[1]])/distance
+        reach=min(MAIN_WAYPOINT_COMPLETION_RADIUS,
+                  float(np.max(self.completion_hull@direction)))
+        return reason if distance<=reach else None
+
+    def latch_first(self,gap):
+        if gap is not None and gap_identity(gap)==gap_identity(self.current_first_gap):
+            self.first_latched=True
+
     def _commit(self,slot,gap,frame,reason):
         old=getattr(self,'current_'+slot+'_gap')
         changed=gap_identity(old)!=gap_identity(gap)
         if changed:
+            if slot=='first':
+                self.first_latched=False
             if old is not None:
                 self.lifetimes[slot].append(max(0,frame-getattr(self,slot+'_gap_selected_frame')))
             self.selection_events.append(dict(frame=frame,slot=slot,
@@ -102,6 +169,8 @@ class GapAnnotationState:
         if heading is not None:
             events=forward_crossings(events,boat,heading)
         def valid_current(old):
+            if gap_identity(old) in self.completed_identities:
+                return None,'visited'
             result=validate(old)
             if isinstance(result,tuple):
                 gap,reason=result
@@ -115,25 +184,30 @@ class GapAnnotationState:
         # validate must supply a currently existing, exact-safe crossing.
         old_first=self.current_first_gap or self.last_gap['first']
         old_second=self.current_second_gap or self.last_gap['second']
-        passed=crossed_portal(self.previous_boat,boat,old_first)
-        second_passed=crossed_portal(self.previous_boat,boat,old_second)
+        completion=self.completion_reason(old_first,boat,0. if heading is None else heading)
+        passed=completion is not None
         self.passed_annotations=[g for g in self.passed_annotations
             if np.linalg.norm(boat-g['pos'])<=g['passage_extent']]
-        for slot,gap,was_passed in (('first',old_first,passed),('second',old_second,second_passed)):
-            if was_passed:
-                if not any(gap_identity(g)==gap_identity(gap) for g in self.passed_annotations):
-                    self.passed_annotations.append(gap)
-                self.last_gap[slot]=None;self.pending[slot]=None
+        if passed:
+            self.completed_identities.add(gap_identity(old_first))
+            self.passed_annotations.append(old_first)
+            self.last_gap['first']=None;self.pending['first']=None
         events=[group for group in events if not any(
             nearly_same_gate(member,old,margin)
             for member in group.get('presentation_candidates',(group,))
             for old in self.passed_annotations)]
+        # A visited pair cannot return, but must not hide an independent,
+        # unvisited pair that happens to share a future presentation group.
+        if self.completed_identities:
+            events=local_passage_groups([member for group in events
+                for member in group.get('presentation_candidates',(group,))
+                if gap_identity(member) not in self.completed_identities])
         first,reason=(valid_current(old_first) if old_first is not None and not passed
-                      else (None,'passed' if passed else 'no_previous_gap'))
+                      else (None,'completed:'+completion if passed else 'no_previous_gap'))
         if first is not None:
             reason='retained' if self.current_first_gap is not None else 'same_pair_resumed'
             self.pending['first']=None
-        if first is None and passed and old_second is not None and not second_passed:
+        if first is None and passed and old_second is not None:
             first,_=valid_current(old_second)
             if first is not None:
                 reason='promoted_second';self.pending['first']=None
@@ -144,13 +218,13 @@ class GapAnnotationState:
                 valid_current,generation,passed or self.last_identity['first'] is None,lambda g:True)
             reason=invalid_reason+':'+status
         second=None
-        second_reason='passed' if second_passed else 'no_previous_gap'
+        second_reason='no_previous_gap'
         self.second_preferred_band=(None if first is None else second_gap_band(
             events,first,path,headings,hull,speed,response,margin,profile))
         def second_eligible(gap):
             return (first is not None and second_gap_separated(first,gap,
                     self.second_preferred_band,retained=True) and not segments_intersect(first,gap))
-        if first is not None and old_second is not None and not second_passed:
+        if first is not None and old_second is not None:
             candidate,second_reason=valid_current(old_second)
             if candidate is not None:
                 if second_eligible(candidate):
@@ -184,6 +258,7 @@ class GapAnnotationState:
             total=sum(values)+(frame-getattr(self,slot+'_gap_selected_frame') if active else 0)
             return total*dt/max(1,len(values)+int(active))
         return dict(first_gap_identity_switches_including_hidden=self.identity_switches['first'],
+                    first_waypoint_latched=self.first_latched,
                     second_gap_identity_switches_including_hidden=self.identity_switches['second'],
                     average_first_gap_lifetime_sim_s=average('first'),
                     average_second_gap_lifetime_sim_s=average('second'),

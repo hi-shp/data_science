@@ -24,7 +24,7 @@ FIELDS = ('frame', 'boat_pos', 'boat_vel', 'boat_heading', 'boat_ang_vel',
 
 def snapshot(env):
     return {key: (getattr(env,key).copy() if isinstance(getattr(env,key),np.ndarray)
-                  else getattr(env,key)) for key in FIELDS} | {'target':env.target.copy()}
+                  else getattr(env,key)) for key in FIELDS} | {'target':env.target.copy(), '_line_resume_plan':getattr(env, '_line_resume_plan', False)}
 
 
 class _Model(SimpleNamespace):

@@ -1,6 +1,7 @@
 """Route-first GAP annotations. These arrays never feed the motion controller."""
 import math
 import numpy as np
+from config import GRID
 from heavy_motion_core.passage_geometry import (
     prepare_hull_edges, fast_surface_clearances)
 
@@ -213,13 +214,16 @@ def presentation_key(gap):
 def select_presentation_gap(candidates):
     """Compare only one already chosen crossing region's valid candidates.
 
-    Within one drawable pixel of the best midpoint distance, compactness wins.
-    This is raster resolution, not a physical margin or navigation weight.
+    Midpoint offsets within one existing observation-grid cell are equivalent
+    for presentation; the shortest segment then wins. This avoids letting
+    sub-cell centroid differences select a much longer obstacle pair. The
+    cell size is not a safety tolerance: all inputs must already be exact-safe
+    route crossings. Region choice and retained GAP identities are unchanged.
     The returned position remains the exact existing route intersection.
     """
     keyed=[(presentation_key(g),g) for g in candidates]
     closest=min(key[0] for key,_ in keyed)
-    near=[(key,g) for key,g in keyed if key[0]<=closest+1.]
+    near=[(key,g) for key,g in keyed if key[0]<=closest+GRID]
     return min(near,key=lambda item:(item[0][1],item[0][0],item[0][2:]))[1]
 
 

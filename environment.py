@@ -12,6 +12,7 @@ from perception import init_grid
 from navigation import reactive_avoidance
 from hull_collision import hull_collides
 from vessel_dynamics import VesselParameters, integrate, allocate
+import main_line_compat as main_line
 from ui_renderer import EnvRenderer
 
 class BoatEnv:
@@ -214,6 +215,9 @@ class BoatEnv:
                          self.boat_ang_vel, self.thrust_left, self.thrust_right])
 
     def reset(self):
+        main_line.restore_native_parameters(self)
+        if getattr(self, 'linetrace_queued', False):
+            self.linetrace_mode = True
         self.load_params()
         self.configure_dynamics()
         self.command_speed = self.dynamics.cruise_speed_m_s
@@ -299,6 +303,10 @@ class BoatEnv:
         self.last_manual_result = None
         if getattr(self, 'motion_core_v2', False):
             self.phase5_visuals.reset_episode(self)
+        main_line.configure_episode(self)
+
+    def set_line_tracing(self, enabled):
+        main_line.switch_mode(self, enabled)
 
     def handle_click(self, pos):
         # 0-0. 랭킹 모달 창이 열려 있을 때의 클릭 이벤트 처리
@@ -364,8 +372,7 @@ class BoatEnv:
         is_mode_click = getattr(self, 'mode_btn_top_rect', None) and self.mode_btn_top_rect.collidepoint(pos)
         if is_mode_click:
             # 버튼 클릭 시 현재 실행 중인 에피소드에서 실시간으로 알고리즘 즉시 변경 (GAP NAVIGATION <-> LINE TRACING)
-            self.linetrace_mode = not getattr(self, 'linetrace_mode', False)
-            self.linetrace_queued = False
+            self.set_line_tracing(not getattr(self, 'linetrace_mode', False))
         elif getattr(self, 'linetrace_mode', False):
             # 라인트레이싱 모드: 3개 버튼 (1. 가장 가까운 장애물 SHOW / 2. 라이다 히트 / 3. 라이다 레인지)
             if getattr(self, 'cb1_row_rect', self.cb1_rect).collidepoint(pos) or self.cb1_rect.collidepoint(pos):
@@ -492,9 +499,13 @@ class BoatEnv:
             self.reflected_wakes.extend(new_rw)
 
     def pwm_to_thrust(self, p):
+        if main_line.active(self):
+            return main_line.pwm_to_thrust(self, p)
         return float(np.clip((p - 1500) / 400, -1, 1)) * self.dynamics.max_thrust_N
 
     def step(self, L, R, sub_step_idx=0, total_sub_steps=1):
+        if main_line.active(self):
+            return main_line.apply_step(self, L, R, sub_step_idx, total_sub_steps)
         prev0, prev1 = float(self.boat_pos[0]), float(self.boat_pos[1])
         old_heading = self.boat_heading
         z = integrate(self.physics_state(), self.pwm_to_thrust(L),
@@ -644,6 +655,8 @@ class BoatEnv:
                                 self.reflected_wakes.extend(new_reflected)
 
     def collide(self):
+        if main_line.active(self):
+            return main_line.collide(self)
         bx, by = self.boat_pos
         if getattr(self, 'motion_core_v2', False) and not self.manual_mode:
             # CODEX's independent center gates, alongside its predictive hull walls.
@@ -679,6 +692,8 @@ class BoatEnv:
         )
 
     def get_pwm(self, steer):
+        if main_line.active(self):
+            return main_line.get_pwm(self, steer)
         p = self.dynamics
         if getattr(self, 'motion_core_v2', False) and not self.manual_mode and not self.linetrace_mode:
             # Same allocation as CODEX. Display references never enter control.
@@ -688,8 +703,6 @@ class BoatEnv:
             return (1500 + 400*float(left)/p.max_thrust_N,
                     1500 + 400*float(right)/p.max_thrust_N)
         speed_factor = math.tanh(max(0.0, float(getattr(self, 'min_wide_dist', 999.0))) / 100.0) ** 1.35
-        if self.linetrace_mode:
-            speed_factor *= 0.85
         self.command_speed = p.cruise_speed_m_s * speed_factor
         self.command_yaw_rate = float(np.clip(steer * self.params['yaw_command_gain'], -1.0, 1.0)) * p.max_yaw_rate_rad_s
         left, right = allocate(self.physics_state(), self.command_speed,

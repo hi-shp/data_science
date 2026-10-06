@@ -1,5 +1,113 @@
 # Main-heavy experiment state
 
+## First waypoint display latch (2026-10-06)
+
+The interpolated display pursuit marker now caps its arc progress at the
+first waypoint's exact route intersection, even when the raw pursuit reference
+continues toward the second. On reaching the intersection it records a latch
+and holds there across nearby path renewals. No new marker/style or x/y filter.
+The raw pursuit reference, actual CODEX commands and control route are untouched.
+
+For this presentation mode, MAIN's <60-pixel proximity zone arms approach
+completion rather than removing the marker immediately. Release occurs when
+the existing physical hull's projection toward the waypoint reaches it (42 px
+for straight bow-first approach, always capped by MAIN's 60 px zone). This
+requires no hold duration or speed tuning: travel at the current speed decides
+the interval. A finite actual GAP crossing, near-behind waypoint, invalid GAP,
+or substantially displaced replacement path releases the old hold immediately.
+A valid second is promoted and existing arc interpolation resumes. Reset clears
+both latch and marker cap. GAP acquisition/ranking/persistence are unchanged.
+
+Validation: 112 related tests pass, covering approach/hold, immediate finite
+crossing, invalidation, regeneration, promotion, and raw-control isolation.
+Seeds 2000/2069 preserve exact every-physics-step state/command/control-route
+hashes and finish at unchanged steps 776/888. Fixed 120-Hz render sampling
+records 203/193 held-marker samples, of which 155/134 remain visible inside
+the former immediate-completion zone; each held marker equals the waypoint
+exactly. Real X11 2D 4x 8-second smoke: 109.00 FPS, rolling minimum 98,
+239.95 physics steps/s, >=100-ms stalls 0, final backlog .00584 simulated s.
+Screenshot inspected; artifacts under `data/main_heavy/waypoint_completion/`.
+Only MAIN_HEAVY changed. No commit/push requested; stop for user GUI inspection.
+
+## Compact GAP presentation preference (2026-10-06)
+
+New first/second representative acquisition shares the same local rule:
+after forward filtering and exact hull/margin crossing eligibility, midpoint
+offsets within one existing GUI observation-grid cell (`GRID=4` px) of the best
+match are presentation-equivalent. The shortest segment wins in that band,
+then midpoint offset and the existing deterministic tie-breaks. Previously
+compactness only applied within one raster pixel, allowing sub-cell centroid
+differences to favor unnecessarily long obstacle pairs. No weighted score,
+new safety tolerance, candidate pair or route-region ranking was introduced.
+
+Valid incumbent/pending pair identities still bypass acquisition ranking;
+narrower newcomers do not evict them. Waypoints remain exact route/GAP
+intersections, and the legacy diagnostic panel is unchanged. Tests cover both
+first/second compact preference, stronger midpoint differences taking priority,
+an actual-hull unsafe narrow crossing being rejected upstream, and retained
+identities not reranking for narrower newcomers. 105 related tests pass.
+Seeds 2000/2069 retain exact every-step physical state/command/control-route
+hashes and successful finishes at unchanged steps 776/888.
+Only MAIN_HEAVY presentation/tests/docs changed; no commit/push requested.
+
+## MAIN waypoint completion semantics (2026-10-06)
+
+V2.1's display-only first GAP now uses the predicates read directly from
+`main:main.py` at `1b6d5ec`: waypoint distance <60 px; heading-oriented gate
+normal distance [15,60) px with lateral distance <half gate length+20 px;
+or bearing beyond 95 degrees with distance <75 px. These are MAIN's existing
+boundaries, evaluated every physics tick against the dynamic intersection
+waypoint, without replacing it with the obstacle midpoint. A valid second
+GAP is promoted immediately, and display clipping/pursuit reference refresh
+at release even between prediction updates. Completed pair identities stay
+visited for the episode in both pair orders and reset for the next episode.
+
+Route-derived selection, GAP persistence, marker interpolation and physical
+control remain separate. MAIN/CODEX branches were not modified; no commit or
+push requested. Validation: 91 relevant tests pass, strict completion/gate
+boundaries, early promotion, display refresh, visited/reset and renderer parity
+included. 10,000 cases agree with the completion block extracted from MAIN's
+source. Seeds 2000/2069 retain exact every-step state, command and control-route
+hashes and finish at steps 776/888. Real X11 2D 4x 8-second smoke: 112.20 FPS,
+rolling minimum 99, 239.98 physics steps/s, >=100-ms stalls 0, final backlog
+.0083 simulated seconds. Screenshot inspected. Local artifacts are under
+`data/main_heavy/waypoint_completion/`. Ready for user GUI inspection.
+
+## Pure Pursuit display interpolation (2026-10-06)
+
+Ready for user GUI inspection via `python3 main.py`; no commit/push requested.
+Only MAIN_HEAVY was modified. Existing control/PP target and Bezier geometry,
+GAP selection/persistence, clipping, dynamics and playback are untouched.
+
+The old display plotted the first discrete Bezier sample outside the existing
+70-pixel lookahead only on prediction updates. `PursuitDisplayMarker` now
+caches arc geometry at those same updates and advances a separate
+`visual_pursuit_target` on every render. Nearby replacement paths reproject the
+previous marker; large changes adopt the new target immediately. Motion uses
+boat speed, measured publication timing and render elapsed time, remains on the
+current clipped polyline, and does not move backward for small target jitter.
+Paused frames hold the marker; episode reset clears it. The renderer retains
+MAIN's original colors/sizes/z-order and draws only the existing one marker.
+There is no x/y EMA, new future target, regenerated route or controller feedback.
+
+Validation: 86 relevant tests pass, including MAIN renderer AST parity, corner
+following, short-path clipping, regeneration, pause/reset and control isolation.
+Seeds 2000/2069 complete at unchanged steps 776/888, with exact every-step
+physics/command/planned-route/Bezier/GAP/raw-pursuit-target hashes.
+At fixed 120-Hz display sampling, marker p95 per-frame displacement changes
+8.650 -> 1.493 px (2000), 7.939 -> 1.439 px (2069). Large route-change/endpoint
+replacement jumps can still occur; old markers are not retained off-path.
+
+Real X11 default 2D 4x paired smoke, 12 seconds each: 115.27 -> 115.93 FPS,
+rolling minimum 101 -> 106, physics 239.92 -> 239.98 / 240 requested steps/s,
+>=100-ms stalls zero in both. Final backlog .036 -> .007 simulated seconds,
+nonaccumulating. Marker render update averages .0107 ms (p95 .0141 ms),
+publication projection .0597 ms (p95 .0681 ms). An initial unpaired after run
+was 108.25 FPS versus 116.76 baseline; the adjacent old/new paired runs above
+separate that timing variability from interpolation cost. Screenshot inspected.
+Artifacts: `data/main_heavy/pursuit_marker/` summaries, marker/state arrays,
+parity hashes, movement comparison and actual GUI PNGs. Stop for user inspection.
+
 ## Current inspection candidate: V2.1_GAP_PERSISTENCE (2026-10-06)
 
 Ready for user GUI inspection. On main_heavy, run `python3 main.py`:

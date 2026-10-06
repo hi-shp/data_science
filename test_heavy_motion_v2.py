@@ -281,6 +281,43 @@ class V2Tests(unittest.TestCase):
         annotate.assert_called_once_with(env)
         self.assertEqual(env.prediction_frame,1)
 
+    def test_main_completion_refreshes_between_prediction_ticks(self):
+        from unittest.mock import patch
+        env,visuals=env_stub()
+        env.boat_heading=0.
+        env.current_wp=dict(pos=np.array([139.,240.]))
+        visuals.last_generation=env.prediction_frame
+        before=env.control_path.copy()
+        with patch('heavy_motion_v2.advance_trajectory',return_value=(np.array([np.nan]),np.array([np.nan]))), \
+             patch.object(visuals,'update_gui_scan'),patch.object(visuals,'_annotate') as annotate:
+            visuals.advance(env)
+        annotate.assert_called_once_with(env)
+        self.assertEqual(env.prediction_frame,1)
+        np.testing.assert_array_equal(env.control_path,before)
+
+    def test_completion_marks_visited_promotes_second_and_refreshes_clipping(self):
+        env,visuals=env_stub()
+        env.boat_heading=0.;env.visited=set()
+        obs=np.array([[4.,3.,.34],[4.,7.,.34],[7.,3.,.34],[7.,7.,.34]])
+        env.navigation_map=SimpleNamespace(obstacles=obs)
+        visuals.gui_clusters=list(obs[:,:2]*50.);visuals.gui_ids=list(range(4))
+        visuals._annotate(env)
+        first,second=env.current_wp,env.next_wp
+        self.assertIsNotNone(first);self.assertIsNotNone(second)
+        raw=env.control_path.copy()
+        env.boat_pos=first['pos']-np.array([59.,0.])
+        visuals._annotate(env)
+        self.assertEqual(env.current_wp['pair'],first['pair'])
+        self.assertNotIn(first['pair'],env.visited)
+        env.boat_pos=first['pos']-np.array([41.,0.])
+        visuals._annotate(env)
+        self.assertEqual(env.current_wp['pair'],second['pair'])
+        self.assertEqual(visuals.annotation_state.switch_reason['first'],'promoted_second')
+        self.assertIn(first['pair'],env.visited)
+        self.assertIn(tuple(reversed(first['pair'])),env.visited)
+        np.testing.assert_array_equal(env.bezier_path[-1],env.current_wp['pos'])
+        np.testing.assert_array_equal(env.control_path,raw)
+
     def test_gui_lidar_matches_main_and_cannot_change_control(self):
         from perception import lidar_hits_np as main_lidar
         env, visuals = env_stub()
@@ -379,9 +416,15 @@ class PinnedMotionSourceTests(unittest.TestCase):
                 if node.module and node.module.startswith('heavy_motion_core.'):
                     node.module = node.module[len('heavy_motion_core.'):]
                 return node
+            def visit_If(self, node):
+                # The only control-path extension is a fresh plan on explicit
+                # live-mode re-entry; ordinary cadence remains pinned CODEX.
+                if isinstance(node.test, ast.BoolOp) and ast.unparse(node.test.values[-1]) == "getattr(env, '_line_resume_plan', False)":
+                    node.test = node.test.values[0]
+                return self.generic_visit(node)
             def visit_Assign(self, node):
                 names = {ast.unparse(target) for target in node.targets}
-                if names & {'self.display_passages', 'env.motion_prediction_states'}:
+                if names & {'self.display_passages', 'env.motion_prediction_states', 'env._line_resume_plan'}:
                     return None
                 return self.generic_visit(node)
         for path in modules:

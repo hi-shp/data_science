@@ -1,6 +1,7 @@
 """Local presentation regularization must not choose a different passage."""
 import unittest
 import numpy as np
+from config import GRID
 from heavy_gap_annotation import (local_passage_groups,select_route_gaps,
     route_crossings,route_bezier,clipped_display_route)
 from heavy_motion_core.passage_geometry import physical_hull_polygons
@@ -105,6 +106,48 @@ class LocalPresentationTests(unittest.TestCase):
         wide=gate(215.,(0,2));wide['c1'][1]=90.;wide['c2'][1]=390.
         first,_=self.choose([wide,compact])
         self.assertIs(first,compact)
+
+    def test_compact_first_wins_for_sub_cell_midpoint_difference(self):
+        compact=gate(200.)
+        compact['c1'][1]+=GRID*.75;compact['c2'][1]+=GRID*.75
+        wide=gate(215.,(0,2));wide['c1'][1]=40.;wide['c2'][1]=440.
+        for events in ([wide,compact],[compact,wide]):
+            first,_=self.choose(events)
+            self.assertIs(first,compact)
+            np.testing.assert_array_equal(first['pos'],[200.,240.])
+
+    def test_compact_second_uses_same_sub_cell_preference(self):
+        first=gate(200.)
+        compact=gate(450.,(2,3))
+        compact['c1'][1]+=GRID*.75;compact['c2'][1]+=GRID*.75
+        wide=gate(465.,(2,4));wide['c1'][1]=40.;wide['c2'][1]=440.
+        a,b=self.choose([first,wide,compact])
+        self.assertIs(a,first);self.assertIs(b,compact)
+        np.testing.assert_array_equal(b['pos'],[450.,240.])
+
+    def test_width_does_not_override_meaningfully_better_midpoint_match(self):
+        compact=gate(200.)
+        compact['c1'][1]+=GRID+1.;compact['c2'][1]+=GRID+1.
+        wide=gate(215.,(0,2));wide['c1'][1]=40.;wide['c2'][1]=440.
+        self.assertIs(self.choose([compact,wide])[0],wide)
+
+    def test_unsafe_narrow_crossing_is_removed_before_width_preference(self):
+        # Derive widths from the real hull and unchanged safety margin.
+        margin=10.;radius=17.
+        required=2*(float(np.max(np.abs(self.hull[:,:,1])))+radius+margin)
+        narrow_half=required*.45;wide_half=required
+        obs=np.array([[200.,240.-narrow_half,radius],[200.,240.+narrow_half,radius],
+                      [450.,240.-wide_half,radius],[450.,240.+wide_half,radius]])
+        candidates=[dict(c1=obs[i,:2].copy(),c2=obs[i+1,:2].copy(),pair=(i,i+1))
+                    for i in (0,2)]
+        events=route_crossings(self.path,self.headings,candidates,obs,self.hull,
+                              margin,(700.,600.))
+        self.assertTrue(events)
+        self.assertFalse(any(g['pair']==(0,1) for group in events
+            for g in group.get('presentation_candidates',(group,))))
+        first,_=select_route_gaps(events,self.path,self.headings,self.hull,0.,.37,margin)
+        self.assertEqual(first['pair'],(2,3))
+        self.assertGreaterEqual(first['crossing_clearance'],margin)
 
     def test_midpoint_priority_cannot_choose_a_remote_crossing_region(self):
         local=gate(200.);local['c1'][1]=100.;local['c2'][1]=310.

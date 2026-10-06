@@ -6,6 +6,7 @@ V1 remains available through MAIN_HEAVY_MOTION_VERSION=V1.
 import os
 import json
 import math
+import time
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +25,7 @@ from heavy_gap_state import GapAnnotationState
 from utils import pure_pursuit
 from perception import update_grid, match_clusters
 from heavy_gap_display import MainDisplayClusters
+from pursuit_marker_display import PursuitDisplayMarker
 
 
 class HeavyMotionV2:
@@ -37,8 +39,9 @@ class HeavyMotionV2:
         env.phase5_visuals = self
         env.show_all_gaps = True
         self.presentation_profile = load_presentation_profile(env.dynamics.pixels_per_m)
-        self.annotation_state = GapAnnotationState()
+        self.annotation_state = GapAnnotationState(physical_hull_polygons(env.dynamics.pixels_per_m)*env.dynamics.pixels_per_m)
         self.worker = None
+        self.pursuit_marker = PursuitDisplayMarker()
         self.reset_episode(env)
 
     def close(self):
@@ -55,8 +58,13 @@ class HeavyMotionV2:
     def available(self):
         return None if self.worker is None else self.worker.available()
 
-    def reset_episode(self, env):
+    def invalidate_controller(self, env):
+        self.reset_episode(env, controller_only=True)
+
+    def reset_episode(self, env, *, controller_only=False):
         self.annotation_state.reset()
+        self.pursuit_marker.reset()
+        env.visual_pursuit_target = None
         for key in ('navigation_map', 'trajectory_navigator', 'motion_prediction_states'):
             if hasattr(env, key):
                 delattr(env, key)
@@ -86,9 +94,10 @@ class HeavyMotionV2:
         env.predicted_clearance = math.inf
         env.perceived_obstacles = np.empty((0, 3))
         env.selected_gap = None
-        env.wakes = []
-        env.reflected_wakes = []
-        if self.worker is not None:
+        if not controller_only:
+            env.wakes = []
+            env.reflected_wakes = []
+        if self.worker is not None and (not controller_only or not env.linetrace_mode):
             self.worker.reset(env)
 
     def advance(self, env, step_idx=0, sub_steps=1):
@@ -119,7 +128,8 @@ class HeavyMotionV2:
         # Never keep a cached waypoint behind the current bow between plans.
         behind=any(gap is not None and not crossing_in_front(gap,env.boat_pos,env.boat_heading)
                    for gap in (env.current_wp,env.next_wp))
-        if env.prediction_frame != self.last_generation or behind:
+        completed=self.annotation_state.completion_reason(env.current_wp,env.boat_pos,env.boat_heading)
+        if env.prediction_frame != self.last_generation or behind or completed is not None:
             self.last_generation = env.prediction_frame
             self._annotate(env)
         return hits
@@ -140,12 +150,20 @@ class HeavyMotionV2:
     def render(self, env, fallback_hits):
         """Display-only sensor view; restore the authoritative scan immediately."""
         if env.manual_mode or env.linetrace_mode:
+            env.visual_pursuit_target = env.pursuit_target
             return env.renderer.render(*fallback_hits)
         if self.gui_lidar_dists is None:
             self.update_gui_scan(env, fallback_hits)
         original = env.lidar_dists
         original_grid = env.grid
         try:
+            marker = self.pursuit_marker.update(
+                time.perf_counter(), float(np.linalg.norm(getattr(env, 'boat_vel', (0., 0.)))),
+                getattr(env, 'dt', .04),
+                paused=getattr(env, 'paused', False))
+            env.visual_pursuit_target = env.pursuit_target if marker is None else marker
+            if self.pursuit_marker.at_stop:
+                self.annotation_state.latch_first(env.current_wp)
             env.lidar_dists = self.gui_lidar_dists
             env.grid = self.gui_grid
             return env.renderer.render(*self.gui_hits)
@@ -223,6 +241,11 @@ class HeavyMotionV2:
                        key=lambda g:g['route_arc']),'valid'
         selected,following=self.annotation_state.update(crossings,display,display_headings,
             hull,speed,response,margin,self.presentation_profile,env.boat_pos,env.frame,validate_pinned,heading=heading,generation=env.prediction_frame)
+        # MAIN marks the completed pair visited in both orders, for this episode.
+        # This is annotation bookkeeping only; the motion core never reads it.
+        if hasattr(env,'visited'):
+            for pair in self.annotation_state.completed_identities:
+                env.visited.add(pair);env.visited.add((pair[1],pair[0]))
         env.bezier_path,env.next_bezier_path,selected,following=clipped_display_route(
             display,selected,following,np.asarray(env.target),1.4*scale)
         self.annotation_state.apply_visible(selected,following,env.frame)
@@ -242,6 +265,14 @@ class HeavyMotionV2:
             np.vstack((env.bezier_path,env.next_bezier_path[1:])))
         env.pursuit_target=pure_pursuit(current_reference,env.boat_pos,lookahead=70)
         env.next_pursuit_target=None
+        self.pursuit_marker.set_path(current_reference, env.pursuit_target,
+            env.prediction_frame, speed,
+            env.control.planning_period_steps*getattr(env, 'dt', .04), scale,
+            stop=None if selected is None else selected['pos'])
+        if not self.pursuit_marker.path_continuous:
+            self.annotation_state.first_latched=False
+        elif self.annotation_state.first_latched:
+            self.pursuit_marker.hold_at_stop()
         self.reference = current_reference
         self.last_result = dict(portal=selected,
             crossing_s=None if selected is None else selected['portal_s'],

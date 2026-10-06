@@ -631,7 +631,9 @@ class EnvRenderer:
                     pygame.draw.lines(target_surf, (50, 210, 255), False, pts, 4)
 
             if env.pursuit_target is not None:
-                px_t, py_t = env.pursuit_target
+                px_t, py_t = (getattr(env, 'visual_pursuit_target', env.pursuit_target)
+                              if getattr(env, 'motion_core_v2', False)
+                              else env.pursuit_target)
                 pygame.draw.circle(target_surf, (255, 255, 255), (int(sx(px_t)), int(py_t)), 10, 2)
                 pygame.draw.circle(target_surf, (255, 50, 150), (int(sx(px_t)), int(py_t)), 5)
 
