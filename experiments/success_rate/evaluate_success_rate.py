@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import os
 import sys
 import time
@@ -22,7 +26,9 @@ def main():
     
     start_time = time.time()
     date_str = datetime.datetime.now().strftime("%Y%m%d")
-    out_file = f"success_rate_{total_episodes}_{date_str}.txt"
+    report_dir = Path(__file__).resolve().parents[2] / "data" / "success_rate"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    out_file = report_dir / f"success_rate_{total_episodes}_{date_str}.txt"
     
     def save_report(is_final=False):
         elapsed = time.time() - start_time

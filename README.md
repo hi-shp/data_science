@@ -205,11 +205,11 @@ ModernGL(OpenGL 3.3) 기반 별도 프로세스에서 동작하는 실시간 3D 
 
 | 파일명 | 주행 횟수 | 성공 | 충돌 | 성공률 |
 | :--- | :--- | :--- | :--- | :--- |
-| `success_rate_10000_20260901.txt` | 50회 | 48회 | 2회 | 96.00% |
-| `success_rate_10000_20260902.txt` | 7,501회 | 7,353회 | 148회 | 98.03% |
-| `success_rate_10000_20260903.txt` | 8,410회 | 8,291회 | 119회 | 98.59% |
-| `success_rate_10000_20260909.txt` | 1,083회 | 1,074회 | 9회 | 99.17% |
-| `success_rate_10000_20260910.txt` | 10,000회 | 9,716회 | 284회 | 97.16% |
+| `data/success_rate/success_rate_10000_20260901.txt` | 50회 | 48회 | 2회 | 96.00% |
+| `data/success_rate/success_rate_10000_20260902.txt` | 7,501회 | 7,353회 | 148회 | 98.03% |
+| `data/success_rate/success_rate_10000_20260903.txt` | 8,410회 | 8,291회 | 119회 | 98.59% |
+| `data/success_rate/success_rate_10000_20260909.txt` | 1,083회 | 1,074회 | 9회 | 99.17% |
+| `data/success_rate/success_rate_10000_20260910.txt` | 10,000회 | 9,716회 | 284회 | 97.16% |
 
 ---
 
@@ -234,9 +234,9 @@ ModernGL(OpenGL 3.3) 기반 별도 프로세스에서 동작하는 실시간 3D 
 | `engine_3d.py` | ModernGL 기반 3D 렌더링 엔진 (별도 프로세스, 공유 메모리 통신) |
 | `config.py` | 모니터 해상도 자동 감지, 화면 크기/비율 계산, 대시보드 레이아웃 |
 | `leaderboard.py` | RC 수동 조종 기록 저장/정렬/로드 |
-| `leaderboard.json` | RC 수동 조종 랭킹 데이터 |
+| `data/legacy/leaderboard.json` | RC 수동 조종 랭킹 데이터 |
 | `best_learned_params.json` | 자동화 테스트로 탐색한 최적 조향/회피/갭평가 파라미터 |
-| `test_success_rate.py` | 연속 자율운항 성공률 자동 평가 스크립트 |
+| `experiments/success_rate/evaluate_success_rate.py` | 연속 자율운항 성공률 자동 평가 스크립트 |
 
 ---
 
@@ -286,7 +286,7 @@ python main.py
 
 #### 2) 성공률 자동 테스트 실행
 ```bash
-python test_success_rate.py
+python experiments/success_rate/evaluate_success_rate.py
 ```
 연속 자율운항 테스트를 수행하고 결과 리포트 파일(`success_rate_{회차}_{YYYYMMDD}.txt`)을 저장합니다.
 
@@ -314,3 +314,19 @@ python test_success_rate.py
 - `Range`: 라이다 탐색 반경 및 레이 라인 표시
 - `Gaps`: 전방 180도 내 모든 갭 중간점 표시
 - `Line`: 라인트레이싱 모드 전환
+
+## Repository tools
+
+Run from the repository root:
+
+```bash
+python3 main.py
+python3 -m unittest discover -s tests -t .
+python3 experiments/success_rate/evaluate_success_rate.py
+```
+
+Tests are in `tests/`. Evaluation tools are grouped under `experiments/` by
+function; historical success-rate reports are in `data/success_rate/`.
+Runtime benchmark values remain in `leaderboard_benchmarks.json`; player
+records remain in `.kaboat_runtime/`. AI instructions and personal work notes
+are local-only. Existing report and image directories are unchanged.
