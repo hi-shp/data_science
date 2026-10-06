@@ -1,0 +1,188 @@
+{
+  "source_commit": "59a72b6f2538c991e1bd36cdaa1f1d1ceccf7d4b",
+  "branch": "main",
+  "window": "real X11",
+  "headless": false,
+  "manual_mode": false,
+  "autonomous_control": true,
+  "initial_seed": 2069,
+  "episode_maps": "production reset with unchanged random generation",
+  "capture": "external ffmpeg x11grab of real production pygame window",
+  "source_resolution": [
+    1840,
+    920
+  ],
+  "source_capture_fps": 60,
+  "gif_resolution": [
+    1200,
+    600
+  ],
+  "gif_fps": 30,
+  "playback_multiplier": 4,
+  "base_playback_rate": 2.4,
+  "physics_dt": 0.04,
+  "camera_mode": 1,
+  "middle_cuts": false,
+  "line_trace": "Single uninterrupted segment of episodes 3, 4, 5 from one execution; episode 2 collided. Production legacy MAIN compatibility physics.",
+  "runs": {
+    "2d": {
+      "mode": "2d",
+      "playback": 4,
+      "capture_fps": 60,
+      "events": [
+        {
+          "episode": 1,
+          "success": true,
+          "wall_seconds": 3.696256402065046,
+          "distance_to_goal": 69.69451593568498
+        },
+        {
+          "episode": 2,
+          "success": true,
+          "wall_seconds": 6.840752866002731,
+          "distance_to_goal": 69.18847252369693
+        },
+        {
+          "episode": 3,
+          "success": true,
+          "wall_seconds": 10.363970573060215,
+          "distance_to_goal": 69.752725390255
+        },
+        {
+          "episode": 4,
+          "success": true,
+          "wall_seconds": 14.245013953070156,
+          "distance_to_goal": 69.43345374482189
+        },
+        {
+          "episode": 5,
+          "success": true,
+          "wall_seconds": 17.003965705051087,
+          "distance_to_goal": 69.44599230211159
+        }
+      ],
+      "consecutive": 5,
+      "clip_bounds": [
+        0.0,
+        17.003965705051087
+      ],
+      "source": "59a72b6f2538c991e1bd36cdaa1f1d1ceccf7d4b"
+    },
+    "3d": {
+      "mode": "3d",
+      "playback": 4,
+      "capture_fps": 60,
+      "events": [
+        {
+          "episode": 1,
+          "success": true,
+          "wall_seconds": 3.7057096399366856,
+          "distance_to_goal": 69.69451593568498
+        },
+        {
+          "episode": 2,
+          "success": true,
+          "wall_seconds": 7.485902730957605,
+          "distance_to_goal": 68.37229614521523
+        },
+        {
+          "episode": 3,
+          "success": true,
+          "wall_seconds": 10.812142852926627,
+          "distance_to_goal": 69.4938513249265
+        },
+        {
+          "episode": 4,
+          "success": true,
+          "wall_seconds": 13.301770695019513,
+          "distance_to_goal": 69.73688527535165
+        },
+        {
+          "episode": 5,
+          "success": true,
+          "wall_seconds": 16.907479597022757,
+          "distance_to_goal": 67.80759219425705
+        }
+      ],
+      "consecutive": 5,
+      "clip_bounds": [
+        0.0,
+        16.907479597022757
+      ],
+      "source": "59a72b6f2538c991e1bd36cdaa1f1d1ceccf7d4b"
+    },
+    "line": {
+      "mode": "line",
+      "playback": 4,
+      "capture_fps": 60,
+      "events": [
+        {
+          "episode": 1,
+          "success": true,
+          "wall_seconds": 6.730106033035554,
+          "distance_to_goal": 69.05231759797016
+        },
+        {
+          "episode": 2,
+          "success": false,
+          "wall_seconds": 11.16358609101735,
+          "distance_to_goal": 962.8564143792826
+        },
+        {
+          "episode": 3,
+          "success": true,
+          "wall_seconds": 18.04074570594821,
+          "distance_to_goal": 69.73487218847553
+        },
+        {
+          "episode": 4,
+          "success": true,
+          "wall_seconds": 31.921621576999314,
+          "distance_to_goal": 68.58624187799641
+        },
+        {
+          "episode": 5,
+          "success": true,
+          "wall_seconds": 37.441585008986294,
+          "distance_to_goal": 69.51985110716616
+        }
+      ],
+      "consecutive": 3,
+      "clip_bounds": [
+        11.16358609101735,
+        37.441585008986294
+      ],
+      "source": "59a72b6f2538c991e1bd36cdaa1f1d1ceccf7d4b"
+    }
+  },
+  "readme_structure_references": [
+    "https://github.com/AtsushiSakai/PythonRobotics",
+    "https://github.com/leggedrobotics/se2_navigation",
+    "https://github.com/f1tenth/f1tenth_gym",
+    "https://github.com/mit-racecar/racecar_simulator",
+    "https://github.com/ros-navigation/navigation2"
+  ],
+  "assets": [
+    {
+      "file": "line_trace_3runs.gif",
+      "frames": 795,
+      "duration_s": 26.5,
+      "bytes": 95985462,
+      "sha256": "11347ae7230d092f24854a0934bab2fb5bc834dc2ed51ca998fba10c881d1cec"
+    },
+    {
+      "file": "main_2d_5runs.gif",
+      "frames": 516,
+      "duration_s": 17.2,
+      "bytes": 67930733,
+      "sha256": "7e502c1475da8a2c5596be40cbecf89c5c104a0e3a4e448f608659bc3f67b0f8"
+    },
+    {
+      "file": "main_3d_5runs.gif",
+      "frames": 514,
+      "duration_s": 17.13,
+      "bytes": 52801846,
+      "sha256": "f2e741e86ab6585a606ad5b8632540ee9ec0cc2d1bbd50537a924efc4a8be35a"
+    }
+  ]
+}

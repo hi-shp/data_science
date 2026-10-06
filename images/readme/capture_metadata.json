@@ -1,5 +1,5 @@
 {
-  "source_commit": "59a72b6f2538c991e1bd36cdaa1f1d1ceccf7d4b",
+  "source_commit": "61b7240da7306934204e2591497b43ebc2380ff8",
   "branch": "main",
   "window": "real X11",
   "headless": false,
@@ -18,141 +18,129 @@
     600
   ],
   "gif_fps": 30,
-  "playback_multiplier": 4,
+  "playback_multiplier": 2,
   "base_playback_rate": 2.4,
   "physics_dt": 0.04,
   "camera_mode": 1,
   "middle_cuts": false,
-  "line_trace": "Single uninterrupted segment of episodes 3, 4, 5 from one execution; episode 2 collided. Production legacy MAIN compatibility physics.",
+  "line_trace": "First three episodes completed in one uninterrupted production run.",
   "runs": {
     "2d": {
       "mode": "2d",
-      "playback": 4,
+      "playback": 2,
       "capture_fps": 60,
       "events": [
         {
           "episode": 1,
           "success": true,
-          "wall_seconds": 3.696256402065046,
+          "wall_seconds": 7.39829937601462,
           "distance_to_goal": 69.69451593568498
         },
         {
           "episode": 2,
           "success": true,
-          "wall_seconds": 6.840752866002731,
-          "distance_to_goal": 69.18847252369693
+          "wall_seconds": 13.530641708057374,
+          "distance_to_goal": 67.87159988343043
         },
         {
           "episode": 3,
           "success": true,
-          "wall_seconds": 10.363970573060215,
-          "distance_to_goal": 69.752725390255
+          "wall_seconds": 22.53206370701082,
+          "distance_to_goal": 68.14767682566126
         },
         {
           "episode": 4,
           "success": true,
-          "wall_seconds": 14.245013953070156,
-          "distance_to_goal": 69.43345374482189
+          "wall_seconds": 29.10206545901019,
+          "distance_to_goal": 68.3455188791654
         },
         {
           "episode": 5,
           "success": true,
-          "wall_seconds": 17.003965705051087,
-          "distance_to_goal": 69.44599230211159
+          "wall_seconds": 36.074467426980846,
+          "distance_to_goal": 68.88911269781417
         }
       ],
       "consecutive": 5,
       "clip_bounds": [
         0.0,
-        17.003965705051087
+        36.074467426980846
       ],
-      "source": "59a72b6f2538c991e1bd36cdaa1f1d1ceccf7d4b"
+      "source": "61b7240da7306934204e2591497b43ebc2380ff8"
     },
     "3d": {
       "mode": "3d",
-      "playback": 4,
+      "playback": 2,
       "capture_fps": 60,
       "events": [
         {
           "episode": 1,
           "success": true,
-          "wall_seconds": 3.7057096399366856,
+          "wall_seconds": 7.408956023049541,
           "distance_to_goal": 69.69451593568498
         },
         {
           "episode": 2,
           "success": true,
-          "wall_seconds": 7.485902730957605,
-          "distance_to_goal": 68.37229614521523
+          "wall_seconds": 16.719039472052827,
+          "distance_to_goal": 68.83853763437358
         },
         {
           "episode": 3,
           "success": true,
-          "wall_seconds": 10.812142852926627,
-          "distance_to_goal": 69.4938513249265
+          "wall_seconds": 24.491238613030873,
+          "distance_to_goal": 69.46977239488646
         },
         {
           "episode": 4,
           "success": true,
-          "wall_seconds": 13.301770695019513,
-          "distance_to_goal": 69.73688527535165
+          "wall_seconds": 32.30245453794487,
+          "distance_to_goal": 69.89120340548625
         },
         {
           "episode": 5,
           "success": true,
-          "wall_seconds": 16.907479597022757,
-          "distance_to_goal": 67.80759219425705
+          "wall_seconds": 38.37480359303299,
+          "distance_to_goal": 68.59850534643893
         }
       ],
       "consecutive": 5,
       "clip_bounds": [
         0.0,
-        16.907479597022757
+        38.37480359303299
       ],
-      "source": "59a72b6f2538c991e1bd36cdaa1f1d1ceccf7d4b"
+      "source": "61b7240da7306934204e2591497b43ebc2380ff8"
     },
     "line": {
       "mode": "line",
-      "playback": 4,
+      "playback": 2,
       "capture_fps": 60,
       "events": [
         {
           "episode": 1,
           "success": true,
-          "wall_seconds": 6.730106033035554,
+          "wall_seconds": 13.456768022035249,
           "distance_to_goal": 69.05231759797016
         },
         {
           "episode": 2,
-          "success": false,
-          "wall_seconds": 11.16358609101735,
-          "distance_to_goal": 962.8564143792826
+          "success": true,
+          "wall_seconds": 30.335329356021248,
+          "distance_to_goal": 68.43577702336958
         },
         {
           "episode": 3,
           "success": true,
-          "wall_seconds": 18.04074570594821,
-          "distance_to_goal": 69.73487218847553
-        },
-        {
-          "episode": 4,
-          "success": true,
-          "wall_seconds": 31.921621576999314,
-          "distance_to_goal": 68.58624187799641
-        },
-        {
-          "episode": 5,
-          "success": true,
-          "wall_seconds": 37.441585008986294,
-          "distance_to_goal": 69.51985110716616
+          "wall_seconds": 42.258074129000306,
+          "distance_to_goal": 68.98074964812511
         }
       ],
       "consecutive": 3,
       "clip_bounds": [
-        11.16358609101735,
-        37.441585008986294
+        0.0,
+        42.258074129000306
       ],
-      "source": "59a72b6f2538c991e1bd36cdaa1f1d1ceccf7d4b"
+      "source": "61b7240da7306934204e2591497b43ebc2380ff8"
     }
   },
   "readme_structure_references": [
@@ -164,25 +152,41 @@
   ],
   "assets": [
     {
-      "file": "line_trace_3runs.gif",
-      "frames": 795,
-      "duration_s": 26.5,
-      "bytes": 95985462,
-      "sha256": "11347ae7230d092f24854a0934bab2fb5bc834dc2ed51ca998fba10c881d1cec"
+      "file": "main_2d_2x.gif",
+      "resolution": [
+        1200,
+        600
+      ],
+      "frames": 1088,
+      "duration_s": 36.26,
+      "palette_colors": 64,
+      "bytes": 103998092,
+      "sha256": "f65b9830fe5139842ad22a35462898dbe0938ae22ca380e7d471bb94180551fd"
     },
     {
-      "file": "main_2d_5runs.gif",
-      "frames": 516,
-      "duration_s": 17.2,
-      "bytes": 67930733,
-      "sha256": "7e502c1475da8a2c5596be40cbecf89c5c104a0e3a4e448f608659bc3f67b0f8"
+      "file": "main_3d_2x.gif",
+      "resolution": [
+        1200,
+        600
+      ],
+      "frames": 1157,
+      "duration_s": 38.56,
+      "palette_colors": 64,
+      "bytes": 93044428,
+      "sha256": "2897eb794f08e3062fc3569a83275c5b7bf05bbb631c01a6fb5e4558e240c3a8"
     },
     {
-      "file": "main_3d_5runs.gif",
-      "frames": 514,
-      "duration_s": 17.13,
-      "bytes": 52801846,
-      "sha256": "f2e741e86ab6585a606ad5b8632540ee9ec0cc2d1bbd50537a924efc4a8be35a"
+      "file": "line_trace_2x.gif",
+      "resolution": [
+        1200,
+        600
+      ],
+      "frames": 1274,
+      "duration_s": 42.46,
+      "palette_colors": 40,
+      "bytes": 96891699,
+      "sha256": "652855ba20d224092227d22eb514f81514ad40194e9fb758eb26d82133b29e5e"
     }
-  ]
+  ],
+  "previous_4x_capture_metadata": "capture_metadata_4x.json"
 }
