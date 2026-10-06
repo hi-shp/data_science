@@ -4,7 +4,7 @@ Gap Navigation · Bezier · 2D/3D Simulation
 
 조선해양공학을 공부하면서 자율운항 제어를 직접 이해해 보고 싶어 만든 프로젝트입니다. 처음에는 가까운 장애물을 피하는 단순한 방식으로 시작했고, 문제가 보일 때마다 LiDAR 처리, 통과 공간 선택, 경로 생성과 추종 방식을 하나씩 추가했습니다.
 
-<img src="images/readme/main_2d_2x.gif" width="100%" alt="현재 2D 자율주행" />
+<img src="images/readme/main_2d_2x.webp" width="100%" alt="현재 2D 자율주행" />
 
 2D 시뮬레이션 · 2x
 
