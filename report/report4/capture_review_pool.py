@@ -3,15 +3,15 @@ import sys
 import math
 import pygame
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from environment import BoatEnv
 import main
 
-OUT_DIR_2D = '/home/soonhong/kaboat/report4/review_pool/2d_cockpit'
-OUT_DIR_3D = '/home/soonhong/kaboat/report4/review_pool/3d_wide_cropped'
+OUT_DIR_2D = '/home/soonhong/kaboat/report/report4/review_pool/2d_cockpit'
+OUT_DIR_3D = '/home/soonhong/kaboat/report/report4/review_pool/3d_wide_cropped'
 os.makedirs(OUT_DIR_2D, exist_ok=True)
 os.makedirs(OUT_DIR_3D, exist_ok=True)
 
