@@ -182,7 +182,7 @@ class V2Tests(unittest.TestCase):
         import ast, subprocess
         from pathlib import Path
         current = ast.parse(Path('ui_renderer.py').read_text())
-        original = ast.parse(subprocess.check_output(['git','show','main:ui_renderer.py'],text=True))
+        original = ast.parse(subprocess.check_output(['git','show','main_light:ui_renderer.py'],text=True))
         renderer = lambda tree: next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='EnvRenderer')
         class MainStyle(ast.NodeTransformer):
             def visit_IfExp(self,node):
