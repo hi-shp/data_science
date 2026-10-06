@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import argparse
 from pathlib import Path
 
-from evaluate_main_heavy import run
+from experiments.success_rate.evaluate_main_heavy import run
 
 
 GATES = (
