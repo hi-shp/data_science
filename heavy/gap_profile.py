@@ -6,7 +6,7 @@ import numpy as np
 
 def load_presentation_profile(pixels_per_m):
     """One initialization read, scale measured lengths to current GUI units."""
-    source=json.loads(Path(__file__).with_name('heavy_gap_presentation_profile.json').read_text())
+    source=json.loads(Path(__file__).with_name('gap_presentation_profile.json').read_text())
     return {name:{q:value*pixels_per_m for q,value in quantiles.items()}
             for name,quantiles in source['quantiles'].items()}
 

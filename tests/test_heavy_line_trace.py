@@ -105,8 +105,8 @@ class LineCompatibilityTests(unittest.TestCase):
     def test_reentry_plans_at_current_state_off_cadence(self):
         env=self.env
         import importlib.util
-        if importlib.util.find_spec('heavy_motion_v2') is not None:
-            from heavy_motion_v2 import HeavyMotionV2
+        if importlib.util.find_spec('heavy.motion_v2') is not None:
+            from heavy.motion_v2 import HeavyMotionV2
             visuals=HeavyMotionV2(env)
             advance=visuals.advance
         else:

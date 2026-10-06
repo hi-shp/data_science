@@ -1,10 +1,10 @@
 """Display persistence releases using MAIN waypoint completion semantics."""
 import unittest
 import numpy as np
-from heavy_gap_state import GapAnnotationState,crossed_portal,waypoint_completion_reason
-from heavy_gap_annotation import (clipped_display_route,select_second_gap,second_gap_band,
+from heavy.gap_state import GapAnnotationState,crossed_portal,waypoint_completion_reason
+from heavy.gap_annotation import (clipped_display_route,select_second_gap,second_gap_band,
                                   crossing_in_front,forward_crossings)
-from heavy_motion_core.passage_geometry import physical_hull_polygons
+from heavy.motion_core.passage_geometry import physical_hull_polygons
 from tests.test_heavy_gap_gui_semantics import gate
 
 
@@ -37,8 +37,8 @@ class PersistentGapTests(unittest.TestCase):
         self.update([a,b])
         narrower_first=gate(215.,(0,4));narrower_second=gate(465.,(2,5))
         from unittest.mock import patch
-        with patch('heavy_gap_state.select_route_gaps',side_effect=AssertionError('reranked first')), \
-             patch('heavy_gap_state.select_second_gap',side_effect=AssertionError('reranked second')):
+        with patch('heavy.gap_state.select_route_gaps',side_effect=AssertionError('reranked first')), \
+             patch('heavy.gap_state.select_second_gap',side_effect=AssertionError('reranked second')):
             first,second=self.update([a,narrower_first,b,narrower_second],frame=4)
         self.assertIs(first,a);self.assertIs(second,b)
         self.assertEqual(self.state.first_gap_switch_count,0)
@@ -209,7 +209,7 @@ class PersistentGapTests(unittest.TestCase):
         self.assertIsNone(select_second_gap([first,duplicate],first,self.path,np.zeros(2),self.hull,0.,.37,10.))
 
     def test_second_prefers_back_of_bounded_band_not_farthest_visible_gate(self):
-        from heavy_gap_profile import load_presentation_profile
+        from heavy.gap_profile import load_presentation_profile
         profile=load_presentation_profile(50.)
         first=gate(200.)
         near=gate(290.,(2,3));preferred=gate(340.,(4,5));far=gate(550.,(6,7))
@@ -291,7 +291,7 @@ class PersistentGapTests(unittest.TestCase):
         self.assertIs(first,front)
 
     def test_second_holds_when_new_first_group_member_extends_acquisition_region(self):
-        from heavy_gap_annotation import local_passage_groups
+        from heavy.gap_annotation import local_passage_groups
         a,b=gate(200.),gate(320.,(2,3))
         self.update([a,b])
         alias=gate(260.,(0,5))
@@ -321,7 +321,7 @@ class PersistentGapTests(unittest.TestCase):
         first,_=self.update([b],frame=5,generation=4)
         self.assertIsNone(first)
         self.assertEqual(self.state.pending['first']['count'],1)
-        with patch('heavy_gap_state.select_route_gaps',side_effect=AssertionError('reranked valid pending pair')):
+        with patch('heavy.gap_state.select_route_gaps',side_effect=AssertionError('reranked valid pending pair')):
             first,_=self.update([b,c],frame=7,generation=7)
         self.assertIs(first,b)
 

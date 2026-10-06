@@ -2,7 +2,7 @@
 import math
 import numpy as np
 from utils import wrap
-from heavy_gap_annotation import (gap_identity,nearly_same_gate,
+from heavy.gap_annotation import (gap_identity,nearly_same_gate,
                                   select_route_gaps,select_second_gap,
                                   second_gap_band,second_gap_separated,
                                   crossing_in_front,forward_crossings,segments_intersect,

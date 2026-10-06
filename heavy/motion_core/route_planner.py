@@ -6,8 +6,8 @@ All buoy geometry comes from perception, never the simulation obstacle list.
 import heapq
 import math
 import numpy as np
-from heavy_motion_core.control_path import smooth_path, lookahead, path_geometry
-from heavy_motion_core.fast_astar import compiled_astar
+from heavy.motion_core.control_path import smooth_path, lookahead, path_geometry
+from heavy.motion_core.fast_astar import compiled_astar
 
 
 def route_target(env):

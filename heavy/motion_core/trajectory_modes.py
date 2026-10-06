@@ -1,7 +1,7 @@
 """Named, opt-in trajectory-controller comparisons for the GUI."""
 from dataclasses import replace
 
-from heavy_motion_core.experiments.sampling_navigation import SamplingConfig
+from heavy.motion_core.experiments.sampling_navigation import SamplingConfig
 
 
 MODE_FLAGS = {

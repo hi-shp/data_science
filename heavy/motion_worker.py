@@ -12,7 +12,7 @@ from collections import deque
 from types import SimpleNamespace
 
 import numpy as np
-from heavy_motion_core.trajectory_runtime import advance_trajectory
+from heavy.motion_core.trajectory_runtime import advance_trajectory
 from vessel_dynamics import integrate
 
 
@@ -61,7 +61,7 @@ class _Model(SimpleNamespace):
 
 def _run(values, requests, results, stop):
     epoch, model = 0, _Model(values)
-    from heavy_motion_v2 import warmup
+    from heavy.motion_v2 import warmup
     warmup(model)
     try:
         while not stop.is_set():

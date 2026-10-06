@@ -10,13 +10,13 @@ from dataclasses import dataclass
 import time
 import numpy as np
 from vessel_dynamics import allocate, integrate
-from heavy_motion_core.route_planner import a_star
-from heavy_motion_core.control_path import lookahead, path_geometry
-from heavy_motion_core.goal_guidance import approach_heading, terminal_cost
-from heavy_motion_core.experiments.fast_rollout import compiled_rollout, parameter_vector
-from heavy_motion_core.trajectory_objective import arrival_terms, select_eta, entry_heading_quality, GOAL_RADIUS_M
-from heavy_motion_core.passage_guidance import observed_passages, observed_wall_passages, passage_sequences
-from heavy_motion_core.passage_geometry import (physical_hull_polygons, surface_clearances,
+from heavy.motion_core.route_planner import a_star
+from heavy.motion_core.control_path import lookahead, path_geometry
+from heavy.motion_core.goal_guidance import approach_heading, terminal_cost
+from heavy.motion_core.experiments.fast_rollout import compiled_rollout, parameter_vector
+from heavy.motion_core.trajectory_objective import arrival_terms, select_eta, entry_heading_quality, GOAL_RADIUS_M
+from heavy.motion_core.passage_guidance import observed_passages, observed_wall_passages, passage_sequences
+from heavy.motion_core.passage_geometry import (physical_hull_polygons, surface_clearances,
                               prepare_hull_edges, fast_surface_clearances)
 
 
@@ -495,7 +495,7 @@ class SamplingNavigator:
                         best = same_best
             self.last_eta_s = float(terms['eta_s'][best])
             if cfg.forward_policy and not terms['captured'][best]:
-                from heavy_motion_core.forward_policy import choose_forward
+                from heavy.motion_core.forward_policy import choose_forward
                 best, sequences, states, closest, families, policy = choose_forward(
                     self, state, observation, goal, path, geometry[2], passage,
                     sequences, states, closest, families, terms['quality'], best,

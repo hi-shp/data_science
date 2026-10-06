@@ -84,7 +84,7 @@ def forward_probes(state, passage, physics, horizon, previous, yaw_step):
 def forward_progress(states, sequences, initial, goal, passage, path, arc,
                      knot_dt, start_s, route_projector=None):
     """Filter actual forward motion, not a positive command alone."""
-    from heavy_motion_core.experiments.sampling_navigation import route_coordinates
+    from heavy.motion_core.experiments.sampling_navigation import route_coordinates
     if route_projector is None:
         route_projector = route_coordinates
     displacement = states[:, -1, :2]-initial[:2]
@@ -143,7 +143,7 @@ def continuation_safe(navigator, terminal, last_commands, observation,
             variants[:, t, 1] = np.clip(variants[:, t, 1],
                                         previous-step, previous+step)
             previous = variants[:, t, 1]
-    from heavy_motion_core.experiments.fast_rollout import compiled_rollout
+    from heavy.motion_core.experiments.fast_rollout import compiled_rollout
     initial_states = np.repeat(terminal, 3, axis=0)
     if compiled_rollout is not None:
         future, clearance = compiled_rollout(
@@ -215,7 +215,7 @@ def choose_forward(navigator, initial, observation, goal, path, arc, passage,
     """
     cfg = navigator.cfg
     knot_dt = 3*navigator.dt
-    from heavy_motion_core.experiments.sampling_navigation import route_coordinates
+    from heavy.motion_core.experiments.sampling_navigation import route_coordinates
     selected_end=states[selected,-1]
     motion=selected_end[:2]-initial[:2]
     selected_valid=bool(

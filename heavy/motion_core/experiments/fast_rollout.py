@@ -6,7 +6,7 @@ sample; it only removes thousands of Python/NumPy dispatches per plan.
 """
 import math
 import numpy as np
-from heavy_motion_core.passage_geometry import surface_clearance_at_pose, fast_surface_clearance_at_pose
+from heavy.motion_core.passage_geometry import surface_clearance_at_pose, fast_surface_clearance_at_pose
 
 try:
     from numba import njit

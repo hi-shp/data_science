@@ -1,7 +1,7 @@
 """Tangent-continuous corner fillets and continuous arc-length lookahead."""
 import math
 import numpy as np
-from heavy_motion_core.fast_corridor import compiled_within_corridor
+from heavy.motion_core.fast_corridor import compiled_within_corridor
 
 
 def samples_on_line(a,b,spacing=.04):

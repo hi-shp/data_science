@@ -5,12 +5,12 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from heavy_motion_v2 import HeavyMotionV2
-from heavy_motion_core.controller_config import ControllerParameters
-from heavy_motion_core.passage_geometry import physical_hull_polygons
-from heavy_motion_core.passage_guidance import Passage
-from heavy_motion_core.trajectory_modes import config_for_mode
-from heavy_motion_core.perception import lidar_hits_np
+from heavy.motion_v2 import HeavyMotionV2
+from heavy.motion_core.controller_config import ControllerParameters
+from heavy.motion_core.passage_geometry import physical_hull_polygons
+from heavy.motion_core.passage_guidance import Passage
+from heavy.motion_core.trajectory_modes import config_for_mode
+from heavy.motion_core.perception import lidar_hits_np
 from vessel_dynamics import VesselParameters
 
 
@@ -164,7 +164,7 @@ class V2Tests(unittest.TestCase):
     def test_numerical_worker_matches_authoritative_environment_step(self):
         from unittest.mock import patch
         from environment import BoatEnv
-        from heavy_motion_worker import _Model, snapshot
+        from heavy.motion_worker import _Model, snapshot
         class NullRenderer:
             def __init__(self,env):
                 self.engine_3d=None
@@ -220,7 +220,7 @@ class V2Tests(unittest.TestCase):
         visuals.gui_clusters=list(obs[:,:2]*50.);visuals.gui_ids=[0,1]
         # Its crossing is forward, but this pair does not exist in MAIN's
         # candidate pool (one endpoint is behind the bow).
-        from heavy_gap_annotation import route_crossings
+        from heavy.gap_annotation import route_crossings
         event=route_crossings(env.control_path*50.,np.zeros(4),
             [dict(c1=obs[0,:2]*50.,c2=obs[1,:2]*50.,pair=(0,1))],
             obs*50.,physical_hull_polygons()*50.,10.,(600.,600.))
@@ -275,7 +275,7 @@ class V2Tests(unittest.TestCase):
         env.boat_heading=0.
         env.current_wp=dict(pos=np.array([50.,240.]))
         visuals.last_generation=env.prediction_frame
-        with patch('heavy_motion_v2.advance_trajectory',return_value=(np.array([np.nan]),np.array([np.nan]))), \
+        with patch('heavy.motion_v2.advance_trajectory',return_value=(np.array([np.nan]),np.array([np.nan]))), \
              patch.object(visuals,'update_gui_scan'),patch.object(visuals,'_annotate') as annotate:
             visuals.advance(env)
         annotate.assert_called_once_with(env)
@@ -288,7 +288,7 @@ class V2Tests(unittest.TestCase):
         env.current_wp=dict(pos=np.array([139.,240.]))
         visuals.last_generation=env.prediction_frame
         before=env.control_path.copy()
-        with patch('heavy_motion_v2.advance_trajectory',return_value=(np.array([np.nan]),np.array([np.nan]))), \
+        with patch('heavy.motion_v2.advance_trajectory',return_value=(np.array([np.nan]),np.array([np.nan]))), \
              patch.object(visuals,'update_gui_scan'),patch.object(visuals,'_annotate') as annotate:
             visuals.advance(env)
         annotate.assert_called_once_with(env)
@@ -342,7 +342,7 @@ class V2Tests(unittest.TestCase):
         self.assertIs(captured[0][1],visuals.gui_grid)
 
     def test_accelerated_gui_clusters_are_exact_main_results(self):
-        from heavy_gap_display import MainDisplayClusters
+        from heavy.gap_display import MainDisplayClusters
         from perception import extract_clusters_from_grid
         rng = np.random.default_rng(409)
         cache = MainDisplayClusters()
@@ -403,9 +403,9 @@ class PinnedMotionSourceTests(unittest.TestCase):
         import ast
         import subprocess
         from pathlib import Path
-        from heavy_motion_core import SOURCE_COMMIT
+        from heavy.motion_core import SOURCE_COMMIT
         root = Path(__file__).resolve().parents[1]
-        modules = [path for path in (root/'heavy_motion_core').rglob('*.py')
+        modules = [path for path in (root/'heavy/motion_core').rglob('*.py')
                    if path.name not in ('__init__.py', 'controller_config.py')]
         class Normalize(ast.NodeTransformer):
             def visit_Call(self, node):
@@ -413,8 +413,8 @@ class PinnedMotionSourceTests(unittest.TestCase):
                     node.keywords = [kw for kw in node.keywords if kw.arg != 'nogil']
                 return self.generic_visit(node)
             def visit_ImportFrom(self, node):
-                if node.module and node.module.startswith('heavy_motion_core.'):
-                    node.module = node.module[len('heavy_motion_core.'):]
+                if node.module and node.module.startswith('heavy.motion_core.'):
+                    node.module = node.module[len('heavy.motion_core.'):]
                 return node
             def visit_If(self, node):
                 # The only control-path extension is a fresh plan on explicit
@@ -428,7 +428,7 @@ class PinnedMotionSourceTests(unittest.TestCase):
                     return None
                 return self.generic_visit(node)
         for path in modules:
-            source_path = str(path.relative_to(root/'heavy_motion_core'))
+            source_path = str(path.relative_to(root/'heavy/motion_core'))
             original = subprocess.check_output(
                 ['git', 'show', f'{SOURCE_COMMIT}:{source_path}'], cwd=root, text=True)
             self.assertEqual(ast.dump(Normalize().visit(ast.parse(path.read_text()))),

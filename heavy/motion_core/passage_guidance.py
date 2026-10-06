@@ -5,7 +5,7 @@ rollout makes the final safety decision.
 """
 from dataclasses import dataclass
 import numpy as np
-from heavy_motion_core.passage_geometry import projected_width
+from heavy.motion_core.passage_geometry import projected_width
 
 # Existing twin capsules: centerlines at lateral ±0.22 m, axial endpoints
 # -0.56/+0.52 m and radius 0.32 m. Their projected full width is the capsule

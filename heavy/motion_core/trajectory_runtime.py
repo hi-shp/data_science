@@ -1,10 +1,10 @@
 """The same perception-limited trajectory controller for GUI and experiments."""
 import numpy as np
 
-from heavy_motion_core.navigation_map import NavigationMap
-from heavy_motion_core.perception import lidar_hits_np, update_grid
-from heavy_motion_core.experiments.sampling_navigation import SamplingConfig, SamplingNavigator
-from heavy_motion_core.trajectory_modes import config_for_mode
+from heavy.motion_core.navigation_map import NavigationMap
+from heavy.motion_core.perception import lidar_hits_np, update_grid
+from heavy.motion_core.experiments.sampling_navigation import SamplingConfig, SamplingNavigator
+from heavy.motion_core.trajectory_modes import config_for_mode
 
 
 DEFAULT_TRAJECTORY_CONFIG = SamplingConfig(

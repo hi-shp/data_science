@@ -2,7 +2,7 @@
 import math
 import numpy as np
 from config import GRID
-from heavy_motion_core.passage_geometry import (
+from heavy.motion_core.passage_geometry import (
     prepare_hull_edges, fast_surface_clearances)
 
 

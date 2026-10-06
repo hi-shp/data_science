@@ -6,7 +6,7 @@ about 2.12 s to decay from 20 below its clustering threshold). Free evidence
 expires after 5 s; everything else is explicitly unknown, not observed free.
 """
 import numpy as np
-from heavy_motion_core.fast_clearance import compiled_clearance
+from heavy.motion_core.fast_clearance import compiled_clearance
 
 
 class NavigationMap:

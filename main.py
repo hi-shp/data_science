@@ -39,7 +39,7 @@ def run():
     v2_mode = phase5_mode and os.environ.get('MAIN_HEAVY_MOTION_VERSION', 'V2') != 'V1'
     motion_v2 = None
     if v2_mode:
-        from heavy_motion_v2 import HeavyMotionV2, warmup
+        from heavy.motion_v2 import HeavyMotionV2, warmup
         motion_v2 = HeavyMotionV2(env)
         warmup(env)
         motion_v2.start(env)
@@ -161,7 +161,7 @@ def run():
             if main_line.active(env):
                 raycast = main_line.lidar_hits_np
             elif v2_mode:
-                from heavy_motion_core.perception import lidar_hits_np as raycast
+                from heavy.motion_core.perception import lidar_hits_np as raycast
             dists, hits_x, hits_y = raycast(
                 env.boat_pos, env.boat_heading,
                 env.rel_angles, env.dynamic_obstacles,
@@ -800,7 +800,7 @@ def run():
             if main_line.active(env):
                 raycast = main_line.lidar_hits_np
             elif v2_mode:
-                from heavy_motion_core.perception import lidar_hits_np as raycast
+                from heavy.motion_core.perception import lidar_hits_np as raycast
             dists, hits_x, hits_y = raycast(
                 env.boat_pos, env.boat_heading, env.rel_angles,
                 env.dynamic_obstacles, env.lidar_range, map_bounds=map_bounds

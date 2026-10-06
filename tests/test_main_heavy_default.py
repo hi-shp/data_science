@@ -17,8 +17,8 @@ class DefaultModeTests(unittest.TestCase):
         with patch.dict(os.environ, overrides, clear=True), \
              patch.object(main, 'BoatEnv', return_value=env), \
              patch.object(main, 'start_capture_worker'), \
-             patch('heavy_motion_v2.HeavyMotionV2') as core, \
-             patch('heavy_motion_v2.warmup') as warmup, \
+             patch('heavy.motion_v2.HeavyMotionV2') as core, \
+             patch('heavy.motion_v2.warmup') as warmup, \
              patch.object(main, 'MomentumGapRouter') as legacy, \
              patch.object(pygame.event, 'get', return_value=[SimpleNamespace(type=pygame.QUIT)]), \
              patch.object(pygame, 'quit'):

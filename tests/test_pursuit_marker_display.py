@@ -120,7 +120,7 @@ class PursuitMarkerTests(unittest.TestCase):
         visuals._annotate(env)
         route=env.control_path.copy();raw=env.pursuit_target.copy()
         commands=env.command_speed,env.command_yaw_rate
-        with patch('heavy_motion_v2.time.perf_counter',side_effect=np.arange(31)*.02):
+        with patch('heavy.motion_v2.time.perf_counter',side_effect=np.arange(31)*.02):
             for _ in range(31):visuals.render(env,(None,None))
         self.assertTrue(visuals.annotation_state.first_latched)
         np.testing.assert_array_equal(env.visual_pursuit_target,first['pos'])
@@ -149,7 +149,7 @@ class PursuitMarkerTests(unittest.TestCase):
                                  env.pursuit_target.copy())
         bezier = env.bezier_path.copy()
         commands = env.command_speed, env.command_yaw_rate
-        with patch('heavy_motion_v2.time.perf_counter', side_effect=[0., .01, .02]):
+        with patch('heavy.motion_v2.time.perf_counter', side_effect=[0., .01, .02]):
             for _ in range(3):
                 visuals.render(env, (None, None))
         self.assertIsNotNone(env.visual_pursuit_target)

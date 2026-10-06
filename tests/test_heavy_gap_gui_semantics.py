@@ -2,9 +2,9 @@
 import unittest
 from types import SimpleNamespace
 import numpy as np
-from heavy_gap_annotation import (select_route_gaps,clipped_display_route,segments_conflict)
-from heavy_gap_diagnostics import compute_legacy_gap_metrics
-from heavy_motion_core.passage_geometry import physical_hull_polygons
+from heavy.gap_annotation import (select_route_gaps,clipped_display_route,segments_conflict)
+from heavy.gap_diagnostics import compute_legacy_gap_metrics
+from heavy.motion_core.passage_geometry import physical_hull_polygons
 from tests.test_heavy_motion_v2 import env_stub
 
 

@@ -11,20 +11,20 @@ from pathlib import Path
 
 import numpy as np
 
-from heavy_motion_core.controller_config import ControllerParameters
-from heavy_motion_core.trajectory_runtime import advance_trajectory
-from heavy_motion_core.control_path import path_geometry
-from heavy_motion_core.trajectory_display import future_trajectory
-from heavy_motion_core.passage_geometry import physical_hull_polygons
-from heavy_gap_annotation import (route_bezier, route_crossings,
+from heavy.motion_core.controller_config import ControllerParameters
+from heavy.motion_core.trajectory_runtime import advance_trajectory
+from heavy.motion_core.control_path import path_geometry
+from heavy.motion_core.trajectory_display import future_trajectory
+from heavy.motion_core.passage_geometry import physical_hull_polygons
+from heavy.gap_annotation import (route_bezier, route_crossings,
                                   select_route_gaps, clipped_display_route,
                                   gap_identity,crossing_in_front,forward_crossings)
-from heavy_gap_diagnostics import compute_legacy_gap_metrics
-from heavy_gap_profile import load_presentation_profile
-from heavy_gap_state import GapAnnotationState
+from heavy.gap_diagnostics import compute_legacy_gap_metrics
+from heavy.gap_profile import load_presentation_profile
+from heavy.gap_state import GapAnnotationState
 from utils import pure_pursuit
 from perception import update_grid, match_clusters
-from heavy_gap_display import MainDisplayClusters
+from heavy.gap_display import MainDisplayClusters
 from pursuit_marker_display import PursuitDisplayMarker
 
 
@@ -34,7 +34,7 @@ class HeavyMotionV2:
     def __init__(self, env):
         env.motion_core_v2 = True
         env.navigation_mode = 'eta_continuity_forward'
-        data = json.loads(Path(__file__).with_name('vessel_config.json').read_text())
+        data = json.loads((Path(__file__).resolve().parents[1] / 'vessel_config.json').read_text())
         env.control = ControllerParameters(**data['controller'])
         env.phase5_visuals = self
         env.show_all_gaps = True
@@ -51,7 +51,7 @@ class HeavyMotionV2:
 
     def start(self, env):
         if os.environ.get('MAIN_HEAVY_SYNC_MOTION','') != '1':
-            from heavy_motion_worker import MotionCommandWorker
+            from heavy.motion_worker import MotionCommandWorker
             self.worker = MotionCommandWorker(env)
             self.worker.prime()
 
@@ -294,13 +294,13 @@ class HeavyMotionV2:
 
 def warmup(env):
     """Match CODEX kernel warmup before the wall-clock scheduler starts."""
-    from heavy_motion_core.fast_astar import warmup_astar
-    from heavy_motion_core.fast_clearance import warmup_clearance
-    from heavy_motion_core.fast_corridor import compiled_within_corridor
-    from heavy_motion_core.experiments.fast_rollout import compiled_rollout, parameter_vector
-    from heavy_motion_core.passage_geometry import (
+    from heavy.motion_core.fast_astar import warmup_astar
+    from heavy.motion_core.fast_clearance import warmup_clearance
+    from heavy.motion_core.fast_corridor import compiled_within_corridor
+    from heavy.motion_core.experiments.fast_rollout import compiled_rollout, parameter_vector
+    from heavy.motion_core.passage_geometry import (
         physical_hull_polygons, prepare_hull_edges, fast_surface_clearances)
-    from heavy_gap_display import warmup as warmup_display
+    from heavy.gap_display import warmup as warmup_display
     warmup_display()
     warmup_astar()
     warmup_clearance()
