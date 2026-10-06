@@ -17,8 +17,8 @@ from matplotlib.patches import FancyBboxPatch
 plt.rcParams['font.family'] = 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False
 
-OUTPUT_DIR = '/home/soonhong/kaboat/report4'
-REPORT2_DIR = '/home/soonhong/kaboat/report2'
+OUTPUT_DIR = '/home/soonhong/kaboat/report/report4'
+REPORT2_DIR = '/home/soonhong/kaboat/report/report2'
 OUT_PNG = os.path.join(OUTPUT_DIR, 'sheet6_performance_validation.png')
 
 # Color Palette Constants

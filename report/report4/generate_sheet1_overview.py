@@ -8,12 +8,12 @@ from matplotlib.patches import FancyBboxPatch, Rectangle
 plt.rcParams['font.family'] = 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False
 
-OUTPUT_DIR = '/home/soonhong/kaboat/report4'
+OUTPUT_DIR = '/home/soonhong/kaboat/report/report4'
 OUT_PNG = os.path.join(OUTPUT_DIR, 'sheet1_project_overview.png')
 
-IMG_2D = '/home/soonhong/kaboat/report4/review_pool/2d_cockpit/2D_pos9_frame578_x837.png'
-IMG_3D_CHASE = '/home/soonhong/kaboat/report4/review_pool/3d_wide_cropped/3D_Chase_pos6_frame318_x491.png'
-IMG_3D_DRONE = '/home/soonhong/kaboat/report4/review_pool/3d_wide_cropped/3D_Drone_pos6_frame318_x491.png'
+IMG_2D = '/home/soonhong/kaboat/report/report4/review_pool/2d_cockpit/2D_pos9_frame578_x837.png'
+IMG_3D_CHASE = '/home/soonhong/kaboat/report/report4/review_pool/3d_wide_cropped/3D_Chase_pos6_frame318_x491.png'
+IMG_3D_DRONE = '/home/soonhong/kaboat/report/report4/review_pool/3d_wide_cropped/3D_Drone_pos6_frame318_x491.png'
 
 # Color Palette
 COLOR_BG = '#F8FAFC'

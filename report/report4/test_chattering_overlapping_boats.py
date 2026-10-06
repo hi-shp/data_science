@@ -8,7 +8,7 @@ from matplotlib.patches import FancyBboxPatch, Circle, Polygon, Rectangle
 plt.rcParams['font.family'] = 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False
 
-OUTPUT_FILE = '/home/soonhong/kaboat/report4/sheet1_subfigures/subfig4_violent_chattering_overlapping_boats.png'
+OUTPUT_FILE = '/home/soonhong/kaboat/report/report4/sheet1_subfigures/subfig4_violent_chattering_overlapping_boats.png'
 
 COLOR_BG = '#FFFFFF'
 COLOR_PANEL = '#F8FAFC'

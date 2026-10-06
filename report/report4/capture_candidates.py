@@ -2,14 +2,14 @@ import os
 import sys
 import pygame
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from environment import BoatEnv
 import main
 
-OUT_DIR = '/home/soonhong/kaboat/report4/candidate_screenshots'
+OUT_DIR = '/home/soonhong/kaboat/report/report4/candidate_screenshots'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 orig_render = BoatEnv.render

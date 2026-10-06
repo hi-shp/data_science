@@ -11,7 +11,7 @@ from scipy.interpolate import splprep, splev
 plt.rcParams['font.family'] = 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False
 
-OUTPUT_DIR = '/home/soonhong/kaboat/report4'
+OUTPUT_DIR = '/home/soonhong/kaboat/report/report4'
 SUBFIG_DIR = os.path.join(OUTPUT_DIR, 'sheet1_subfigures')
 os.makedirs(SUBFIG_DIR, exist_ok=True)
 
