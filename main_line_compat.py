@@ -52,8 +52,8 @@ def restore_native_parameters(env):
     env.line_physics_profile = None
 
 
-def configure_episode(env):
-    if not active(env):
+def activate_profile(env):
+    if not active(env) or getattr(env, "line_physics_profile", None) is not None:
         return
     env._main_line_native_params = env.params.copy()
     env.params = dict(env.params, **MAIN_LINE_PARAMETERS)
@@ -62,12 +62,109 @@ def configure_episode(env):
         name: getattr(env, name, None) for name in ('mass', 'inertia', 'drag', 'rot_drag', 'dt')}
     for name in ('mass', 'inertia', 'drag', 'rot_drag', 'dt'):
         setattr(env, name, getattr(MAIN_LINE_PHYSICS, name))
+
+
+def configure_episode(env):
+    if not active(env):
+        return
+    activate_profile(env)
     # MAIN stores position in float32 and world velocity in float64.
     env.boat_pos = np.asarray(env.boat_pos, dtype=np.float32)
     env.current_fwd = 0.0
+    env._main_line_applied_moment = 0.0
     env.min_wide_dist = 999.0
     env.prev_steer = 0.0
     env.thrust_left = env.thrust_right = 0.0
+
+
+def invalidate_controller(env):
+    """Discard mode-local references, never physical/map/episode state."""
+    for name in ('navigation_map', 'trajectory_navigator', 'path_geometry',
+                 'route_plan_frame', 'path_progress', '_rollout_params',
+                 'visual_marker_state', 'motion_prediction_states'):
+        if hasattr(env, name):
+            delattr(env, name)
+    for name in ('raw_route', 'control_path', 'predicted_trajectory',
+                 'visual_trajectory', 'controller_target', 'visual_controller_target',
+                 'current_wp', 'next_wp', 'selected_gap', 'bezier_path',
+                 'next_bezier_path', 'pursuit_target', 'next_pursuit_target',
+                 'visual_pursuit_target', 'closest_obstacle_hit', 'closest_avoid_hit'):
+        setattr(env, name, None)
+    env.all_gaps = []
+    env.candidate_wps = []
+    env.total_gaps_count = 0
+    env.prev_steer = 0.0
+    env.emergency_mode = False
+    env.emergency_cooldown = 0
+    env.stalled_s = env.recovery_until = 0.0
+    env.prediction_frame = -1
+    env.heading_target = env.boat_heading
+    env.command_speed = env.dynamics.cruise_speed_m_s
+    env.command_yaw_rate = 0.0
+    env._line_resume_plan = not active(env)
+
+
+def switch_mode(env, enabled):
+    """Hot-swap profiles using propulsion-acceleration-equivalent outputs.
+
+    MAIN's pixel force is NOT Newtons. Transfer common force through mass and
+    pixels/m; transfer yaw moment through both inertias and MAIN's per-step
+    .84 yaw multiplier. Native thrust limits bound the return conversion.
+    Neither fluid drag nor current velocity is folded into actuator output.
+    """
+    enabled = bool(enabled)
+    if enabled == bool(getattr(env, 'linetrace_mode', False)):
+        return False
+    was_active = active(env)
+    env.linetrace_mode = enabled
+    env.linetrace_queued = False
+    now_active = active(env)
+    native = env.dynamics
+    if now_active and not was_active:
+        left, right = env.thrust_left, env.thrust_right
+        activate_profile(env)
+        env.current_fwd = ((left + right) * env.mass * native.pixels_per_m
+                           / native.mass_kg)
+        env._main_line_applied_moment = ((right - left) * native.thruster_arm_m
+                                       * env.inertia / native.yaw_inertia_kg_m2 / .84)
+        # Initialize MAIN's controller memory from the applied differential,
+        # not a stale normal-controller yaw request.
+        difference = env._main_line_applied_moment / env.params['mom_coeff'] / 10.
+        steer = math.copysign(min(1., abs(difference)/(2*env.params['pwm_rng']))
+                             ** (1/1.15), difference)
+    elif was_active and not now_active:
+        common = env.current_fwd / env.mass / native.pixels_per_m * native.mass_kg
+        moment = getattr(env, '_main_line_applied_moment', 0.)
+        difference = moment / env.inertia * .84 * native.yaw_inertia_kg_m2 / native.thruster_arm_m
+        differential = float(np.clip(difference/2, -native.max_thrust_N, native.max_thrust_N))
+        common = float(np.clip(common/2, -native.max_thrust_N+abs(differential),
+                               native.max_thrust_N-abs(differential)))
+        env.thrust_left = common-differential
+        env.thrust_right = common+differential
+        env.current_fwd = env.thrust_left + env.thrust_right
+        restore_native_parameters(env)
+        steer = 0.0
+    else:
+        steer = 0.0
+    invalidate_controller(env)
+    if now_active:
+        env.prev_steer = steer
+        env.min_wide_dist = 999.0  # refreshed by MAIN sensor before its first command
+    visuals = getattr(env, 'phase5_visuals', None)
+    if visuals is not None:
+        visuals.invalidate_controller(env)
+        if now_active:
+            env.prev_steer = steer
+    env.line_mode_generation = getattr(env, 'line_mode_generation', 0) + 1
+    return True
+
+
+def apply_step(env, left, right, sub_step_idx=0, total_sub_steps=1):
+    result = step(env, left, right, sub_step_idx, total_sub_steps)
+    # MAIN has a smoothed common force and an algebraic differential moment.
+    # Bookkeeping only: the copied MAIN integrator below remains unmodified.
+    env._main_line_applied_moment = (pwm_to_thrust(env, right)-pwm_to_thrust(env, left))*env.params['mom_coeff']
+    return result
 
 
 def goal_reached(distance_px):

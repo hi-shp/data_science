@@ -309,9 +309,7 @@ class BoatEnv:
         main_line.configure_episode(self)
 
     def set_line_tracing(self, enabled):
-        self.linetrace_mode = bool(enabled)
-        self.linetrace_queued = False
-        self.reset()
+        main_line.switch_mode(self, enabled)
 
     def handle_click(self, pos):
         # 0-0. 랭킹 모달 창이 열려 있을 때의 클릭 이벤트 처리
@@ -501,7 +499,7 @@ class BoatEnv:
 
     def step(self, L, R, sub_step_idx=0, total_sub_steps=1):
         if main_line.active(self):
-            return main_line.step(self, L, R, sub_step_idx, total_sub_steps)
+            return main_line.apply_step(self, L, R, sub_step_idx, total_sub_steps)
         prev0, prev1 = self.boat_pos
         old_heading = self.boat_heading
         z = integrate(self.physics_state(), self.pwm_to_thrust(L), self.pwm_to_thrust(R), self.dt, self.dynamics)

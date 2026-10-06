@@ -96,6 +96,7 @@ def run(nav_mode=None, seed=None):
         now = time.perf_counter()
         elapsed = now-last_tick_time
         last_tick_time = now
+        mode_generation = getattr(env, 'line_mode_generation', 0)
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 if worker is not None:
@@ -151,7 +152,10 @@ def run(nav_mode=None, seed=None):
 
         use_worker = (worker is not None and not env.manual_mode and
                       not env.linetrace_mode)
-        if use_worker and not worker_active:
+        mode_changed = getattr(env, 'line_mode_generation', 0) != mode_generation
+        if mode_changed:
+            hits_x = hits_y = np.empty(0)
+        if use_worker and (not worker_active or mode_changed):
             worker.reset(env)
         worker_active = use_worker
         if getattr(env, 'paused', False):

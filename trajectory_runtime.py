@@ -23,7 +23,7 @@ def advance_trajectory(env, navigator=None, step_idx=0, sub_steps=1):
     env.lidar_dists = dists
     update_grid(env.grid, hx, hy)
     env.grid *= .945
-    if (env.frame-1) % env.control.planning_period_steps == 0:
+    if (env.frame-1) % env.control.planning_period_steps == 0 or getattr(env, '_line_resume_plan', False):
         if not hasattr(env, 'navigation_map'):
             env.navigation_map = NavigationMap(env.map_w/scale, env.sim_h/scale)
         env.navigation_map.observe(env.boat_pos/scale, env.boat_heading,
@@ -45,6 +45,7 @@ def advance_trajectory(env, navigator=None, step_idx=0, sub_steps=1):
         env.raw_route = navigator.path
         env.control_path = np.vstack([env.physics_state()[:2], prediction[:, :2]])
         env.predicted_trajectory = env.control_path
+        env._line_resume_plan = False
         env.prediction_frame = env.frame
         env.prediction_stride_steps = env.control.planning_period_steps
         env.controller_target = prediction[min(8, len(prediction)-1), :2]*scale

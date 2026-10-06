@@ -22,7 +22,7 @@ FIELDS = ('frame', 'boat_pos', 'boat_vel', 'boat_heading', 'boat_ang_vel',
           'grid', 'rel_angles', 'lidar_range', 'map_w', 'sim_h', 'dt',
           'dynamics', 'control', 'navigation_mode', 'command_speed',
           'command_yaw_rate', 'target', 'navigation_map', 'trajectory_navigator',
-          'heading_target', 'min_wide_dist', 'prediction_frame')
+          'heading_target', 'min_wide_dist', 'prediction_frame', '_line_resume_plan')
 DISPLAY_FIELDS = ('raw_route', 'control_path', 'predicted_trajectory',
                   'controller_target', 'pursuit_target', 'predicted_clearance',
                   'prediction_stride_steps', 'perceived_obstacles',

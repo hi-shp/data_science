@@ -65,7 +65,8 @@ def episode(seed, cls, controller, sensor, timeout=140., keep=False):
     env=cls()
     if hasattr(env, 'set_line_tracing'):
         random.seed(seed); np.random.seed(seed)
-        env.set_line_tracing(True)
+        env.linetrace_mode=True
+        env.reset()
     else:
         env.linetrace_mode=True
     digest=hashlib.sha256(); states=[]; inputs=[]
