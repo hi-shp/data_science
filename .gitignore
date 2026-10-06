@@ -35,3 +35,6 @@ data/performance/*
 !data/legacy/
 data/legacy/*
 !data/legacy/leaderboard.json
+docs/CODEX_ROADMAP.md
+docs/RESUME_PROMPT.md
+/h origin codex
