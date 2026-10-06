@@ -9,6 +9,7 @@ from pathlib import Path
 from config import WIDTH, HEIGHT, SIM_H, DASH_H, MAP_W, GRID, GRID_W, GRID_H, get_dashboard_layout
 from utils import wrap
 from vessel_dynamics import VesselParameters, integrate, allocate
+import main_line_compat as main_line
 from boat_control import select_command, ControllerParameters
 from perception import init_grid
 from ui_renderer import EnvRenderer
@@ -213,6 +214,9 @@ class BoatEnv:
                          self.boat_ang_vel, self.thrust_left, self.thrust_right])
 
     def reset(self):
+        main_line.restore_native_parameters(self)
+        if getattr(self, 'linetrace_queued', False):
+            self.linetrace_mode = True
         self.load_params()
         self.configure_dynamics()
         self.command_speed = self.dynamics.cruise_speed_m_s
@@ -302,6 +306,12 @@ class BoatEnv:
         self.manual_collision_flash = 0
         self.show_leaderboard = False
         self.last_manual_result = None
+        main_line.configure_episode(self)
+
+    def set_line_tracing(self, enabled):
+        self.linetrace_mode = bool(enabled)
+        self.linetrace_queued = False
+        self.reset()
 
     def handle_click(self, pos):
         # 0-0. 랭킹 모달 창이 열려 있을 때의 클릭 이벤트 처리
@@ -367,8 +377,7 @@ class BoatEnv:
         is_mode_click = getattr(self, 'mode_btn_top_rect', None) and self.mode_btn_top_rect.collidepoint(pos)
         if is_mode_click:
             # 버튼 클릭 시 현재 실행 중인 에피소드에서 실시간으로 알고리즘 즉시 변경 (GAP NAVIGATION <-> LINE TRACING)
-            self.linetrace_mode = not getattr(self, 'linetrace_mode', False)
-            self.linetrace_queued = False
+            self.set_line_tracing(not getattr(self, 'linetrace_mode', False))
         elif getattr(self, 'linetrace_mode', False):
             # 라인트레이싱 모드: 3개 버튼 (1. 가장 가까운 장애물 SHOW / 2. 라이다 히트 / 3. 라이다 레인지)
             if getattr(self, 'cb1_row_rect', self.cb1_rect).collidepoint(pos) or self.cb1_rect.collidepoint(pos):
@@ -486,9 +495,13 @@ class BoatEnv:
             self.reflected_wakes.extend(new_rw)
 
     def pwm_to_thrust(self, pwm):
+        if main_line.active(self):
+            return main_line.pwm_to_thrust(self, pwm)
         return float(np.clip((pwm-1500)/400, -1, 1))*self.dynamics.max_thrust_N
 
     def step(self, L, R, sub_step_idx=0, total_sub_steps=1):
+        if main_line.active(self):
+            return main_line.step(self, L, R, sub_step_idx, total_sub_steps)
         prev0, prev1 = self.boat_pos
         old_heading = self.boat_heading
         z = integrate(self.physics_state(), self.pwm_to_thrust(L), self.pwm_to_thrust(R), self.dt, self.dynamics)
@@ -639,6 +652,8 @@ class BoatEnv:
                                 self.reflected_wakes.extend(new_reflected)
 
     def collide(self):
+        if main_line.active(self):
+            return main_line.collide(self)
         bx, by = self.boat_pos
         ch = math.cos(self.boat_heading)
         sh = math.sin(self.boat_heading)
@@ -710,6 +725,8 @@ class BoatEnv:
         return False
 
     def get_pwm(self, steer):
+        if main_line.active(self):
+            return main_line.get_pwm(self, steer)
         p = self.dynamics
         if self.manual_mode:
             speed = self.manual_throttle*p.cruise_speed_m_s

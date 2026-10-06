@@ -2,6 +2,7 @@
 import math
 import numpy as np
 import pygame
+import main_line_compat as main_line
 from perception import lidar_hits_np, update_grid, extract_clusters_from_grid, match_clusters
 from navigation import find_gap, is_direct_target_safe, line_trace_steering
 from utils import wrap
@@ -23,7 +24,8 @@ def advance(env, step_idx=0, sub_steps=1):
     env.update_dynamic_obstacles()
 
     map_bounds = (0, 0, env.map_w, env.sim_h)
-    dists, hits_x, hits_y = lidar_hits_np(
+    raycast = main_line.lidar_hits_np if main_line.active(env) else lidar_hits_np
+    dists, hits_x, hits_y = raycast(
         env.boat_pos, env.boat_heading,
         env.rel_angles, env.dynamic_obstacles,
         env.lidar_range,

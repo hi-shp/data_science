@@ -10,6 +10,7 @@ import argparse
 import random
 import leaderboard
 from environment import BoatEnv
+import main_line_compat as main_line
 from simulation import advance
 from perception import lidar_hits_np
 from fast_astar import warmup_astar
@@ -157,7 +158,8 @@ def run(nav_mode=None, seed=None):
             accumulator = 0.0
             env.display_step_fraction = 0.0
             map_bounds = (0, 0, env.map_w, env.sim_h) if getattr(env, 'linetrace_mode', False) else None
-            dists, hits_x, hits_y = lidar_hits_np(
+            raycast = main_line.lidar_hits_np if main_line.active(env) else lidar_hits_np
+            dists, hits_x, hits_y = raycast(
                 env.boat_pos, env.boat_heading,
                 env.rel_angles, env.dynamic_obstacles,
                 env.lidar_range,
@@ -203,7 +205,8 @@ def run(nav_mode=None, seed=None):
                     env.boat_ang_vel = 0.0
                 # 수동 조종 모드에서는 충돌 발생 시 에피소드를 종료/리스폰하지 않고 계속 주행함
             else:
-                reached = flythrough_goal_reached(dist_tgt_end/env.dynamics.pixels_per_m)
+                reached = (main_line.goal_reached(dist_tgt_end) if main_line.active(env)
+                           else flythrough_goal_reached(dist_tgt_end/env.dynamics.pixels_per_m))
                 if env.collide() or reached:
                     is_success = (reached and not env.collide())
                     tag = "SUCCESS" if is_success else "FAIL"
