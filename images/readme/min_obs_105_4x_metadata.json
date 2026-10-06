@@ -1,0 +1,105 @@
+{
+  "seed": 3000,
+  "mode": "2d",
+  "playback": 4,
+  "capture_fps": 60,
+  "events": [
+    {
+      "episode": 1,
+      "success": true,
+      "wall_seconds": 4.420705725089647,
+      "distance_to_goal": 68.54458278564194,
+      "min_obs": 105,
+      "obstacle_count": 50,
+      "minimum_obstacle_center_spacing_px": 105.23307464861035
+    },
+    {
+      "episode": 2,
+      "success": true,
+      "wall_seconds": 9.946054977015592,
+      "distance_to_goal": 69.81773322757215,
+      "min_obs": 105,
+      "obstacle_count": 52,
+      "minimum_obstacle_center_spacing_px": 105.0
+    },
+    {
+      "episode": 3,
+      "success": true,
+      "wall_seconds": 14.227718912996352,
+      "distance_to_goal": 67.20426953677902,
+      "min_obs": 105,
+      "obstacle_count": 48,
+      "minimum_obstacle_center_spacing_px": 105.01904589168576
+    },
+    {
+      "episode": 4,
+      "success": true,
+      "wall_seconds": 19.777451276080683,
+      "distance_to_goal": 69.8432125244809,
+      "min_obs": 105,
+      "obstacle_count": 52,
+      "minimum_obstacle_center_spacing_px": 105.6882207249228
+    },
+    {
+      "episode": 5,
+      "success": true,
+      "wall_seconds": 24.846859749988653,
+      "distance_to_goal": 68.84397669062493,
+      "min_obs": 105,
+      "obstacle_count": 51,
+      "minimum_obstacle_center_spacing_px": 105.11898020814318
+    },
+    {
+      "episode": 6,
+      "success": true,
+      "wall_seconds": 28.872147824033163,
+      "distance_to_goal": 68.16410401450035,
+      "min_obs": 105,
+      "obstacle_count": 47,
+      "minimum_obstacle_center_spacing_px": 105.17128885774862
+    },
+    {
+      "episode": 7,
+      "success": true,
+      "wall_seconds": 33.9373401630437,
+      "distance_to_goal": 69.62459568462302,
+      "min_obs": 105,
+      "obstacle_count": 48,
+      "minimum_obstacle_center_spacing_px": 105.39449701004318
+    }
+  ],
+  "consecutive": 7,
+  "clip_bounds": [
+    0.0,
+    33.9373401630437
+  ],
+  "source": "7b6581ce36ff8d35cbb0aeeae71d2adada7f405f",
+  "min_obs": 105,
+  "default_min_obs": 120,
+  "window": "real X11",
+  "headless": false,
+  "manual_mode": false,
+  "autonomous_control": true,
+  "middle_cuts": false,
+  "source_resolution": [
+    1840,
+    920
+  ],
+  "gif_resolution": [
+    1200,
+    600
+  ],
+  "gif_fps": 30,
+  "gif_frames": 1024,
+  "gif_duration_s": 34.13,
+  "gif_bytes": 94572643,
+  "gif_sha256": "b6c030d6449cf0da0047df60c1892880d8c69baf9d304a1ce59619478b038b20",
+  "palette_colors": 48,
+  "encoding": "Lanczos / palettegen stats_mode=diff / paletteuse dither=none / gifsicle -O2 --lossy=30",
+  "preview_seeds": [
+    3000,
+    2026,
+    2081
+  ],
+  "environment_override": "Capture-process reset wrapper sets min_obs before production map generation; source files unchanged."
+}
