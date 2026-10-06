@@ -1,5 +1,9 @@
 """Small, resumable Phase 5 gate; stop on the first collision or timeout."""
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import argparse
 from pathlib import Path
 

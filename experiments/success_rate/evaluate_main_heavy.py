@@ -15,7 +15,7 @@ import sys
 from time import perf_counter
 
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 import pygame

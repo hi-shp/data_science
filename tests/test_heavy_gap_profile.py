@@ -5,7 +5,7 @@ import numpy as np
 from heavy_gap_profile import load_presentation_profile
 from heavy_gap_annotation import local_passage_groups,select_route_gaps,route_crossings
 from heavy_motion_core.passage_geometry import physical_hull_polygons
-from test_heavy_gap_gui_semantics import gate
+from tests.test_heavy_gap_gui_semantics import gate
 
 
 class LegacyPresentationProfileTests(unittest.TestCase):

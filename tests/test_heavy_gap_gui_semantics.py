@@ -5,7 +5,7 @@ import numpy as np
 from heavy_gap_annotation import (select_route_gaps,clipped_display_route,segments_conflict)
 from heavy_gap_diagnostics import compute_legacy_gap_metrics
 from heavy_motion_core.passage_geometry import physical_hull_polygons
-from test_heavy_motion_v2 import env_stub
+from tests.test_heavy_motion_v2 import env_stub
 
 
 def gate(x,pair=(0,1)):

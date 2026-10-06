@@ -5,7 +5,7 @@ from unittest.mock import patch
 import numpy as np
 from heavy_gap_annotation import route_bezier, route_crossings, split_display_route
 from heavy_motion_core.passage_geometry import physical_hull_polygons
-from test_heavy_motion_v2 import env_stub
+from tests.test_heavy_motion_v2 import env_stub
 
 
 class RouteAnnotationTests(unittest.TestCase):

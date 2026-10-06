@@ -5,7 +5,7 @@ from heavy_gap_state import GapAnnotationState,crossed_portal,waypoint_completio
 from heavy_gap_annotation import (clipped_display_route,select_second_gap,second_gap_band,
                                   crossing_in_front,forward_crossings)
 from heavy_motion_core.passage_geometry import physical_hull_polygons
-from test_heavy_gap_gui_semantics import gate
+from tests.test_heavy_gap_gui_semantics import gate
 
 
 class PersistentGapTests(unittest.TestCase):

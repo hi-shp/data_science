@@ -5,7 +5,7 @@ from config import GRID
 from heavy_gap_annotation import (local_passage_groups,select_route_gaps,
     route_crossings,route_bezier,clipped_display_route)
 from heavy_motion_core.passage_geometry import physical_hull_polygons
-from test_heavy_gap_gui_semantics import gate
+from tests.test_heavy_gap_gui_semantics import gate
 
 
 class LocalPresentationTests(unittest.TestCase):

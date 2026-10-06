@@ -61,7 +61,7 @@ class MainHeavyDynamicsTests(unittest.TestCase):
         self.assertAlmostEqual(env.pwm_to_thrust(right), expected_right)
 
     def test_maximum_thrust_terminal_speed(self):
-        config = json.loads(Path(__file__).with_name('vessel_config.json').read_text())
+        config = json.loads((Path(__file__).resolve().parents[1]/'vessel_config.json').read_text())
         p = VesselParameters(**config['physics'])
         z = np.zeros(8)
         for _ in range(1500):

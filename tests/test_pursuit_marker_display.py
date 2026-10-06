@@ -105,7 +105,7 @@ class PursuitMarkerTests(unittest.TestCase):
         np.testing.assert_array_equal(marker.point,[70.,200.])
 
     def test_first_hold_does_not_clamp_raw_pursuit_or_control(self):
-        from test_heavy_motion_v2 import env_stub
+        from tests.test_heavy_motion_v2 import env_stub
         env,visuals=env_stub()
         obs=np.array([[4.,3.,.34],[4.,7.,.34],[7.,3.,.34],[7.,7.,.34]])
         env.navigation_map=SimpleNamespace(obstacles=obs)
@@ -134,7 +134,7 @@ class PursuitMarkerTests(unittest.TestCase):
         self.assertFalse(visuals.annotation_state.first_latched)
 
     def test_render_only_target_leaves_controller_paths_gaps_and_targets_intact(self):
-        from test_heavy_motion_v2 import env_stub
+        from tests.test_heavy_motion_v2 import env_stub
         env, visuals = env_stub()
         env.navigation_map = SimpleNamespace(obstacles=np.empty((0, 3)))
         env.trajectory_navigator = SimpleNamespace()

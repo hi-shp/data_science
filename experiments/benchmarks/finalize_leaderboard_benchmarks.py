@@ -1,4 +1,8 @@
 """Freeze two paired, completed visible-GUI runs into four leaderboard rows."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import argparse
 import json
 from pathlib import Path

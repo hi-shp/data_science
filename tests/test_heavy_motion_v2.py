@@ -404,7 +404,7 @@ class PinnedMotionSourceTests(unittest.TestCase):
         import subprocess
         from pathlib import Path
         from heavy_motion_core import SOURCE_COMMIT
-        root = Path(__file__).parent
+        root = Path(__file__).resolve().parents[1]
         modules = [path for path in (root/'heavy_motion_core').rglob('*.py')
                    if path.name not in ('__init__.py', 'controller_config.py')]
         class Normalize(ast.NodeTransformer):
