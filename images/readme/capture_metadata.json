@@ -1,11 +1,10 @@
 {
-  "source_commit": "61b7240da7306934204e2591497b43ebc2380ff8",
+  "source_commit": "b2e149328a4032f99391eb882789c46adfe43436",
   "branch": "main",
   "window": "real X11",
   "headless": false,
   "manual_mode": false,
   "autonomous_control": true,
-  "initial_seed": 2069,
   "episode_maps": "production reset with unchanged random generation",
   "capture": "external ffmpeg x11grab of real production pygame window",
   "source_resolution": [
@@ -26,6 +25,7 @@
   "line_trace": "First three episodes completed in one uninterrupted production run.",
   "runs": {
     "2d": {
+      "seed": 3000,
       "mode": "2d",
       "playback": 2,
       "capture_fps": 60,
@@ -33,42 +33,55 @@
         {
           "episode": 1,
           "success": true,
-          "wall_seconds": 7.39829937601462,
-          "distance_to_goal": 69.69451593568498
+          "wall_seconds": 5.6157834940822795,
+          "distance_to_goal": 68.93335782768072
         },
         {
           "episode": 2,
           "success": true,
-          "wall_seconds": 13.530641708057374,
-          "distance_to_goal": 67.87159988343043
+          "wall_seconds": 10.90037106408272,
+          "distance_to_goal": 69.39251643777222
         },
         {
           "episode": 3,
           "success": true,
-          "wall_seconds": 22.53206370701082,
-          "distance_to_goal": 68.14767682566126
+          "wall_seconds": 17.38861361204181,
+          "distance_to_goal": 67.61737160118774
         },
         {
           "episode": 4,
           "success": true,
-          "wall_seconds": 29.10206545901019,
-          "distance_to_goal": 68.3455188791654
+          "wall_seconds": 26.27356822101865,
+          "distance_to_goal": 68.83450325159677
         },
         {
           "episode": 5,
           "success": true,
-          "wall_seconds": 36.074467426980846,
-          "distance_to_goal": 68.88911269781417
+          "wall_seconds": 31.55250741005875,
+          "distance_to_goal": 69.99924612163984
+        },
+        {
+          "episode": 6,
+          "success": true,
+          "wall_seconds": 37.961586644058116,
+          "distance_to_goal": 69.008086686314
+        },
+        {
+          "episode": 7,
+          "success": true,
+          "wall_seconds": 42.973351061111316,
+          "distance_to_goal": 69.39763049830522
         }
       ],
-      "consecutive": 5,
+      "consecutive": 7,
       "clip_bounds": [
         0.0,
-        36.074467426980846
+        42.973351061111316
       ],
-      "source": "61b7240da7306934204e2591497b43ebc2380ff8"
+      "source": "b2e149328a4032f99391eb882789c46adfe43436"
     },
     "3d": {
+      "seed": 3000,
       "mode": "3d",
       "playback": 2,
       "capture_fps": 60,
@@ -76,40 +89,52 @@
         {
           "episode": 1,
           "success": true,
-          "wall_seconds": 7.408956023049541,
-          "distance_to_goal": 69.69451593568498
+          "wall_seconds": 5.634117456967942,
+          "distance_to_goal": 68.93335782768072
         },
         {
           "episode": 2,
           "success": true,
-          "wall_seconds": 16.719039472052827,
-          "distance_to_goal": 68.83853763437358
+          "wall_seconds": 11.369467833079398,
+          "distance_to_goal": 67.21999608683643
         },
         {
           "episode": 3,
           "success": true,
-          "wall_seconds": 24.491238613030873,
-          "distance_to_goal": 69.46977239488646
+          "wall_seconds": 17.870078347972594,
+          "distance_to_goal": 67.95221114667329
         },
         {
           "episode": 4,
           "success": true,
-          "wall_seconds": 32.30245453794487,
-          "distance_to_goal": 69.89120340548625
+          "wall_seconds": 26.14227557706181,
+          "distance_to_goal": 68.41754651232957
         },
         {
           "episode": 5,
           "success": true,
-          "wall_seconds": 38.37480359303299,
-          "distance_to_goal": 68.59850534643893
+          "wall_seconds": 32.18215498200152,
+          "distance_to_goal": 67.92067156524595
+        },
+        {
+          "episode": 6,
+          "success": true,
+          "wall_seconds": 39.008999294019304,
+          "distance_to_goal": 67.3239823307701
+        },
+        {
+          "episode": 7,
+          "success": true,
+          "wall_seconds": 44.03793554403819,
+          "distance_to_goal": 69.4976754594338
         }
       ],
-      "consecutive": 5,
+      "consecutive": 7,
       "clip_bounds": [
         0.0,
-        38.37480359303299
+        44.03793554403819
       ],
-      "source": "61b7240da7306934204e2591497b43ebc2380ff8"
+      "source": "b2e149328a4032f99391eb882789c46adfe43436"
     },
     "line": {
       "mode": "line",
@@ -157,11 +182,12 @@
         1200,
         600
       ],
-      "frames": 1088,
-      "duration_s": 36.26,
-      "palette_colors": 64,
-      "bytes": 103998092,
-      "sha256": "f65b9830fe5139842ad22a35462898dbe0938ae22ca380e7d471bb94180551fd"
+      "frames": 1295,
+      "duration_s": 43.16,
+      "palette_colors": 48,
+      "bytes": 104630032,
+      "sha256": "75160b2b33c7378ebcd9165b51d2e04b80c7be9b95d9f41aaf8b5ace49babae2",
+      "optimization": "gifsicle -O2 --lossy=30"
     },
     {
       "file": "main_3d_2x.gif",
@@ -169,11 +195,12 @@
         1200,
         600
       ],
-      "frames": 1157,
-      "duration_s": 38.56,
-      "palette_colors": 64,
-      "bytes": 93044428,
-      "sha256": "2897eb794f08e3062fc3569a83275c5b7bf05bbb631c01a6fb5e4558e240c3a8"
+      "frames": 1329,
+      "duration_s": 44.3,
+      "palette_colors": 48,
+      "bytes": 77013978,
+      "sha256": "3a2c72336f0054bcec5939c54899e19786f76310ab1edc4550ab21ab72cd1184",
+      "optimization": "gifsicle -O2 (lossless)"
     },
     {
       "file": "line_trace_2x.gif",
@@ -188,5 +215,18 @@
       "sha256": "652855ba20d224092227d22eb514f81514ad40194e9fb758eb26d82133b29e5e"
     }
   ],
-  "previous_4x_capture_metadata": "capture_metadata_4x.json"
+  "previous_4x_capture_metadata": "capture_metadata_4x.json",
+  "initial_seeds": {
+    "2d": 3000,
+    "3d": 3000,
+    "line": 2069
+  },
+  "representative_seed_selection": {
+    "candidates": [
+      2026,
+      2081,
+      3000
+    ],
+    "selection": "3000 had the lowest total heading change in the two-episode real X11 2x previews."
+  }
 }
