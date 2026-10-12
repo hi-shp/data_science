@@ -272,9 +272,40 @@ class EnvRenderer:
                 'eta_continuity_goal', 'eta_continuity_passage',
                 'eta_continuity_passage_exact', 'eta_continuity_forward')
             if goal_display_mode:
-                env.visual_trajectory = end_prediction_at_goal(
-                    env.visual_trajectory,
-                    env.target/env.dynamics.pixels_per_m, .55)
+                from goal_display_policy import TerminalDisplayState, safe_goal_path
+                from goal_guidance import GOAL_ZONE_M
+                from passage_geometry import physical_hull_polygons
+                if not hasattr(self, '_goal_display_state'):
+                    self._goal_display_state = TerminalDisplayState()
+                scale = env.dynamics.pixels_per_m
+                future = env.visual_trajectory * scale
+                goal = np.asarray(env.target, dtype=float)
+                hull = physical_hull_polygons(scale) * scale
+                margin = env.control.safety_margin_m * scale
+                extent = float(np.linalg.norm(hull.reshape(-1, 2), axis=1).max()) + margin + .25
+                if len(future) > 1:
+                    delta = np.diff(future, axis=0)
+                    headings = np.unwrap(np.r_[np.arctan2(delta[:,1],delta[:,0]),
+                                               np.arctan2(delta[-1,1],delta[-1,0])])
+                else:
+                    headings = np.array([env.boat_heading])
+                obstacles = env.navigation_map.obstacles * scale
+                def connect(points, angles):
+                    result = safe_goal_path(points, angles, goal, obstacles, hull,
+                        margin, (env.map_w, env.sim_h), scale,
+                        visible_radius=env.lidar_range,
+                        prediction_clearance=env.predicted_clearance,
+                        goal_zone_m=GOAL_ZONE_M)
+                    reason = ('GOAL_OUTSIDE_RANGE' if np.linalg.norm(env.boat_pos-goal)+extent > env.lidar_range
+                              else 'CORRIDOR_BLOCKED_OR_UNCERTAIN')
+                    return (*result, reason)
+                guide, _, env.goal_display_connected = self._goal_display_state.update(
+                    future, headings, goal, env.frame, GOAL_ZONE_M*scale, 1.4*scale,
+                    connect, lambda p: clip_trajectory_to_radius(p, env.boat_pos,
+                                                               max(0., env.lidar_range-extent)))
+                env.goal_display_reason = self._goal_display_state.reason
+                env.goal_guidance_endpoint = guide[-1].copy() if len(guide) else None
+                env.visual_trajectory = guide / scale
             env.visual_trajectory = clip_trajectory_to_radius(
                 env.visual_trajectory, boat_m,
                 env.lidar_range/env.dynamics.pixels_per_m)
