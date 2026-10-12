@@ -762,7 +762,7 @@ def run():
                 # 수동 조종 모드에서는 충돌 발생 시 에피소드를 종료/리스폰하지 않고 계속 주행함
             else:
                 reached = (main_line.goal_reached(dist_tgt_end) if main_line.active(env)
-                           else dist_tgt_end <= 70 if v2_mode else dist_tgt_end < 70)
+                           else dist_tgt_end < 70)
                 if env.collide() or reached:
                     is_success = (reached and not env.collide())
                     tag = "SUCCESS" if is_success else "FAIL"

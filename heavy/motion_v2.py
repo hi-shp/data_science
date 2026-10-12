@@ -19,6 +19,7 @@ from heavy.motion_core.passage_geometry import physical_hull_polygons
 from heavy.gap_annotation import (route_bezier, route_crossings,
                                   select_route_gaps, clipped_display_route,
                                   gap_identity,crossing_in_front,forward_crossings)
+from heavy.goal_display import goal_guidance_path, corridor_clear
 from heavy.gap_diagnostics import compute_legacy_gap_metrics
 from heavy.gap_profile import load_presentation_profile
 from heavy.gap_state import GapAnnotationState
@@ -65,6 +66,7 @@ class HeavyMotionV2:
         self.annotation_state.reset()
         self.pursuit_marker.reset()
         env.visual_pursuit_target = None
+        env.goal_display_connected = False
         for key in ('navigation_map', 'trajectory_navigator', 'motion_prediction_states'):
             if hasattr(env, key):
                 delattr(env, key)
@@ -211,7 +213,14 @@ class HeavyMotionV2:
                                             math.atan2(delta[-1,1],delta[-1,0])])
         else:
             path_headings = np.array([heading])
-        display, display_headings = route_bezier(path,path_headings)
+        # Physical states/control_path stay untouched. This separate terminal
+        # guide is enabled only after a continuous hull corridor is certified.
+        guide, guide_headings, env.goal_display_connected = goal_guidance_path(
+            path, path_headings, env.target, obs,
+            physical_hull_polygons(scale)*scale,
+            env.control.safety_margin_m*scale, (env.map_w,env.sim_h), scale,
+            visible_radius=getattr(env,'lidar_range',None))
+        display, display_headings = route_bezier(guide,guide_headings)
         # Annotation may use ONLY the very same existing buoy-pair candidates
         # as the MAIN GAPS display, even when its visibility toggle is off.
         # Do not create a second all-around population just for waypoints.
@@ -247,7 +256,9 @@ class HeavyMotionV2:
             for pair in self.annotation_state.completed_identities:
                 env.visited.add(pair);env.visited.add((pair[1],pair[0]))
         env.bezier_path,env.next_bezier_path,selected,following=clipped_display_route(
-            display,selected,following,np.asarray(env.target),1.4*scale)
+            display,selected,following,np.asarray(env.target),.55*scale,
+            goal_connector_safe=lambda a,b:corridor_clear(np.vstack((a,b)),obs,
+                hull,margin,(env.map_w,env.sim_h)))
         self.annotation_state.apply_visible(selected,following,env.frame)
         # Selection is complete before any legacy diagnostics are computed.
         for gap in (selected,following):

@@ -6,6 +6,8 @@ from heavy.motion_core.passage_geometry import (
     prepare_hull_edges, fast_surface_clearances)
 
 
+BEZIER_CONTROL_DEVIATION_PX = .25
+
 def route_bezier(points, headings):
     """Interpolating cubic representation within subpixel distance of the rollout.
 
@@ -21,7 +23,7 @@ def route_bezier(points, headings):
     linear1, linear2 = points[:-1]+delta/3., points[1:]-delta/3.
     change1, change2 = (tangent[:-1]-delta)/3., (delta-tangent[1:])/3.
     def limited(change):
-        return change*np.minimum(1., .25/np.maximum(np.linalg.norm(change,axis=1),1e-12))[:,None]
+        return change*np.minimum(1., BEZIER_CONTROL_DEVIATION_PX/np.maximum(np.linalg.norm(change,axis=1),1e-12))[:,None]
     p1, p2 = linear1+limited(change1), linear2+limited(change2)
     t = np.arange(4, dtype=float)/4.
     curve = ((1-t)[None,:,None]**3*points[:-1,None]
@@ -447,7 +449,7 @@ def goal_route_location(path,goal,radius):
                 route_segment=index,pos=projected[index])
 
 
-def clipped_display_route(path,first,second,goal,goal_radius):
+def clipped_display_route(path,first,second,goal,goal_radius,goal_connector_safe=None):
     """Clip at goal even without GAPs; original rollout is never written."""
     goal_event=goal_route_location(path,goal,goal_radius)
     waypoint=second if second is not None else first
@@ -461,7 +463,8 @@ def clipped_display_route(path,first,second,goal,goal_radius):
     # Insert the actual segment projection BEFORE the exact center endpoint.
     # No later rollout knot survives; replacing only the last knot is wrong.
     prefix=np.vstack((path[:end['route_segment']+1],end['pos']))
-    if goal_wins and np.linalg.norm(prefix[-1]-goal)>1e-8:
+    if (goal_wins and np.linalg.norm(prefix[-1]-goal)>1e-8 and
+            (goal_connector_safe is None or goal_connector_safe(prefix[-1],goal))):
         prefix=np.vstack((prefix,goal))
     keep=np.r_[True,np.linalg.norm(np.diff(prefix,axis=0),axis=1)>1e-8]
     prefix=prefix[keep]
