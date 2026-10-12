@@ -18,7 +18,7 @@ import time
 import numpy as np
 
 
-def run(root, branch, rate, seed, seconds, output, episode=False):
+def run(root, branch, rate, seed, seconds, output, episode=False, trace_display=False, capture=False):
     if not os.environ.get('DISPLAY') or os.environ.get('SDL_VIDEODRIVER')=='dummy':
         raise RuntimeError('Real X11 is required')
     os.environ['PYGAME_HIDE_SUPPORT_PROMPT']='1'
@@ -32,6 +32,7 @@ def run(root, branch, rate, seed, seconds, output, episode=False):
         import trajectory_worker
     factory,events,budget=main.BoatEnv,pygame.event.get,main.playback_budget
     frames,backlogs,rows,plans,predictions=[],[],[],[],[]
+    display_rows=[]; writer=None
     timing=dict(start=None,end=None,steps=0,budget=0.,batch=0,done=False,captured=False,goal_captured=False)
     def make_env():
         random.seed(seed);np.random.seed(seed)
@@ -51,7 +52,62 @@ def run(root, branch, rate, seed, seconds, output, episode=False):
                 else: plans.append(env.trajectory_navigator.timings['plan'][-1]*1000)
             return result
         def observed_render(*args):
+            nonlocal writer
             result=render(*args);now=time.perf_counter()
+            if trace_display and env.frame and np.linalg.norm(env.boat_pos-env.target)<600.:
+                scale=env.dynamics.pixels_per_m
+                if branch=='main':
+                    paths=[p for p in (env.bezier_path,env.next_bezier_path) if p is not None]
+                    shown=np.vstack([paths[0],*([p[1:] for p in paths[1:]])]) if paths else np.empty((0,2))
+                    from heavy.motion_core.trajectory_display import future_trajectory
+                else:
+                    shown=np.asarray(env.visual_trajectory)*scale
+                    from trajectory_display import future_trajectory
+                physical=np.asarray(env.control_path)*scale
+                future=future_trajectory(physical,env.boat_pos,env.frame-env.prediction_frame,
+                    getattr(env,'prediction_stride_steps',3))
+                state=dict(branch=branch,seed=seed,rate=rate,physics_frame=env.frame,
+                    render_frame=len(display_rows),simulation_time=env.frame*env.dt,
+                    boat=env.boat_pos.tolist(),heading=float(env.boat_heading),
+                    goal=env.target.tolist(),goal_distance=float(np.linalg.norm(env.boat_pos-env.target)),
+                    physical_endpoint=physical[-1].tolist(),future_endpoint=future[-1].tolist(),
+                    rendered_endpoint=None if not len(shown) else shown[-1].tolist(),
+                    rendered_path=shown.tolist(),future_path=future.tolist(),
+                    first=None if env.current_wp is None else env.current_wp['pos'].tolist(),
+                    second=None if env.next_wp is None else env.next_wp['pos'].tolist(),
+                    connected=bool(getattr(env,'goal_display_connected',False)),
+                    generation=env.prediction_frame,lidar_range=env.lidar_range,
+                    goal_guidance_endpoint=(None if getattr(env,'goal_guidance_endpoint',None) is None
+                        else env.goal_guidance_endpoint.tolist()),
+                    bezier_endpoint=(None if branch=='codex' or env.bezier_path is None
+                        else env.bezier_path[-1].tolist()),
+                    first_pair=None if env.current_wp is None else list(env.current_wp['pair']),
+                    second_pair=None if env.next_wp is None else list(env.next_wp['pair']),
+                    reason=getattr(env,'goal_display_reason','FINITE_ROLLOUT_OR_GAP_CLIPPED'))
+                if branch=='main':
+                    from heavy.goal_display import corridor_clear
+                    from heavy.motion_core.passage_geometry import physical_hull_polygons
+                    obs=env.navigation_map.obstacles*scale
+                    margin=env.control.safety_margin_m*scale
+                    hull=physical_hull_polygons(scale)*scale
+                    state['corridor_clear']=corridor_clear(np.vstack((env.boat_pos,env.target)),obs,
+                        hull,margin,(env.map_w,env.sim_h))
+                    extent=float(np.linalg.norm(hull.reshape(-1,2),axis=1).max())+margin+.25
+                    state['within_hull_range']=state['goal_distance']+extent<=env.lidar_range
+                display_rows.append(state)
+                if capture:
+                    import subprocess
+                    if writer is None:
+                        import shutil
+                        encoder=shutil.which('ffmpeg')
+                        if encoder is None:
+                            from imageio_ffmpeg import get_ffmpeg_exe
+                            encoder=get_ffmpeg_exe()
+                        writer=subprocess.Popen([encoder,'-v','error','-y','-f','rawvideo',
+                            '-pix_fmt','rgb24','-s',f'{env.w}x{env.h}','-r','120','-i','pipe:0',
+                            '-an','-c:v','libx264','-threads','1','-preset','ultrafast','-crf','21',
+                            '-pix_fmt','yuv420p',str(output.with_suffix('.mp4'))],stdin=subprocess.PIPE)
+                    writer.stdin.write(pygame.image.tobytes(env.screen,'RGB'))
             if (episode and branch=='main' and not timing['goal_captured'] and
                     getattr(env,'goal_display_connected',False) and
                     np.linalg.norm(env.boat_pos-env.target)<200.):
@@ -82,6 +138,10 @@ def run(root, branch, rate, seed, seconds, output, episode=False):
     main.save_episode_frame=lambda *a,**k:None;main.start_capture_worker=lambda:None
     pygame.event.get=observed_events
     main.run()
+    if writer is not None:
+        writer.stdin.close();writer.wait()
+        if writer.returncode:raise RuntimeError('Capture encoder failed')
+    if trace_display:output.with_suffix('.display.json').write_text(json.dumps(display_rows))
     wall=timing['end']-timing['start']; intervals=np.diff(frames)*1000
     window=deque();rolling=[]
     for t in frames:
@@ -103,7 +163,8 @@ if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--root',type=Path,default=Path.cwd())
     p.add_argument('--branch',choices=['main','codex'],default='main')
     p.add_argument('--rate',type=int,default=4);p.add_argument('--seed',type=int,default=2069)
+    p.add_argument('--trace-display',action='store_true');p.add_argument('--capture',action='store_true')
     p.add_argument('--seconds',type=float,default=12);p.add_argument('--episode',action='store_true')
     p.add_argument('--output',type=Path,required=True);a=p.parse_args()
     a.output=a.output.resolve();a.output.parent.mkdir(parents=True,exist_ok=True)
-    run(a.root.resolve(),a.branch,a.rate,a.seed,a.seconds,a.output,a.episode)
+    run(a.root.resolve(),a.branch,a.rate,a.seed,a.seconds,a.output,a.episode,a.trace_display,a.capture)

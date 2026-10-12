@@ -449,13 +449,19 @@ def goal_route_location(path,goal,radius):
                 route_segment=index,pos=projected[index])
 
 
-def clipped_display_route(path,first,second,goal,goal_radius,goal_connector_safe=None):
+def clipped_display_route(path,first,second,goal,goal_radius,goal_connector_safe=None,terminal=False):
     """Clip at goal even without GAPs; original rollout is never written."""
+    if not len(path):
+        return path.copy(),None,None,None
     goal_event=goal_route_location(path,goal,goal_radius)
     waypoint=second if second is not None else first
-    goal_wins=goal_event is not None and (waypoint is None or
+    goal_wins=goal_event is not None and (terminal or waypoint is None or
         goal_event['route_arc']<=waypoint['route_arc']+1e-8)
     end=goal_event if goal_wins else waypoint
+    if terminal and not goal_wins:
+        # Terminal preview remains whole/limited even if a GAP reappears.
+        # Markers still describe valid crossings; they do not own its endpoint.
+        return (*split_display_route(path,first,second),first,second)
     if end is None:
         return path.copy(),None,first,second
     visible_first=first if first is not None and first['route_arc']<=end['route_arc']+1e-8 else None

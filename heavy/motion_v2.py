@@ -18,8 +18,11 @@ from heavy.motion_core.trajectory_display import future_trajectory
 from heavy.motion_core.passage_geometry import physical_hull_polygons
 from heavy.gap_annotation import (route_bezier, route_crossings,
                                   select_route_gaps, clipped_display_route,
-                                  gap_identity,crossing_in_front,forward_crossings)
+                                  gap_identity,crossing_in_front,forward_crossings,BEZIER_CONTROL_DEVIATION_PX)
 from heavy.goal_display import goal_guidance_path, corridor_clear
+from goal_display_policy import TerminalDisplayState
+from heavy.motion_core.trajectory_display import clip_trajectory_to_radius
+from heavy.motion_core.goal_guidance import GOAL_ZONE_M
 from heavy.gap_diagnostics import compute_legacy_gap_metrics
 from heavy.gap_profile import load_presentation_profile
 from heavy.gap_state import GapAnnotationState
@@ -43,6 +46,7 @@ class HeavyMotionV2:
         self.annotation_state = GapAnnotationState(physical_hull_polygons(env.dynamics.pixels_per_m)*env.dynamics.pixels_per_m)
         self.worker = None
         self.pursuit_marker = PursuitDisplayMarker()
+        self.goal_display = TerminalDisplayState()
         self.reset_episode(env)
 
     def close(self):
@@ -65,6 +69,7 @@ class HeavyMotionV2:
     def reset_episode(self, env, *, controller_only=False):
         self.annotation_state.reset()
         self.pursuit_marker.reset()
+        self.goal_display.reset()
         env.visual_pursuit_target = None
         env.goal_display_connected = False
         for key in ('navigation_map', 'trajectory_navigator', 'motion_prediction_states'):
@@ -156,6 +161,25 @@ class HeavyMotionV2:
             return env.renderer.render(*fallback_hits)
         if self.gui_lidar_dists is None:
             self.update_gui_scan(env, fallback_hits)
+        if self.goal_display.terminal and env.current_wp is None and not getattr(env,'paused',False):
+            # Refresh the goal display at render cadence, without clustering,
+            # GAP selection, a plan, or a write to the physical prediction.
+            scale=env.dynamics.pixels_per_m
+            path=future_trajectory(env.control_path*scale,env.boat_pos,
+                env.frame-env.prediction_frame,getattr(env,'prediction_stride_steps',3))
+            if len(path)>1:
+                delta=np.diff(path,axis=0)
+                angles=np.unwrap(np.r_[np.arctan2(delta[:,1],delta[:,0]),
+                                        math.atan2(delta[-1,1],delta[-1,0])])
+            else:angles=np.array([env.boat_heading])
+            guide,angles=self._goal_route(env,path,angles,env.navigation_map.obstacles*scale)
+            env.bezier_path,_=route_bezier(guide,angles)
+            env.next_bezier_path=None
+            self.reference=env.bezier_path
+            env.pursuit_target=pure_pursuit(self.reference,env.boat_pos,lookahead=70)
+            self.pursuit_marker.set_path(self.reference,env.pursuit_target,
+                env.prediction_frame,float(np.linalg.norm(env.boat_vel)),
+                env.control.planning_period_steps*env.dt,scale)
         original = env.lidar_dists
         original_grid = env.grid
         try:
@@ -172,6 +196,25 @@ class HeavyMotionV2:
         finally:
             env.lidar_dists = original
             env.grid = original_grid
+
+    def _goal_route(self,env,path,path_headings,obs):
+        scale=env.dynamics.pixels_per_m
+        hull=physical_hull_polygons(scale)*scale
+        margin=env.control.safety_margin_m*scale
+        extent=float(np.linalg.norm(hull.reshape(-1,2),axis=1).max())+margin+BEZIER_CONTROL_DEVIATION_PX
+        def connect(points,angles):
+            result=goal_guidance_path(points,angles,env.target,obs,hull,margin,
+                (env.map_w,env.sim_h),scale,visible_radius=env.lidar_range,
+                prediction_clearance=env.predicted_clearance)
+            reason=('GOAL_OUTSIDE_RANGE' if np.linalg.norm(env.boat_pos-env.target)+extent>env.lidar_range
+                else 'CORRIDOR_BLOCKED_OR_UNCERTAIN')
+            return (*result,reason)
+        guide,guide_headings,env.goal_display_connected=self.goal_display.update(
+            path,path_headings,env.target,env.frame,GOAL_ZONE_M*scale,1.4*scale,connect,
+            lambda p:clip_trajectory_to_radius(p,env.boat_pos,max(0.,env.lidar_range-extent)))
+        env.goal_display_reason=self.goal_display.reason
+        env.goal_guidance_endpoint=guide[-1].copy() if len(guide) else None
+        return guide,guide_headings
 
     def _annotate(self, env):
         """MAIN buoy-only clustering/candidates, with route crossing annotations."""
@@ -215,11 +258,7 @@ class HeavyMotionV2:
             path_headings = np.array([heading])
         # Physical states/control_path stay untouched. This separate terminal
         # guide is enabled only after a continuous hull corridor is certified.
-        guide, guide_headings, env.goal_display_connected = goal_guidance_path(
-            path, path_headings, env.target, obs,
-            physical_hull_polygons(scale)*scale,
-            env.control.safety_margin_m*scale, (env.map_w,env.sim_h), scale,
-            visible_radius=getattr(env,'lidar_range',None))
+        guide,guide_headings=self._goal_route(env,path,path_headings,obs)
         display, display_headings = route_bezier(guide,guide_headings)
         # Annotation may use ONLY the very same existing buoy-pair candidates
         # as the MAIN GAPS display, even when its visibility toggle is off.
@@ -257,8 +296,9 @@ class HeavyMotionV2:
                 env.visited.add(pair);env.visited.add((pair[1],pair[0]))
         env.bezier_path,env.next_bezier_path,selected,following=clipped_display_route(
             display,selected,following,np.asarray(env.target),.55*scale,
-            goal_connector_safe=lambda a,b:corridor_clear(np.vstack((a,b)),obs,
-                hull,margin,(env.map_w,env.sim_h)))
+            terminal=self.goal_display.terminal,
+            goal_connector_safe=lambda a,b:env.goal_display_connected and corridor_clear(
+                np.vstack((a,b)),obs,hull,margin,(env.map_w,env.sim_h)))
         self.annotation_state.apply_visible(selected,following,env.frame)
         # Selection is complete before any legacy diagnostics are computed.
         for gap in (selected,following):
