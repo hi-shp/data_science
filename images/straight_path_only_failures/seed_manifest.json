@@ -1,0 +1,95 @@
+{
+  "source_branch": "main_light",
+  "source_commit": "624f4acb6d711df290d0752ef0f27cdbfc182b3a",
+  "experiment": "temporary piecewise straight segments to the unchanged GAP midpoint and goal",
+  "intervention": "At runtime replace Bezier path generation with sampled straight segments. For both straight and Bezier comparator, use identical pursuit heading gain/filter and original differential PWM/physics, while disabling reactive obstacle steering and MainSafetyGuard steering intervention.",
+  "retained": "Original seed/layout, dynamic obstacles, gap selection, midpoint updates, Pure Pursuit lookahead, LiDAR-derived speed limiting, hull collision, mass, yaw inertia, actuator and dt.",
+  "inference_limit": "Comparator is a deliberately reduced controller. It demonstrates the effect of path geometry under these controlled conditions; it does not show that mass or yaw inertia alone caused the collisions, nor does it represent default main_light behavior.",
+  "recordings": [
+    {
+      "seed": 2003,
+      "filename": "직선만추종_반복선회후충돌_1x_seed2003.mp4",
+      "original_file": "MainLight_직선전용_2D_1x_seed2003_full.mp4",
+      "recording": "native 1x, one continuous GUI run, 60 fps X11 capture",
+      "resolution": [
+        1840,
+        920
+      ],
+      "duration_s": 11.15,
+      "straight_collision_frame": 1199,
+      "bezier_success_frame": 1295,
+      "distinct_midpoint_identity_changes": 14,
+      "observed_steering_sign_changes": 10,
+      "maximum_displayed_local_bend_deg": 63.2,
+      "sha256": "6d85708644b8684aa351efba641f1cc6e8e51781e38134dd84d52f59415c22fc"
+    },
+    {
+      "seed": 2005,
+      "filename": "직선만추종_반복선회후충돌_1x_seed2005.mp4",
+      "original_file": "MainLight_직선전용_2D_1x_seed2005_full.mp4",
+      "recording": "native 1x, one continuous GUI run, 60 fps X11 capture",
+      "resolution": [
+        1840,
+        920
+      ],
+      "duration_s": 8.067,
+      "straight_collision_frame": 826,
+      "bezier_success_frame": 1255,
+      "distinct_midpoint_identity_changes": 9,
+      "observed_steering_sign_changes": 10,
+      "maximum_displayed_local_bend_deg": 56.9,
+      "sha256": "b349d4484eea5e6e2e1310c160f8861a36708e22a685c0ce79e66bf2374435ef"
+    },
+    {
+      "seed": 2008,
+      "filename": "직선만추종_반복선회후충돌_1x_seed2008.mp4",
+      "original_file": "MainLight_직선전용_2D_1x_seed2008_full.mp4",
+      "recording": "native 1x, one continuous GUI run, 60 fps X11 capture",
+      "resolution": [
+        1840,
+        920
+      ],
+      "duration_s": 9.917,
+      "straight_collision_frame": 1051,
+      "bezier_success_frame": 1267,
+      "distinct_midpoint_identity_changes": 10,
+      "observed_steering_sign_changes": 9,
+      "maximum_displayed_local_bend_deg": 63.4,
+      "sha256": "7e4b975be405a5003c90e9c8138a30a9f52ccf182ad14d2b6df3d099a2f9b810"
+    },
+    {
+      "seed": 2012,
+      "filename": "직선만추종_반복선회후충돌_1x_seed2012.mp4",
+      "original_file": "MainLight_직선전용_2D_1x_seed2012_full.mp4",
+      "recording": "native 1x, one continuous GUI run, 60 fps X11 capture",
+      "resolution": [
+        1840,
+        920
+      ],
+      "duration_s": 10.35,
+      "straight_collision_frame": 1102,
+      "bezier_success_frame": 1227,
+      "distinct_midpoint_identity_changes": 16,
+      "observed_steering_sign_changes": 14,
+      "maximum_displayed_local_bend_deg": 63.4,
+      "sha256": "0db31623af12d825c805601bb151df7ec4a8081dc219f2c4045232b1e091b4c2"
+    },
+    {
+      "seed": 2054,
+      "filename": "직선만추종_반복선회후충돌_1x_seed2054.mp4",
+      "original_file": "MainLight_직선전용_2D_1x_seed2054_full.mp4",
+      "recording": "native 1x, one continuous GUI run, 60 fps X11 capture",
+      "resolution": [
+        1840,
+        920
+      ],
+      "duration_s": 10.05,
+      "straight_collision_frame": 1065,
+      "bezier_success_frame": 1294,
+      "distinct_midpoint_identity_changes": 10,
+      "observed_steering_sign_changes": 13,
+      "maximum_displayed_local_bend_deg": 73.8,
+      "sha256": "a4d14684be746fee4f9c5919b6dc002ae79e3e5771b1cd82f681d01d45618f29"
+    }
+  ]
+}
