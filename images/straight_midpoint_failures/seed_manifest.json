@@ -1,0 +1,158 @@
+{
+  "experiment": "Temporary straight segments from boat to existing GAP midpoint/goal",
+  "source_commit": "624f4acb6d711df290d0752ef0f27cdbfc182b3a",
+  "change": "Only make_bezier_path is replaced at runtime by a sampled straight segment; GAP midpoint selection, pursuit, controller, safety guard, physics and obstacle layouts remain the original main_light implementation.",
+  "qualification": "The original Bezier function also applies obstacle-aware curvature; the outcome difference cannot be attributed solely to mass/yaw inertia.",
+  "recordings": [
+    {
+      "seed": 2002,
+      "reference_branch": "main_light",
+      "reference_commit": "624f4acb6d711df290d0752ef0f27cdbfc182b3a",
+      "default_min_obs": 120,
+      "requested_rate": "1x",
+      "resolution": [
+        1840,
+        920
+      ],
+      "fps": 60.0,
+      "duration_s": 8.283,
+      "baseline_bezier": {
+        "outcome": "success",
+        "frame": 1211
+      },
+      "temporary_straight": {
+        "outcome": "collision",
+        "frame": 854,
+        "contact": [
+          {
+            "obstacle_index": 21,
+            "longitudinal_px": 10.547101974487305,
+            "lateral_px": 43.85266876220703
+          }
+        ]
+      },
+      "filename": "직선중심점_충돌_1x_seed2002.mp4",
+      "sha256": "f3cee1660ec51b2b6faa98988c05aa278581434084a2595d31a3058cefd4bb8b"
+    },
+    {
+      "seed": 2005,
+      "reference_branch": "main_light",
+      "reference_commit": "624f4acb6d711df290d0752ef0f27cdbfc182b3a",
+      "default_min_obs": 120,
+      "requested_rate": "1x",
+      "resolution": [
+        1840,
+        920
+      ],
+      "fps": 60.0,
+      "duration_s": 10.417,
+      "baseline_bezier": {
+        "outcome": "success",
+        "frame": 1251
+      },
+      "temporary_straight": {
+        "outcome": "collision",
+        "frame": 1112,
+        "contact": [
+          {
+            "obstacle_index": 37,
+            "longitudinal_px": 2.0862159729003906,
+            "lateral_px": 43.465003967285156
+          }
+        ]
+      },
+      "filename": "직선중심점_충돌_1x_seed2005.mp4",
+      "sha256": "58fd09fd4bf4dd74b03a995452261e821f1451e33f0bb5d35c1458a225adc33e"
+    },
+    {
+      "seed": 2021,
+      "reference_branch": "main_light",
+      "reference_commit": "624f4acb6d711df290d0752ef0f27cdbfc182b3a",
+      "default_min_obs": 120,
+      "requested_rate": "1x",
+      "resolution": [
+        1840,
+        920
+      ],
+      "fps": 60.0,
+      "duration_s": 5.533,
+      "baseline_bezier": {
+        "outcome": "success",
+        "frame": 1325
+      },
+      "temporary_straight": {
+        "outcome": "collision",
+        "frame": 525,
+        "contact": [
+          {
+            "obstacle_index": 22,
+            "longitudinal_px": 15.692667007446289,
+            "lateral_px": -42.98993682861328
+          }
+        ]
+      },
+      "filename": "직선중심점_충돌_1x_seed2021.mp4",
+      "sha256": "f3642e58398de6b1f964c53a0a22f50a7c5c167b6edc8b9225fbcdc6668a1496"
+    },
+    {
+      "seed": 2023,
+      "reference_branch": "main_light",
+      "reference_commit": "624f4acb6d711df290d0752ef0f27cdbfc182b3a",
+      "default_min_obs": 120,
+      "requested_rate": "1x",
+      "resolution": [
+        1840,
+        920
+      ],
+      "fps": 60.0,
+      "duration_s": 6.9,
+      "baseline_bezier": {
+        "outcome": "success",
+        "frame": 1291
+      },
+      "temporary_straight": {
+        "outcome": "collision",
+        "frame": 689,
+        "contact": [
+          {
+            "obstacle_index": 14,
+            "longitudinal_px": 12.68072509765625,
+            "lateral_px": -43.65647888183594
+          }
+        ]
+      },
+      "filename": "직선중심점_충돌_1x_seed2023.mp4",
+      "sha256": "bc286c4cdf30774235847adb1dc8dad6af6adc6e3ecf4686d64f727c9ce8a5d0"
+    },
+    {
+      "seed": 2024,
+      "reference_branch": "main_light",
+      "reference_commit": "624f4acb6d711df290d0752ef0f27cdbfc182b3a",
+      "default_min_obs": 120,
+      "requested_rate": "1x",
+      "resolution": [
+        1840,
+        920
+      ],
+      "fps": 60.0,
+      "duration_s": 7.133,
+      "baseline_bezier": {
+        "outcome": "success",
+        "frame": 1292
+      },
+      "temporary_straight": {
+        "outcome": "collision",
+        "frame": 718,
+        "contact": [
+          {
+            "obstacle_index": 4,
+            "longitudinal_px": 27.93752098083496,
+            "lateral_px": -36.840545654296875
+          }
+        ]
+      },
+      "filename": "직선중심점_충돌_1x_seed2024.mp4",
+      "sha256": "42f66545b00862a96bf423e3e7f708bf70b006b3f6b277b106d4bd8b13cd59f6"
+    }
+  ]
+}
